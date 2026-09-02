@@ -131,6 +131,42 @@ Mode is cycled by clicking the display and persisted under the settings key belo
 
 ---
 
+## Metadata
+
+Tags are read on a private worker pool, never on the main thread, so that adding
+a large folder cannot block the interface (F-010, AV-008). A row exists and is
+displayable from the moment it is added, carrying a title derived from the file's
+base name until real tags arrive.
+
+A file that does not resolve is marked `Missing`; one that resolves but cannot be
+parsed as audio is marked `Failed`. Neither is an error condition — both are
+ordinary states a row can hold, and both must render rather than disappear. See
+AV-009 and AV-010.
+
+### Duration
+
+Two sources report duration and they do not always agree.
+
+The **tag** is what the playlist shows before a track has been played. For most
+formats it is exact. For a VBR MP3 it is exact only when the file carries a Xing
+or VBRI header. Without one the figure is extrapolated from the first frame's
+bitrate and can be badly wrong: measured on a headerless VBR fixture, TagLib
+reported 38 872 ms against an actual 32 486 ms, an overestimate of 20%. TagLib's
+`Fast`, `Average` and `Accurate` accuracy modes all return that same figure, so
+raising the accuracy setting is not a remedy — it only buys a full-file scan for
+no gain. With a Xing header present the same encoder's output reads 32 575 ms
+against a true 32 575 ms.
+
+The **engine** demuxes the stream and is authoritative. When a track reaches
+`PLAYING` and the pipeline answers a duration query, that value replaces the
+tag-derived one for that row through `PlaylistModel::setAuthoritativeDuration`.
+
+A duration of `-1` means unknown and is rendered as such, never as zero. A
+declared duration of zero is treated as absent, because zero is what a malformed
+tag reports and believing it makes seeking wrong.
+
+---
+
 ## Playlist file formats
 
 **M3U / M3U8.** Extended form with `#EXTINF:` duration and title lines. M3U8 is UTF-8; plain M3U is written as UTF-8 with a note that this diverges from the original Latin-1 convention, because every other modern player does the same. Paths are written relative when the playlist file is at or above the media in the tree, absolute otherwise.

@@ -77,7 +77,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 | Phase | Scope | State |
 |-------|-------|-------|
 | 1 | Transport core | **Complete** 2026-09-02 |
-| 2 | Playlist | Not started |
+| 2 | Playlist | In progress |
 | 3 | Equaliser | Not started |
 | 4 | Meters | Not started |
 | 5 | The panel | Not started |

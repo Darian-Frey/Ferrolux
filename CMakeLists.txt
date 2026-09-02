@@ -25,11 +25,17 @@ qt_standard_project_setup()
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GStreamer REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.20)
+pkg_check_modules(TagLib REQUIRED IMPORTED_TARGET taglib>=1.12)
 
 qt_add_executable(ferrolux
     src/main.cpp
     src/core/Engine.cpp
     src/core/Engine.h
+    src/library/PlaylistEntry.h
+    src/library/PlaylistModel.cpp
+    src/library/PlaylistModel.h
+    src/library/MetadataReader.cpp
+    src/library/MetadataReader.h
 )
 
 # RESOURCE_PREFIX is pinned rather than left to default: Qt 6.4 places QML
@@ -47,6 +53,7 @@ target_include_directories(ferrolux PRIVATE src)
 target_link_libraries(ferrolux PRIVATE
     Qt6::Quick
     PkgConfig::GStreamer
+    PkgConfig::TagLib
 )
 
 enable_testing()
@@ -63,9 +70,29 @@ qt_add_executable(acceptance_transport
 target_include_directories(acceptance_transport PRIVATE src)
 target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer)
 
+# Phase 2 playlist tests. Pure logic over URLs, so these are self-contained.
+qt_add_executable(playlist_model_test
+    tests/playlist_model_test.cpp
+    src/library/PlaylistModel.cpp
+    src/library/PlaylistModel.h
+)
+target_include_directories(playlist_model_test PRIVATE src)
+target_link_libraries(playlist_model_test PRIVATE Qt6::Core)
+add_test(NAME playlist COMMAND playlist_model_test)
+
+qt_add_executable(metadata_reader_test
+    tests/metadata_reader_test.cpp
+    src/library/MetadataReader.cpp
+    src/library/MetadataReader.h
+)
+target_include_directories(metadata_reader_test PRIVATE src)
+target_link_libraries(metadata_reader_test PRIVATE Qt6::Core PkgConfig::TagLib)
+
 if(FERROLUX_TEST_FLAC AND FERROLUX_TEST_MP3)
     add_test(NAME transport
         COMMAND acceptance_transport ${FERROLUX_TEST_FLAC} ${FERROLUX_TEST_MP3})
+    add_test(NAME metadata
+        COMMAND metadata_reader_test ${FERROLUX_TEST_FLAC} ${FERROLUX_TEST_MP3})
 endif()
 
 install(TARGETS ferrolux

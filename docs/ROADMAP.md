@@ -28,16 +28,19 @@ Two things the phase surfaced that were not anticipated. BUG-001 records that th
 
 ## Phase 2 — Playlist
 **Goal:** Manage a real listening session.
-**Status:** Not started
+**Status:** In progress, started 2026-09-02
 **Features delivered:** F-010, F-011, F-012, F-013, F-014, F-005
 **Deliverables:**
-- [ ] `library/PlaylistModel` as a `QAbstractListModel` with asynchronous metadata population
-- [ ] TagLib integration on a worker thread
-- [ ] Multi-select, drag reorder, remove, clear, single-level undo
-- [ ] Shuffle as a permutation; repeat modes
+- [x] `library/PlaylistModel` as a `QAbstractListModel` with asynchronous metadata population
+- [x] TagLib integration on a worker thread
+- [~] Multi-select, drag reorder, remove, clear, single-level undo — model side complete and tested; no QML yet
+- [x] Shuffle as a permutation; repeat modes
 - [ ] M3U/M3U8/PLS load and save
-- [ ] Sort and live filter
+- [~] Sort and live filter — sort complete; the filter proxy is not written
 - [ ] Gapless advance via `about-to-finish`
+
+The scale clause is already met with room to spare. Measured on 20,000 entries:
+add 17 ms, sort 53 ms, shuffle 1 ms, remove 6 ms, against a one-second budget.
 
 **Acceptance:** A 20,000-entry playlist loads, scrolls at 60 fps, sorts in under a second, and survives a full shuffle pass with no repeats before exhaustion. A known-gapless album plays through with no audible join.
 

@@ -133,7 +133,18 @@ gst-launch-1.0 -q audiotestsrc num-buffers=1400 wave=ticks samplesperbuffer=1024
 gst-launch-1.0 -q audiotestsrc num-buffers=1400 wave=ticks samplesperbuffer=1024 \
   ! audioconvert ! audio/x-raw,rate=44100,channels=2 \
   ! lamemp3enc target=quality quality=4 ! filesink location=test-vbr.mp3
+
+# The same again, but with a Xing header, which is what real encoders emit
+gst-launch-1.0 -q audiotestsrc num-buffers=1400 wave=ticks samplesperbuffer=1024 \
+  ! audioconvert ! audio/x-raw,rate=44100,channels=2 \
+  ! lamemp3enc target=quality quality=4 ! xingmux ! filesink location=test-vbr-xing.mp3
 ```
+
+Both MP3s are worth keeping. `lamemp3enc` alone produces a headerless VBR file
+whose tag-declared duration is 20% too long, which is the awkward real-world case
+SPEC.md §Duration describes; adding `xingmux` produces the ordinary case where the
+tag is exact. `tests/metadata_reader_test` takes the FLAC, the headerless MP3 and
+optionally the Xing one, and asserts the right behaviour for each.
 
 `lamemp3enc` comes from `gstreamer1.0-plugins-ugly`, which is a test-only
 dependency and is not required to build or run Ferrolux.
