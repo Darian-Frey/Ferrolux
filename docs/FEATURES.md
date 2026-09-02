@@ -17,7 +17,7 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - Plays FLAC, MP3, Ogg Vorbis, Opus, AAC/M4A, WAV, AIFF, WavPack, Musepack and ALAC from local paths
 - Unsupported or corrupt files produce a visible error and advance the playlist rather than stalling
-**Status:** Not started (Phase 1)
+**Status:** Partial (Phase 1, 2026-09-02) — FLAC and VBR MP3 verified end to end. The other eight formats in the acceptance list are unverified, and the clause about advancing the playlist cannot be satisfied until F-010 exists.
 **Notes:** Format coverage is delegated to GStreamer plugin sets — see D-002.
 
 ### F-002 Transport controls
@@ -26,7 +26,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Play, pause, stop, previous, next respond within 100 ms of input
 - Stop resets position to zero; pause preserves it
 - Previous within the first 3 seconds of a track goes to the previous track, otherwise restarts the current one
-**Status:** Not started (Phase 1)
+**Status:** Partial (Phase 1, 2026-09-02) — play, pause and stop verified, including stop resetting position to zero and pause preserving it. Previous restarts the current track outside the three-second window and otherwise emits `previousTrackRequested()`, because play order belongs to the playlist model (invariant 5). Next has no meaning until F-012 and is wired to stop in the harness.
 
 ### F-003 Seeking
 **Priority:** Must
@@ -34,7 +34,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Dragging the position bar seeks with audible scrub feedback suppressed
 - Seeking in a VBR MP3 lands within 500 ms of the target
 - Position display updates at most once per rendered frame — see AV-002
-**Status:** Not started (Phase 1)
+**Status:** Complete (Phase 1, 2026-09-02) — seek error measured at 0 ms on both FLAC and VBR MP3 against the 500 ms tolerance. Seeks are flushing and accurate; the harness seeks on slider release only, and a single `FrameAnimation` is the only position poller.
 
 ### F-004 Volume and balance
 **Priority:** Must
@@ -42,7 +42,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Volume follows a cubic taper, not linear amplitude
 - Balance is a constant-power pan across the stereo field
 - Both persist across restart
-**Status:** Not started (Phase 1)
+**Status:** Partial (Phase 1, 2026-09-02) — cubic taper and constant-power pan implemented per SPEC.md §Volume taper and verified. Balance is an `audiomixmatrix` diagonal whose placement in the pipeline is unspecified; see BUG-002. Persistence verified by hand on 2026-09-02: a clean exit writes `playback/volume` and `playback/balance` to `~/.config/ferrolux/ferrolux.ini`, matching SPEC.md §Settings. It is not covered by the acceptance harness, which runs headless and never quits through `aboutToQuit`.
 
 ### F-005 Gapless playback
 **Priority:** Should

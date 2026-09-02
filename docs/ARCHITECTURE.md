@@ -45,13 +45,13 @@ The UI is a consumer. It reads state and pushes commands; it holds no playback l
 ### Audio path
 
 ```
-file → playbin3 → audioconvert → equalizer-10bands → level → spectrum
-     → audioconvert → audioresample → autoaudiosink
+file → playbin3 → audioconvert → equalizer-10bands → capsfilter
+     → audiomixmatrix → level → spectrum → audioconvert → autoaudiosink
 ```
 
 `level` and `spectrum` are both pass-through elements, so they sit in series in the main chain rather than behind a `tee`. Neither modifies the signal. They post messages on the pipeline bus, which is where meter data enters the application.
 
-The equaliser sits before the analysis elements deliberately: the meters show what is being heard, not what was decoded.
+Both the equaliser and the balance element sit before the analysis elements deliberately: the meters show what is being heard, not what was decoded. `audiomixmatrix` applies the balance law from SPEC.md §Volume taper as a diagonal per-channel gain, and the `capsfilter` ahead of it pins the channel count that the matrix is sized for. Exact element configuration is in SPEC.md §Pipeline.
 
 ### Meter path
 

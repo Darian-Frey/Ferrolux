@@ -1,0 +1,23 @@
+# Build trees
+build/
+build-*/
+cmake-build-*/
+
+# CMake and tooling artefacts
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+.cache/
+.ccls-cache/
+
+# Qt
+*.qmlc
+*.jsc
+*.qmlproject.user
+CMakeLists.txt.user*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~

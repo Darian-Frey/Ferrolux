@@ -8,19 +8,42 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-Documentation only. There is no source code, no build system and no executable.
+Phase 1 complete as of 2026-09-02. The application builds, plays audio and
+passes its acceptance harness.
 
-- `docs/` — this document set, complete as of 2026-09-02
-- `LICENSE` — **absent**, blocking. See DECISIONS.md D-010
-- Everything under `src/`, `qml/`, `tests/`, `tools/` and `resources/` described in README.md §Project structure is planned, not present
+- `CMakeLists.txt` — Qt 6.4 and GStreamer discovery, one executable plus one test
+- `src/core/Engine.{h,cpp}` — `playbin3` wrapper, state machine, taper and pan
+- `src/main.cpp` — entry point, settings persistence, single file argument
+- `qml/Main.qml` — throwaway Phase 1 harness, plain Qt Quick Controls
+- `tests/acceptance_transport.cpp` — headless Phase 1 acceptance harness
+- `docs/` — this document set
+- `LICENSE` — **absent**, blocking publication of source. See DECISIONS.md D-010
+- Not yet present: `meters/`, `library/`, `platform/`, `resources/`, `tools/`
+
+Two open defects, both found during Phase 1 and neither blocking it. **BUG-001**:
+the documented Qt minimum was unattainable on the reference platform, and
+SPEC.md's Handjet axis values need Qt 6.7 — due at Phase 5. **BUG-002**: SPEC.md
+gives balance a law but no pipeline element, filled provisionally with
+`audiomixmatrix` and awaiting a ruling.
 
 ## Active task
 
-Phase 1, transport core. Deliver F-001 through F-004: a CMake skeleton with Qt 6 and GStreamer discovery, a `core/Engine` wrapping `playbin3` with an explicit state machine, single-poll position reporting, cubic volume taper and constant-power balance, and a throwaway QML harness with five buttons and a position bar.
+Phase 2, playlist. Deliver F-010 through F-014 and F-005: `library/PlaylistModel`
+as a `QAbstractListModel` with asynchronous metadata population, TagLib on a
+worker thread, multi-select and drag reorder with single-level undo, shuffle as a
+permutation, M3U/M3U8/PLS load and save, sort and live filter, and gapless
+advance via `about-to-finish`.
 
-Acceptance: a FLAC and a VBR MP3 both play end to end, seek accurately, pause and resume cleanly, and survive twenty stop-start cycles without leaking or hanging the pipeline. See ROADMAP.md Phase 1.
+Acceptance: a 20,000-entry playlist loads, scrolls at 60 fps, sorts in under a
+second, and survives a full shuffle pass with no repeats before exhaustion. A
+known-gapless album plays through with no audible join. See ROADMAP.md Phase 2.
 
-Write BUILD.md the moment the first build succeeds, while the toolchain details are still fresh.
+Phase 2 needs `libtag1-dev`, which is not yet installed.
+
+Two loose ends inherited from Phase 1 land here. `Engine::previousTrackRequested()`
+is emitted and nothing consumes it; the playlist model is its consumer. The Next
+button in the QML harness is wired to stop and needs real behaviour once play
+order exists.
 
 ## Architectural invariants
 
@@ -37,14 +60,27 @@ These are the rules that must not be violated. The full descriptions are in ARCH
 
 ## Build and test
 
-Not yet available. Phase 1 establishes these; update this section as soon as they exist.
+Verified working. Full dependency lists and troubleshooting are in BUILD.md.
 
 ```bash
-# Intended shape
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-debug
+./build-debug/ferrolux path/to/track.flac
 ```
+
+The acceptance harness needs two real audio files, so it takes them as
+arguments rather than being self-contained:
+
+```bash
+./build-debug/acceptance_transport path/to/test.flac path/to/test-vbr.mp3
+```
+
+BUILD.md §Tests gives `gst-launch-1.0` recipes for generating both. Registering
+it with CTest requires `-DFERROLUX_TEST_FLAC=` and `-DFERROLUX_TEST_MP3=` at
+configure time.
+
+Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the
+render-thread violations described in AV-007.
 
 ## Conventions
 

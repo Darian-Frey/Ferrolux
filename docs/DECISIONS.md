@@ -308,7 +308,7 @@ OFL 1.1 or an equivalently redistributable licence is a hard requirement for any
 **Consequences.**
 - Bundling is unconditional and survives any outcome of D-010, in a Flatpak and in a `.deb` alike. The obligations are to ship the licence text and to leave reserved font names alone if the glyphs are modified.
 - The repository gains binary assets. These are the only binaries in the project, which is worth preserving as a property.
-- Handjet is variable, so the dot-matrix character is token data rather than a choice of asset. This keeps F-044 a token swap.
+- Handjet is variable, so the dot-matrix character is token data rather than a choice of asset. This keeps F-044 a token swap. **Amended 2026-09-02:** this consequence does not hold. Runtime axis control needs Qt 6.7, which the target distributions do not ship, so a static instance is bundled instead and the axis values are fixed at generation time. See BUG-001 and SPEC.md §Design tokens. The decision itself stands; only this consequence was wrong.
 - The two-layer ghost rendering is a requirement rather than a style, and must survive refactoring of the readout components.
 - The project depends on four upstreams that could go dormant. The exposure is bounded: OFL grants are irrevocable, so a dormant upstream costs future improvements, not present rights.
 - The pixel and bitmap-revival category is excluded from the control surface. It is the most period-correct category available, so this is a real aesthetic cost, paid deliberately to AV-005.

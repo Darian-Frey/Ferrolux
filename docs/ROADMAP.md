@@ -8,17 +8,21 @@ The ordering principle is that audio correctness comes before appearance. The pa
 
 ## Phase 1 — Transport core
 **Goal:** Play a file correctly from a placeholder interface.
-**Status:** Not started
+**Status:** Complete 2026-09-02
 **Features delivered:** F-001, F-002, F-003, F-004
 **Deliverables:**
-- [ ] CMake project skeleton with Qt6 and GStreamer discovery
-- [ ] `core/Engine` wrapping a `playbin3` pipeline with a documented state machine
-- [ ] Position and duration reporting on a single per-frame poll
-- [ ] Volume with cubic taper, balance with constant-power pan
-- [ ] Throwaway QML harness with five buttons and a position bar
-- [ ] `BUILD.md` written the moment the first build succeeds
+- [x] CMake project skeleton with Qt6 and GStreamer discovery
+- [x] `core/Engine` wrapping a `playbin3` pipeline with a documented state machine
+- [x] Position and duration reporting on a single per-frame poll
+- [x] Volume with cubic taper, balance with constant-power pan
+- [x] Throwaway QML harness with five buttons and a position bar
+- [x] `BUILD.md` written the moment the first build succeeds
 
 **Acceptance:** A FLAC and a VBR MP3 both play end to end, seek accurately, pause and resume without artefacts, and survive being stopped and restarted twenty times without a leak or a hung pipeline.
+
+**Acceptance met** on 2026-09-02 by `tests/acceptance_transport`, which drives the engine headlessly through every clause: twenty-six checks across the two files plus the twenty stop-start cycles, all passing. Seek error measured at 0 ms on both files against a 500 ms tolerance; resident growth across the cycles was 976 kB.
+
+Two things the phase surfaced that were not anticipated. BUG-001 records that the documented Qt minimum was unattainable and that SPEC.md's Handjet axes need Qt 6.7. BUG-002 records that SPEC.md specifies a balance law but no pipeline element to compute it — a gap filled provisionally during implementation and still needing a ruling.
 
 ---
 

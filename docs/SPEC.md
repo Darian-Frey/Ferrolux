@@ -15,6 +15,8 @@ playbin3
   audio-filter = bin(
       audioconvert
     → equalizer-10bands
+    → capsfilter      audio/x-raw,channels=2
+    → audiomixmatrix  balance
     → level
     → spectrum
     → audioconvert
@@ -22,7 +24,11 @@ playbin3
   audio-sink = autoaudiosink
 ```
 
-`level` and `spectrum` are pass-through analysis elements and do not alter the signal. Both sit after the equaliser so that the meters display the signal as heard rather than as decoded.
+`level` and `spectrum` are pass-through analysis elements and do not alter the signal. Both sit after the equaliser **and after the balance element** so that the meters display the signal as heard rather than as decoded. A hard-left balance therefore drops the right VU needle to zero, which is the behaviour of the hardware being modelled.
+
+`audiomixmatrix` carries a diagonal matrix and so applies a per-channel gain, which is exactly the balance law in §Volume taper. `audiopanorama` is not used: its `simple` mode scales a single channel and its `psychoacoustic` mode applies a model of its own, and neither computes the specified law.
+
+The `capsfilter` is not decoration. `audiomixmatrix` declares `channels: [1, MAX]` on both pads, so nothing else in the chain pins the channel count, and a mono source would negotiate one channel against an element configured for two — failing at `set_caps` with `Erroneous matrix detected` rather than at link time. Forcing stereo makes the upstream `audioconvert` up-mix and guarantees the matrix matches. The element also refuses to link at all while its `matrix` property is empty, so the matrix must be set before the chain is linked.
 
 **Element configuration:**
 
@@ -35,6 +41,8 @@ playbin3
 | `spectrum` | `interval` | 16000000 ns (16 ms) | Matched to `level` |
 | `spectrum` | `threshold` | −80 dB | Floor of the reported magnitude range |
 | `spectrum` | `multi-channel` | false | Channels summed for display |
+| `audiomixmatrix` | `in-channels` / `out-channels` | 2 / 2 | Stereo, pinned by the preceding capsfilter |
+| `audiomixmatrix` | `matrix` | diagonal | Per-channel gain from §Volume taper; must be set before linking |
 
 The distinction between analysis bands (512) and display bands is deliberate. Requesting the display band count directly from the element collapses the lowest two octaves into a single bar, because the element's bands are linearly spaced. See AV-011.
 
@@ -163,14 +171,16 @@ Keys are append-only in the same sense as document IDs: a key that changes meani
 
 Displayed volume `v` in the range 0.0 to 1.0 maps to linear amplitude as `a = v³`. Cubic rather than linear, because linear amplitude control feels like it does nothing across the top half of the range and everything across the bottom tenth.
 
-Balance `b` in the range −1.0 to +1.0 maps to constant-power pan:
+Balance `b` in the range −1.0 to +1.0 attenuates the channel being turned away from, and never boosts either channel:
 
 ```
-left  = cos((b + 1) × π/4)
-right = sin((b + 1) × π/4)
+left  = min(1, 1 − b)
+right = min(1, 1 + b)
 ```
 
-Constant power rather than linear, so that a centred image does not lose perceived loudness relative to a hard-panned one.
+Attenuate-only rather than constant-power. A `cos`/`sin` constant-power law is the correct law for panning a **mono** source into a stereo field, where the identity `L² + R² = 1` describes one source's total power. Ferrolux scales the two channels of an already-stereo signal independently, and that identity says nothing about the result: applied here, the constant-power law attenuates centred playback by 3.01 dB on both channels and makes a channel 3 dB *louder* when the control is moved off centre — the opposite of what a balance control should do, and the opposite of what this section previously claimed as its rationale. See BUG-003.
+
+Under the law above, centre is unity on both channels and neither gain can exceed unity, so balance is not a contributor to clipping under AV-003.
 
 ---
 
@@ -206,15 +216,19 @@ No face outside this table appears on the control surface. A role that needs a f
 
 **Role separation is a hard rule.** `type-readout-numeric` renders digits and separators only. A seven-segment alphabet cannot distinguish 5 from S, 6 from b, or 0 from O, so DSEG7 must never be given text. Track titles carry arbitrary Unicode, which is why `type-readout-text` is Handjet: it covers Latin, Cyrillic, Greek, Armenian, Hebrew, Arabic and Korean, so a non-Latin title degrades to a wider glyph set from the same face rather than to a substituted system face in the middle of a lit readout.
 
-**Handjet axis settings.** Handjet is a variable font whose element shape and density are axes rather than separate files, so the dot-matrix character is a token value rather than a choice of asset.
+**Handjet axis settings.** Handjet is a variable font, but Ferrolux ships a **static instance** of it, generated at the values below, rather than the variable file.
 
-| Axis | Range | `ferric` value | Effect |
-|------|-------|----------------|--------|
+Setting a variable axis at runtime requires `QFont::setVariableAxis`, introduced in Qt 6.7. Neither Ubuntu 24.04 nor the Linux Mint 22 series derived from it can provide that, and on an older Qt the variable file renders its default square element instead of the specified circle — silently, with no error. Instancing removes the requirement entirely. See BUG-001.
+
+| Axis | Range | Instanced at | Effect |
+|------|-------|--------------|--------|
 | `ELSH` | 0.0–16.0 | 8.0 | Element shape. 2.0 is a square, 8.0 a circle. **Provisional.** |
 | `ELGR` | 1.0–2.0 | 1.0 | Elements per grid unit. 1.0 is one element per cell; 2.0 is a 2×2 group. **Provisional.** |
 | `wght` | 100–900 | 500 | Element size, and therefore the gap between adjacent dots. **Provisional.** |
 
 Weight here controls spacing, not boldness. A physical dot-matrix cell shows discrete separated dots, so the value is chosen for a visible gap between neighbours rather than for stroke weight.
+
+The instance is produced with `fonttools varLib.instancer` and, per the OFL Reserved Font Name clause, is renamed rather than shipped under the Handjet name. The consequence is that changing the dot-matrix character means regenerating the instance rather than editing a token value: this is the one place in the token set where F-044's token-swap property does not hold, and it is a deliberate trade against a toolchain requirement the target distributions cannot meet.
 
 **Unlit segments.** Physical LED and VFD readouts show their inactive segments faintly rather than not at all, and omitting this is the most common tell of a simulated readout. It is not a font feature. Each readout renders two text layers at identical face, size and position: a ghost layer of the all-segments-lit string in `readout-floor`, with the live string in `readout` composited over it. This costs one extra text node per readout and nothing else.
 
