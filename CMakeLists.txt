@@ -36,6 +36,8 @@ qt_add_executable(ferrolux
     src/core/Equaliser.h
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
+    src/meters/MeterTexture.cpp
+    src/meters/MeterTexture.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
@@ -122,9 +124,11 @@ qt_add_executable(meters_test
     tests/meters_test.cpp
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
+    src/meters/MeterTexture.cpp
+    src/meters/MeterTexture.h
 )
 target_include_directories(meters_test PRIVATE src)
-target_link_libraries(meters_test PRIVATE Qt6::Core)
+target_link_libraries(meters_test PRIVATE Qt6::Core Qt6::Quick)
 add_test(NAME meters COMMAND meters_test)
 
 if(FERROLUX_TEST_FLAC AND FERROLUX_TEST_MP3)

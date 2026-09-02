@@ -21,3 +21,6 @@ CMakeLists.txt.user*
 .idea/
 *.swp
 *~
+
+# Generated test audio (tools/make-test-fixtures.sh)
+fixtures/

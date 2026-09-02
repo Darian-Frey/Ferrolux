@@ -139,12 +139,32 @@ them through the reported figure.
 
 ### Data contract
 
-`MeterTexture` exposes an `N×1` two-channel 16-bit texture, where `N` is the display band count.
+`MeterTexture` exposes an `N×1` texture, where `N` is the display band count.
 
-| Channel | Carries | Range |
-|---------|---------|-------|
-| R | Current band magnitude, normalised | 0.0 to 1.0 |
-| G | Peak-hold cap for that band, normalised | 0.0 to 1.0 |
+| Channel | Carries | Resolution |
+|---------|---------|------------|
+| R, G | Current band magnitude, normalised 0.0 to 1.0 | 16 bits, high byte then low |
+| B | Peak-hold cap for that band, normalised 0.0 to 1.0 | 8 bits |
+| A | Unused, held at 255 | — |
+
+This layout packs a 16-bit magnitude across two 8-bit channels rather than using
+a genuine two-channel 16-bit format. `QQuickWindow::createTextureFromImage`
+produces an 8-bit-per-channel texture whatever image format it is given, and
+reaching past it to the RHI for an `RG16` target is fragile across backends for
+a texture of at most 48 texels. The packing delivers the sixteen bits this
+section actually requires, on a format every backend supports. Measured
+round-trip error is 7.63 × 10⁻⁶, which is 514 times finer than a single 8-bit
+channel would allow.
+
+Eight bits is left for the peak cap deliberately. Magnitude drives bar height
+and is what a viewer watches decay, where 8-bit steps of 1/255 show as
+stair-stepping on a large display; the cap is a two-pixel line whose position
+8 bits resolves past the point of noticing. Alpha is held opaque so that nothing
+in the pipeline can premultiply a data channel.
+
+A shader reconstructs the magnitude as `(R × 256 + G) / 255` in normalised
+sampler units, or equivalently `dot(texel.rg, vec2(65280.0, 255.0)) / 65535.0`
+when reading bytes.
 
 Normalisation maps the `spectrum` threshold (−80 dB) to 0.0 and 0 dB to 1.0. Sampling uses linear filtering; shaders may sample between texel centres to interpolate between bands.
 

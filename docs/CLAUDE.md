@@ -8,42 +8,61 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-Phase 1 complete as of 2026-09-02. The application builds, plays audio and
-passes its acceptance harness.
+Phases 1 to 3 feature-complete as of 2026-09-02. Phase 4 in progress. The
+application builds, plays audio, manages a 20,000-entry playlist, equalises it
+and meters it, behind a deliberately plain harness. 222 checks across five test
+suites pass in both Debug and Release.
 
-- `CMakeLists.txt` — Qt 6.4 and GStreamer discovery, one executable plus one test
-- `src/core/Engine.{h,cpp}` — `playbin3` wrapper, state machine, taper and pan
-- `src/main.cpp` — entry point, settings persistence, single file argument
-- `qml/Main.qml` — throwaway Phase 1 harness, plain Qt Quick Controls
-- `tests/acceptance_transport.cpp` — headless Phase 1 acceptance harness
-- `docs/` — this document set
-- `LICENSE` — GPL-3.0-or-later, settled 2026-09-02 (D-010). Source files carry SPDX headers
-- Not yet present: `meters/`, `library/`, `platform/`, `resources/`, `tools/`
+- `CMakeLists.txt` — Qt 6.4, GStreamer, GStreamer-app and TagLib discovery
+- `src/core/Engine.{h,cpp}` — `playbin3`, state machine, taper and pan, gapless
+  handover, and parsing of the `level` and `spectrum` element messages
+- `src/core/Equaliser.{h,cpp}` — ten bands behind a decibel-only abstraction,
+  preamp, bypass, presets, `.eqf` import, 30 ms gain ramp
+- `src/library/` — `PlaylistModel` (contents *and* play order), `MetadataReader`
+  (TagLib on a private pool), `PlaylistIO` (M3U/M3U8/PLS), `PlaylistFilter`
+- `src/meters/MeterSource.{h,cpp}` — bucketing, smoothing, peak-hold, VU
+  ballistics, and the scheduling queue that corrects the message lead
+- `src/main.cpp` — entry point, all inter-module wiring, settings persistence
+- `qml/Main.qml` — throwaway harness; Phase 5 deletes it
+- `tests/` — `acceptance_transport`, `playlist_model_test`,
+  `metadata_reader_test`, `equaliser_test`, `meters_test`
+- `LICENSE` — GPL-3.0-or-later (D-010). Source files carry SPDX headers
+- Not yet present: `platform/`, `resources/`, `tools/`, and any shader
 
-Two open defects, both found during Phase 1 and neither blocking it. **BUG-001**:
-the documented Qt minimum was unattainable on the reference platform, and
-SPEC.md's Handjet axis values need Qt 6.7 — due at Phase 5. **BUG-002**: SPEC.md
-gives balance a law but no pipeline element, filled provisionally with
-`audiomixmatrix` and awaiting a ruling.
+**No open bugs.** Thirteen found so far, twelve fixed and one won't-fix
+(BUG-006, an upstream GStreamer defect worked around). **No suggested
+improvements**: two applied, one declined, two deferred against recorded
+triggers. Read BUGS.md before changing the equaliser or the meters — several
+entries record specification faults that looked entirely reasonable until
+measured.
+
+Four acceptance clauses across Phases 2 and 3 remain unverified, and three of
+them need the frame-time and capture instrumentation AV-002 describes, which
+Phase 4 has to build anyway: playlist scroll frame time, the audible gapless
+join, denormal stalls, and the audible absence of zipper noise.
 
 ## Active task
 
-Phase 2, playlist. Deliver F-010 through F-014 and F-005: `library/PlaylistModel`
-as a `QAbstractListModel` with asynchronous metadata population, TagLib on a
-worker thread, multi-select and drag reorder with single-level undo, shuffle as a
-permutation, M3U/M3U8/PLS load and save, sort and live filter, and gapless
-advance via `about-to-finish`.
+Phase 4, meters. Acquisition and ballistics are done: `meters/MeterSource`
+consumes `level` and `spectrum`, buckets 512 analysis bins into 24 or 48 display
+bands logarithmically, smooths asymmetrically, holds peaks, and runs a
+second-order VU characteristic measured at 302.0 ms to 99% with 1.16% overshoot.
 
-Acceptance: a 20,000-entry playlist loads, scrolls at 60 fps, sorts in under a
-second, and survives a full shuffle pass with no repeats before exhaustion. A
-known-gapless album plays through with no audible join. See ROADMAP.md Phase 2.
+Remaining deliverables:
 
-Phase 2 needs `libtag1-dev`, which is not yet installed.
+- `meters/MeterTexture` — the `N×1` two-channel 16-bit texture item exposed to
+  QML, per D-004. **AV-007 is Critical and still has no detection**: texture
+  uploads must happen only on the render thread, and the basic render loop hides
+  violations that the threaded loop exposes. Develop with
+  `QSG_RENDER_LOOP=threaded` forced.
+- Spectrum bar and mirrored-spectrum shaders with the logarithmic mapping
+- VU needle shader, and the LED peak ladder
+- Mode cycling on click, persisted under `meters/mode`
+- Frame-time instrumentation for AV-002, which also closes the three clauses
+  above
 
-Two loose ends inherited from Phase 1 land here. `Engine::previousTrackRequested()`
-is emitted and nothing consumes it; the playlist model is its consumer. The Next
-button in the QML harness is wired to stop and needs real behaviour once play
-order exists.
+Acceptance: all four modes hold 60 fps at 3840×2160 on the reference hardware
+with at least 30% of the frame budget spare. See ROADMAP.md Phase 4.
 
 ## Architectural invariants
 
@@ -65,14 +84,18 @@ Verified working. Full dependency lists and troubleshooting are in BUILD.md.
 ```bash
 cmake -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-debug
-./build-debug/ferrolux path/to/track.flac
+./build-debug/ferrolux ~/Music          # a file, a folder, or nothing
 ```
 
-The acceptance harness needs two real audio files, so it takes them as
-arguments rather than being self-contained:
+Three suites are self-contained. The other two need real audio files and take
+them as arguments:
 
 ```bash
-./build-debug/acceptance_transport path/to/test.flac path/to/test-vbr.mp3
+./build-debug/meters_test
+./build-debug/playlist_model_test
+./build-debug/equaliser_test
+./build-debug/metadata_reader_test <flac> <vbr-mp3> [vbr-mp3-with-xing]
+./build-debug/acceptance_transport <flac> <vbr-mp3> [reference-tone]
 ```
 
 BUILD.md §Tests gives `gst-launch-1.0` recipes for generating both. Registering

@@ -12,8 +12,10 @@
 #include <cstdio>
 
 #include "meters/MeterSource.h"
+#include "meters/MeterTexture.h"
 
 using ferrolux::meters::MeterSource;
+using ferrolux::meters::MeterTexture;
 
 namespace {
 
@@ -277,6 +279,58 @@ void testVuBallistics()
           QString::number(quiet.vuDeflection(0), 'f', 4));
 }
 
+// The texture packing. A shader reads these bytes and reconstructs the values,
+// so encode and decode have to agree exactly — and the whole point of packing
+// magnitude across two channels is precision the display would otherwise lose.
+void testTexturePacking()
+{
+    std::printf("\ntexture packing (D-004)\n");
+
+    uchar texel[4] = { 0, 0, 0, 0 };
+
+    MeterTexture::encodeTexel(0.0f, 0.0f, texel);
+    check(MeterTexture::decodeMagnitude(texel[0], texel[1]) == 0.0f
+              && MeterTexture::decodePeak(texel[2]) == 0.0f,
+          "silence encodes to zero");
+
+    MeterTexture::encodeTexel(1.0f, 1.0f, texel);
+    check(MeterTexture::decodeMagnitude(texel[0], texel[1]) == 1.0f
+              && MeterTexture::decodePeak(texel[2]) == 1.0f,
+          "full scale encodes to one");
+
+    check(texel[3] == 255, "alpha is held opaque so nothing premultiplies the data");
+
+    // Round-trip error across the range. Sixteen bits gives a resolution of
+    // 1/65535; eight would give 1/255, which on a 400-pixel bar at 4K is a
+    // 1.6-pixel step visible as stair-stepping on a slow decay.
+    double worstMagnitude = 0.0;
+    double worstPeak = 0.0;
+    for (int i = 0; i <= 2000; ++i) {
+        const float value = float(i) / 2000.0f;
+        MeterTexture::encodeTexel(value, value, texel);
+        worstMagnitude = std::max(worstMagnitude,
+                                  std::fabs(double(MeterTexture::decodeMagnitude(texel[0], texel[1]) - value)));
+        worstPeak = std::max(worstPeak,
+                             std::fabs(double(MeterTexture::decodePeak(texel[2]) - value)));
+    }
+    check(worstMagnitude < 1.0 / 65535.0,
+          "magnitude round-trips at 16-bit resolution",
+          QStringLiteral("worst error %1").arg(worstMagnitude, 0, 'e', 2));
+    check(worstMagnitude * 255.0 < 1.0 / 200.0,
+          "which is far finer than the 8 bits a single channel would give",
+          QStringLiteral("%1x better than 1/255").arg((1.0 / 255.0) / worstMagnitude, 0, 'f', 0));
+    check(worstPeak < 1.0 / 255.0,
+          "the peak cap round-trips at 8-bit resolution, which positions a line",
+          QStringLiteral("worst error %1").arg(worstPeak, 0, 'e', 2));
+
+    // Values outside the normalised range must clamp rather than wrap: a VU
+    // deflection above 0 VU legitimately exceeds 1.0.
+    MeterTexture::encodeTexel(2.5f, -1.0f, texel);
+    check(MeterTexture::decodeMagnitude(texel[0], texel[1]) == 1.0f
+              && MeterTexture::decodePeak(texel[2]) == 0.0f,
+          "out-of-range values clamp rather than wrapping around");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -288,6 +342,7 @@ int main(int argc, char *argv[])
     testSmoothingAsymmetry();
     testPeakHold();
     testVuBallistics();
+    testTexturePacking();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");
