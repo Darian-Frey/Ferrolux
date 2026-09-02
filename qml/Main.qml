@@ -13,6 +13,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 ApplicationWindow {
     id: window
@@ -106,15 +107,21 @@ ApplicationWindow {
                 enabled: Engine.seekable
                 from: 0
                 to: Engine.duration > 0 ? Engine.duration : 1
-                property bool scrubbing: false
-                value: scrubbing ? value : Engine.position
+
+                // The position binding is suspended while the handle is held.
+                // Binding value directly to Engine.position means the per-frame
+                // poll re-asserts it sixty times a second, so a drag is undone
+                // as fast as it is made and the handle appears to snap back.
+                // See BUG-009.
+                Binding on value {
+                    when: !positionBar.pressed
+                    value: Engine.position
+                    restoreMode: Binding.RestoreNone
+                }
+
                 onPressedChanged: {
-                    if (pressed) {
-                        scrubbing = true
-                    } else {
-                        scrubbing = false
+                    if (!pressed)
                         Engine.seek(value)
-                    }
                 }
             }
             Label { text: window.formatTime(Engine.duration) }
@@ -144,6 +151,8 @@ ApplicationWindow {
                 text: qsTr("%1/%2").arg(PlaylistView.count).arg(Playlist.count)
                 visible: PlaylistView.filterText !== ""
             }
+            Button { text: qsTr("Add files…"); onClicked: addFilesDialog.open() }
+            Button { text: qsTr("Add folder…"); onClicked: addFolderDialog.open() }
             Button {
                 text: qsTr("Remove")
                 enabled: window.selection.length > 0
@@ -178,8 +187,8 @@ ApplicationWindow {
                     MenuItem { text: qsTr("Reverse by title"); onTriggered: Playlist.sortBy(0, Qt.DescendingOrder) }
                 }
             }
-            Button { text: qsTr("Open…"); onClicked: pathDialog.prompt(false) }
-            Button { text: qsTr("Save…"); enabled: Playlist.count > 0; onClicked: pathDialog.prompt(true) }
+            Button { text: qsTr("Open…"); onClicked: openPlaylistDialog.open() }
+            Button { text: qsTr("Save…"); enabled: Playlist.count > 0; onClicked: savePlaylistDialog.open() }
         }
 
         Frame {
@@ -344,12 +353,16 @@ ApplicationWindow {
                 }
             }
             Label {
-                text: Equaliser.preset === "custom" ? qsTr("(edited)") : ""
+                // An equaliser that is off still shows its curve and still
+                // lets it be edited, which is correct — but silently doing
+                // nothing is not. Say so.
+                text: !Equaliser.enabled ? qsTr("(not active)")
+                      : Equaliser.preset === "custom" ? qsTr("(edited)") : ""
                 opacity: 0.6
             }
             Item { Layout.fillWidth: true }
             Button { text: qsTr("Save…");   onClicked: savePresetDialog.open() }
-            Button { text: qsTr("Import .eqf…"); onClicked: eqfDialog.open() }
+            Button { text: qsTr("Import .eqf…"); onClicked: eqfFileDialog.open() }
             Button { text: qsTr("Reset");   onClicked: Equaliser.reset() }
         }
 
@@ -357,6 +370,9 @@ ApplicationWindow {
             id: eqPanel
             visible: false
             Layout.fillWidth: true
+            // Dimmed, not disabled: the curve stays readable and editable while
+            // the equaliser is bypassed, but it is visibly not in circuit.
+            opacity: Equaliser.enabled ? 1.0 : 0.45
 
             RowLayout {
                 anchors.fill: parent
@@ -422,85 +438,91 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
             Label { text: qsTr("Vol") }
             Slider {
-                Layout.preferredWidth: 110
+                Layout.preferredWidth: 100
                 from: 0; to: 1
                 value: Engine.volume
                 onMoved: Engine.volume = value
             }
+            Label {
+                Layout.preferredWidth: 34
+                horizontalAlignment: Text.AlignRight
+                text: Math.round(Engine.volume * 100) + "%"
+            }
+
             Label { text: qsTr("Bal") }
             Slider {
-                Layout.preferredWidth: 110
+                id: balanceSlider
+                Layout.preferredWidth: 100
                 from: -1; to: 1
                 value: Engine.balance
-                onMoved: Engine.balance = value
+
+                // Snap to exact centre within a few percent. Every hardware
+                // balance control has a detent there for the same reason:
+                // centre is the position returned to most often, and the one
+                // position a continuous control cannot be set to by eye.
+                onMoved: Engine.balance = Math.abs(value) < 0.04 ? 0.0 : value
+
+                // Centre mark, so the detent has something to agree with.
+                Rectangle {
+                    z: -1
+                    width: 1
+                    height: 6
+                    color: palette.mid
+                    x: balanceSlider.leftPadding + balanceSlider.availableWidth / 2
+                    y: balanceSlider.topPadding + balanceSlider.availableHeight / 2 + 6
+                }
             }
-        }
-    }
-
-    // A typed path rather than a native file chooser. QtQuick.Dialogs is a
-    // separate package that is not a build dependency of anything else here,
-    // and the Phase 5 panel will want native dialogs on its own terms — adding
-    // the dependency for a harness that gets deleted would be the wrong trade.
-    Dialog {
-        id: pathDialog
-        anchors.centerIn: parent
-        width: 460
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-
-        property bool saving: false
-        title: saving ? qsTr("Save playlist as") : qsTr("Open playlist")
-
-        function prompt(save) {
-            saving = save
-            pathField.text = save ? "playlist.m3u8" : ""
-            open()
-            pathField.forceActiveFocus()
-        }
-
-        onAccepted: {
-            const url = pathField.text.startsWith("/")
-                      ? "file://" + pathField.text
-                      : pathField.text
-            if (saving)
-                Playlist.saveTo(url)
-            else
-                Playlist.loadFrom(url)
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 6
             Label {
-                text: qsTr("Path to an .m3u, .m3u8 or .pls file")
-                font.pixelSize: 11
-                opacity: 0.7
-            }
-            TextField {
-                id: pathField
-                Layout.fillWidth: true
-                selectByMouse: true
-                onAccepted: pathDialog.accept()
+                Layout.preferredWidth: 48
+                horizontalAlignment: Text.AlignRight
+                text: Math.abs(Engine.balance) < 0.005
+                      ? qsTr("centre")
+                      : (Engine.balance < 0 ? qsTr("L ") : qsTr("R "))
+                        + Math.round(Math.abs(Engine.balance) * 100)
             }
         }
     }
 
-    Connections {
-        target: Playlist
-        function onIoError(message) { errorBanner.show(message) }
+    // Native choosers, from QtQuick.Dialogs. Multi-select for files because
+    // F-010 asks for individual files, whole folders and a drag-and-drop
+    // selection; all three funnel into Playlist.addPaths, which expands
+    // directories and filters by suffix.
+    FileDialog {
+        id: addFilesDialog
+        title: qsTr("Add files")
+        fileMode: FileDialog.OpenFiles
+        nameFilters: [qsTr("Audio files (*.flac *.mp3 *.ogg *.oga *.opus *.m4a *.aac *.wav *.aiff *.aif *.wv *.mpc)"),
+                      qsTr("All files (*)")]
+        onAccepted: Playlist.addPaths(selectedFiles)
     }
 
-    Label {
-        id: errorBanner
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 12
-        padding: 8
-        visible: false
-        color: "white"
-        background: Rectangle { color: "#a00"; radius: 4 }
-        function show(message) { text = message; visible = true; hideTimer.restart() }
-        Timer { id: hideTimer; interval: 4000; onTriggered: errorBanner.visible = false }
+    FolderDialog {
+        id: addFolderDialog
+        title: qsTr("Add folder")
+        onAccepted: Playlist.addPaths([selectedFolder])
+    }
+
+    FileDialog {
+        id: openPlaylistDialog
+        title: qsTr("Open playlist")
+        nameFilters: [qsTr("Playlists (*.m3u *.m3u8 *.pls)"), qsTr("All files (*)")]
+        onAccepted: Playlist.loadFrom(selectedFile)
+    }
+
+    FileDialog {
+        id: savePlaylistDialog
+        title: qsTr("Save playlist")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "m3u8"
+        nameFilters: [qsTr("Extended M3U (*.m3u8 *.m3u)"), qsTr("PLS (*.pls)")]
+        onAccepted: Playlist.saveTo(selectedFile)
+    }
+
+    FileDialog {
+        id: eqfFileDialog
+        title: qsTr("Import Winamp equaliser preset")
+        nameFilters: [qsTr("Winamp presets (*.eqf)"), qsTr("All files (*)")]
+        onAccepted: Equaliser.importEqf(selectedFile)
     }
 
     Dialog {
@@ -523,32 +545,6 @@ ApplicationWindow {
         }
     }
 
-    Dialog {
-        id: eqfDialog
-        anchors.centerIn: parent
-        width: 460
-        modal: true
-        title: qsTr("Import Winamp preset")
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        onOpened: eqfPath.forceActiveFocus()
-        onAccepted: Equaliser.importEqf(eqfPath.text)
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 6
-            Label {
-                text: qsTr("Path to a .eqf file")
-                font.pixelSize: 11
-                opacity: 0.7
-            }
-            TextField {
-                id: eqfPath
-                Layout.fillWidth: true
-                selectByMouse: true
-                onAccepted: eqfDialog.accept()
-            }
-        }
-    }
-
     Connections {
         target: Equaliser
         function onImportFailed(message) { errorBanner.show(message) }
@@ -558,7 +554,7 @@ ApplicationWindow {
         anchors.fill: parent
         onDropped: function(drop) {
             if (drop.hasUrls)
-                Playlist.addUrls(drop.urls)
+                Playlist.addPaths(drop.urls)
         }
     }
 }

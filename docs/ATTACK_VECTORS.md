@@ -35,8 +35,17 @@ arithmetic without a pipeline.
 
 The detection found a real defect on its first run: the original headroom rule
 attenuated by preamp plus the largest band gain, which under-attenuated by 9 dB
-and clipped the output by 8 dB. See BUG-005. The rule now attenuates by the
-cascade's measured peak magnitude response.
+and clipped the output by 8 dB. See BUG-005.
+
+**The mitigation has since changed shape.** Attenuating by the cascade's true
+peak did prevent clipping, and made the equaliser incapable of boosting anything
+— the attenuation cancelled the gain that caused it (BUG-008). Nothing is
+attenuated now. The vector's stated danger was that clipping "can also drive the
+filters into instability rather than merely distorting", and that danger is
+addressed instead by BUG-007's fix: the chain runs in `F32LE`, where levels above
+unity are ordinary. The detection therefore asserts stability and finiteness
+under the worst case, not an absence of clipping, and separately asserts that
+the reported excess figure bounds what actually happens.
 **Related decisions.** D-006 (equaliser backend), D-007 (band layout and range).
 **Related features.** F-020, F-021.
 

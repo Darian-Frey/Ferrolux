@@ -88,7 +88,37 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   ramp a gain attaches without error and does nothing. Worked around by driving
   the interpolation from the application.
 
+- Volume and balance gain readouts, and balance gains a detent at centre with a
+  centre mark. The Phase 1 harness had a balance readout; compacting that row
+  in Phase 2 dropped it, leaving a continuous control whose most important
+  position was invisible. F-040 gains a matching acceptance criterion.
+- Native file dialogs: "Add files…" with multi-select, "Add folder…", and real
+  choosers for playlist open/save and `.eqf` import. Adds a dependency on
+  `qml6-module-qtquick-dialogs`, recorded in BUILD.md.
+- `PlaylistModel::addPaths` is now the single route for adding media. It
+  expands directories recursively, filters by audio suffix and sorts; files,
+  folders, drag-and-drop and command-line arguments all use it. Dropping a
+  folder previously added the folder itself as a row.
+
 ### Fixed
+- BUG-008: the headroom rule attenuated by exactly the cascade's peak gain, so
+  it cancelled every boost. Raising a band lowered everything else, raising the
+  preamp did nothing at all, and only cuts worked. Nothing is attenuated now;
+  the figure is reported and the manual preamp is the control for level, as in
+  every comparable player. AV-003's stated danger — filters driven unstable —
+  is addressed by the float chain from BUG-007 instead.
+- BUG-009: dragging the position bar snapped back instead of seeking. The
+  binding meant to suspend during a drag referred to the property it assigned
+  and never suspended, so the per-frame position poll re-asserted the old value
+  sixty times a second.
+- BUG-007: the audio-filter chain pinned only its channel count, so against a
+  16-bit source it negotiated S16LE and the equaliser ran ten cascaded IIR
+  biquads in 16-bit integer. Audibly gritty on real music, and present whether
+  or not the equaliser was enabled. The capsfilter now pins `F32LE` as well,
+  which propagates upstream and puts the whole chain in float.
+  `tests/acceptance_transport` asserts the negotiated format against the
+  engine's own pipeline, since the equaliser suite's reconstructed chain is
+  what missed it.
 - BUG-005: the headroom rule attenuated by preamp plus the largest single band
   gain, assuming the cascade could not exceed it. Ten peaking sections multiply
   where they overlap: all ten at +12 dB peak at +21.4 dB near 607 Hz, and the

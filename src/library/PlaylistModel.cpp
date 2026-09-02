@@ -4,6 +4,8 @@
 #include "library/PlaylistModel.h"
 
 #include <QBitArray>
+#include <QDirIterator>
+#include <QFileInfo>
 #include <QRandomGenerator>
 
 #include "library/PlaylistIO.h"
@@ -67,6 +69,47 @@ QHash<int, QByteArray> PlaylistModel::roleNames() const
         { MetadataStateRole, "metadataState" },
         { IsCurrentRole, "isCurrent" },
     };
+}
+
+QStringList PlaylistModel::audioSuffixes()
+{
+    return { QStringLiteral("flac"), QStringLiteral("mp3"),  QStringLiteral("ogg"),
+             QStringLiteral("oga"),  QStringLiteral("opus"), QStringLiteral("m4a"),
+             QStringLiteral("aac"),  QStringLiteral("wav"),  QStringLiteral("aiff"),
+             QStringLiteral("aif"),  QStringLiteral("wv"),   QStringLiteral("mpc"),
+             QStringLiteral("alac") };
+}
+
+void PlaylistModel::addPaths(const QList<QUrl> &inputs)
+{
+    static const QStringList suffixes = audioSuffixes();
+
+    QList<QUrl> found;
+    for (const QUrl &input : inputs) {
+        if (!input.isLocalFile()) {
+            found.append(input); // a stream URL: pass it through untouched
+            continue;
+        }
+
+        const QFileInfo info(input.toLocalFile());
+        if (info.isDir()) {
+            QDirIterator it(info.absoluteFilePath(), QDir::Files | QDir::Readable,
+                            QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString candidate = it.next();
+                if (suffixes.contains(QFileInfo(candidate).suffix().toLower()))
+                    found.append(QUrl::fromLocalFile(candidate));
+            }
+        } else if (suffixes.contains(info.suffix().toLower())) {
+            found.append(QUrl::fromLocalFile(info.absoluteFilePath()));
+        }
+    }
+
+    // Sorted, so that adding a folder yields album order rather than whatever
+    // order the filesystem happened to return.
+    std::sort(found.begin(), found.end(),
+              [](const QUrl &a, const QUrl &b) { return a.toString() < b.toString(); });
+    addUrls(found);
 }
 
 void PlaylistModel::addUrls(const QList<QUrl> &urls)

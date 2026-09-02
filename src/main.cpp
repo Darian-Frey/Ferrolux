@@ -39,48 +39,6 @@ using ferrolux::library::MetadataReader;
 using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
 
-namespace {
-
-// Expands directories recursively and keeps only things that look like audio.
-// Suffix matching rather than content sniffing: sniffing twenty thousand files
-// to decide whether to list them would defeat the point of listing them at all.
-QList<QUrl> collectAudio(const QList<QUrl> &inputs)
-{
-    static const QStringList suffixes = {
-        QStringLiteral("flac"), QStringLiteral("mp3"),  QStringLiteral("ogg"),
-        QStringLiteral("oga"),  QStringLiteral("opus"), QStringLiteral("m4a"),
-        QStringLiteral("aac"),  QStringLiteral("wav"),  QStringLiteral("aiff"),
-        QStringLiteral("aif"),  QStringLiteral("wv"),   QStringLiteral("mpc"),
-        QStringLiteral("alac"),
-    };
-
-    QList<QUrl> found;
-    for (const QUrl &input : inputs) {
-        if (!input.isLocalFile()) {
-            found.append(input);
-            continue;
-        }
-
-        const QString path = input.toLocalFile();
-        const QFileInfo info(path);
-        if (info.isDir()) {
-            QDirIterator it(path, QDir::Files | QDir::Readable, QDirIterator::Subdirectories);
-            while (it.hasNext()) {
-                const QString candidate = it.next();
-                if (suffixes.contains(QFileInfo(candidate).suffix().toLower()))
-                    found.append(QUrl::fromLocalFile(candidate));
-            }
-        } else if (suffixes.contains(info.suffix().toLower())) {
-            found.append(QUrl::fromLocalFile(info.absoluteFilePath()));
-        }
-    }
-    std::sort(found.begin(), found.end(),
-              [](const QUrl &a, const QUrl &b) { return a.toString() < b.toString(); });
-    return found;
-}
-
-} // namespace
-
 int main(int argc, char *argv[])
 {
     gst_init(&argc, &argv);
@@ -193,10 +151,10 @@ int main(int argc, char *argv[])
     QList<QUrl> arguments;
     for (const QString &argument : app.arguments().mid(1))
         arguments.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
-    const QList<QUrl> initial = collectAudio(arguments);
-    if (!initial.isEmpty()) {
-        playlist.addUrls(initial);
-        playlist.setCurrentRow(0);
+    if (!arguments.isEmpty()) {
+        playlist.addPaths(arguments);
+        if (playlist.rowCount() > 0)
+            playlist.setCurrentRow(0);
     }
 
     qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));

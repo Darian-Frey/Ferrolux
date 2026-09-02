@@ -95,11 +95,11 @@ not of the implementation.
 
 The interpolation is driven by the application rather than by a GStreamer control source. `equalizer-nbands` advertises its band gains as controllable and accepts a control binding without error, but never calls `gst_object_sync_values` on its bands while streaming, so a bound source is silently inert — see BUG-006. `Equaliser` therefore steps the property from a 5 ms timer and computes the fraction from a clock rather than a tick count, so timer jitter cannot stretch or shorten the ramp. The element re-reads the gain once per buffer regardless, which is the real granularity. A change that changes nothing starts no ramp.
 
-**Headroom rule.** The combined gain path may exceed available headroom, so the
-engine applies an automatic attenuation of
+**Headroom.** The combined gain path can exceed full scale, and nothing prevents
+it. The engine reports how far, and does not attenuate.
 
 ```
-attenuation_dB = max(0, preamp_dB + cascade_peak_dB)
+excess_dB = max(0, preamp_dB + cascade_peak_dB)
 ```
 
 where `cascade_peak_dB` is `20·log₁₀(max|H(f)|)` for the whole band cascade at
@@ -107,25 +107,27 @@ the current curve, evaluated over log-spaced frequencies from 20 Hz to 20 kHz.
 
 **It is not the largest single band gain.** Ten peaking sections in series
 multiply where their skirts overlap, and the Winamp centres overlap heavily: all
-ten bands at +12 dB peak at **+21.4 dB near 607 Hz**, not +12 dB. The earlier
-rule assumed otherwise and clipped by 8 dB under exactly the condition AV-003
-describes — see BUG-005, and `tests/equaliser_test` for the detection.
+ten bands at +12 dB peak at **+21.4 dB near 607 Hz**, not +12 dB. See BUG-005.
 
 The response is modelled at 192 kHz. It grows slightly with sample rate (21.4 dB
 at 44.1 kHz against 23.7 dB at 192 kHz for the worst curve), so modelling the
-highest supported rate is conservative at every lower one and removes any need
-to know what the pipeline negotiated. The cost is up to about 2 dB of
-unnecessary attenuation at extreme settings, and none at realistic ones.
+highest supported rate means the figure bounds the real one at every lower rate
+and no knowledge of the negotiated rate is needed. Measured against a real
+capture: 32.04 dB actual against 35.69 dB reported.
 
-The attenuation is folded into the preamp stage rather than applied after the
-filters. Gain commutes with a linear filter, so `(preamp − attenuation)` ahead
-of the cascade is mathematically identical to `preamp` ahead and `attenuation`
-behind, and it is better in two ways: the cascade's internal state stays
-smaller, which is where instability would begin, and `level` and `spectrum`
-downstream see the signal as it is actually heard.
+**Why nothing is attenuated.** An earlier design subtracted exactly this figure
+before the sink, so that output could never exceed full scale. Because the
+figure *is* the largest gain the curve produces, subtracting it cancelled every
+boost: raising a band lowered everything else instead of lifting that band,
+raising the preamp did nothing whatsoever, and only cuts worked. The equaliser
+was a cut-only device. See BUG-008.
 
-This attenuation is not user-visible and is not part of the displayed gain
-values. See AV-003.
+Level is the preamp's job, as it is in Winamp, foobar2000 and VLC. AV-003's
+concern was that clipping inside an IIR cascade could drive the filters
+unstable; since BUG-007 the chain runs in `F32LE`, where levels above unity are
+ordinary and no instability follows. What remains is clipping at the sink
+conversion — audible distortion under settings the user chose, and visible to
+them through the reported figure.
 
 **Bypass.** When the equaliser is off, the element is set to unity on all bands and zero preamp rather than being removed from the pipeline, so that bypass does not cause a graph rebuild. Output must be bit-identical to the unprocessed signal in this state; this is the acceptance criterion for F-020.
 
@@ -304,6 +306,13 @@ Four faces, one per type role. All four are under the SIL Open Font License 1.1,
 | `type-readout-text` | Handjet | Track title, artist and playlist rows — the dot-matrix readout |
 | `type-readout-segment` | DSEG14 Classic | Segmented starburst alternative to `type-readout-text`, for a VFD panel variant under F-044 |
 | `type-legend` | IBM Plex Sans Condensed | Silkscreened chassis text: section headings, equaliser band labels, control legends |
+
+**Lit versus printed.** The division between these roles is not only
+typographic. `type-readout-*` faces in the `readout` palette are for values the
+instrument reports and that change — time, volume, balance position, band gains.
+`type-legend` in `ink` is for text printed on the chassis, which names a control
+and never changes. Rendering a value as a legend makes it look inert; rendering
+a legend as a readout implies a state it does not have. See F-040.
 
 No face outside this table appears on the control surface. A role that needs a face it does not have is a specification gap to be recorded here, not a licence to fall back to a system font.
 

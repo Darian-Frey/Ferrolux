@@ -37,6 +37,7 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QUrl>
 #include <QTimer>
 
 #include <array>
@@ -113,11 +114,21 @@ public:
     static constexpr double kModelRate = 192000.0;
     static double cascadePeakGain(const QList<double> &bandsDb);
 
-    // Attenuation in dB needed so that the combined gain path cannot exceed
-    // full scale. Pure function so that AV-003 can be tested without a
-    // pipeline. Returns a non-negative number of decibels to remove.
-    static double headroomAttenuation(double preampDb, const QList<double> &bandsDb);
-    double headroomAttenuation() const;
+    // How far the current settings can push the signal above unity, in dB.
+    //
+    // Reported, not applied. An earlier design attenuated by exactly this
+    // amount so that output could never exceed full scale, which made the
+    // equaliser incapable of boosting anything: the attenuation cancelled the
+    // gain that caused it, so raising a band merely lowered everything else and
+    // raising the preamp did nothing at all. See BUG-008.
+    //
+    // The manual preamp is the control for level, as it is in every comparable
+    // player. AV-003's concern was that clipping could drive the filters
+    // unstable; since BUG-007 the chain runs in F32LE, where levels above unity
+    // are ordinary, so what remains is clipping at the sink conversion — the
+    // user's business, and visible through this figure.
+    static double excessGain(double preampDb, const QList<double> &bandsDb);
+    Q_INVOKABLE double excessGain() const;
 
     // Winamp `.eqf` (F-022). Eleven bytes per preset — ten bands then the
     // preamp — each 0 to 63 with 31 meaning 0 dB, and the scale inverted, so
@@ -165,7 +176,7 @@ public slots:
     void setBands(const QList<double> &decibels);
     void applyPreset(const QString &name);
     void reset();
-    bool importEqf(const QString &path);
+    bool importEqf(const QUrl &fileUrl);
 
 signals:
     void enabledChanged();
@@ -173,7 +184,7 @@ signals:
     void preampChanged();
     void bandsChanged();
     void presetChanged();
-    void headroomChanged();
+    void excessGainChanged();
     void importFailed(const QString &message);
 
 private:
@@ -194,7 +205,7 @@ private:
     double m_preamp = 0.0;
     QList<double> m_bands;
     QString m_preset = QStringLiteral("flat");
-    double m_appliedAttenuation = 0.0;
+    double m_reportedExcess = 0.0;
 
     // Ramp state. m_written is what the elements currently hold, which during a
     // ramp is an interpolated value rather than either endpoint.

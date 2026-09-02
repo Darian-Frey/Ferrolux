@@ -147,12 +147,23 @@ GstElement *Engine::buildAudioFilter()
         return nullptr;
     }
 
-    // audiomixmatrix declares channels [1, MAX] on its pads, so nothing else in
-    // the chain pins the count and a mono source would negotiate one channel
-    // against an element configured for two — which fails at set_caps with
-    // "Erroneous matrix detected" rather than at link time. Forcing stereo here
-    // makes audioconvert up-mix mono and guarantees the matrix matches.
-    GstCaps *caps = gst_caps_new_simple("audio/x-raw", "channels", G_TYPE_INT, 2, nullptr);
+    // Two constraints, both load-bearing, pinned in one place.
+    //
+    // Channels: audiomixmatrix declares channels [1, MAX] on its pads, so
+    // nothing else in the chain pins the count and a mono source would
+    // negotiate one channel against an element configured for two — which fails
+    // at set_caps with "Erroneous matrix detected" rather than at link time.
+    // Forcing stereo makes audioconvert up-mix mono and guarantees a match.
+    //
+    // Format: without this the chain negotiates S16LE for a 16-bit source, and
+    // the equaliser then runs ten cascaded IIR biquads in 16-bit integer,
+    // rounding after every section. The result is audibly gritty on real music.
+    // Caps negotiation propagates upstream, so constraining here puts the whole
+    // filter chain — preamp, bands and balance — into float, and the trailing
+    // audioconvert returns to whatever the sink wants. See BUG-007.
+    GstCaps *caps = gst_caps_new_simple("audio/x-raw",
+                                        "format", G_TYPE_STRING, "F32LE",
+                                        "channels", G_TYPE_INT, 2, nullptr);
     g_object_set(stereo, "caps", caps, nullptr);
     gst_caps_unref(caps);
 

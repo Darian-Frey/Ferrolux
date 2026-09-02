@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "core/Engine.h"
+#include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
 
 using ferrolux::core::Engine;
@@ -203,6 +204,51 @@ void runFile(const QString &path)
 // mechanism: that the handover happens through about-to-finish without the
 // pipeline ever returning to Stopped, and that the playlist follows it without
 // restarting playback.
+// BUG-007. The filter chain must run in floating point: left to negotiate
+// freely against a 16-bit source it settles on S16LE, and the equaliser then
+// runs ten cascaded IIR biquads in 16-bit integer, rounding after every
+// section. That is audibly gritty on real music and completely silent in a
+// bypass test, because at unity gain an S16 round trip is still bit-exact.
+//
+// Checked against the engine's own pipeline rather than a chain assembled by
+// the test, because the chain the test assembles is exactly what missed it.
+void runPipelineFormat(const QString &path)
+{
+    std::printf("\nfilter chain format (BUG-007)\n");
+
+    Engine engine;
+    engine.setSource(QUrl::fromLocalFile(QFileInfo(path).absoluteFilePath()));
+    engine.play();
+    if (!spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000)) {
+        check(false, "pipeline reaches Playing so caps are negotiated");
+        return;
+    }
+
+    GstElement *filter = engine.equaliser()->filterElement();
+    if (!filter) {
+        check(false, "the equaliser element exists");
+        return;
+    }
+
+    QString format;
+    if (GstPad *pad = gst_element_get_static_pad(filter, "sink")) {
+        if (GstCaps *caps = gst_pad_get_current_caps(pad)) {
+            if (GstStructure *structure = gst_caps_get_structure(caps, 0)) {
+                if (const gchar *value = gst_structure_get_string(structure, "format"))
+                    format = QString::fromUtf8(value);
+            }
+            gst_caps_unref(caps);
+        }
+        gst_object_unref(pad);
+    }
+
+    check(!format.isEmpty(), "the equaliser has negotiated caps", format);
+    check(format.startsWith(QLatin1Char('F')),
+          "the equaliser runs in floating point, not integer", format);
+
+    engine.stop();
+}
+
 void runGapless(const QString &first, const QString &second)
 {
     std::printf("\ngapless handover (F-005)\n");
@@ -312,6 +358,8 @@ int main(int argc, char *argv[])
 
     for (const QString &file : files)
         runFile(file);
+
+    runPipelineFormat(files.first());
 
     runGapless(files.first(), files.at(1));
 

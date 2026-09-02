@@ -172,17 +172,18 @@ double Equaliser::cascadePeakGain(const QList<double> &bandsDb)
     return peak > 0.0 ? 20.0 * std::log10(peak) : 0.0;
 }
 
-// SPEC.md §Equaliser: attenuation = max(0, preamp_dB + cascade_peak_dB), with a
-// 0 dBFS margin. The cascade peak is measured from the curve rather than
-// assumed to be the largest band — see BUG-005 and cascadePeakGain().
-double Equaliser::headroomAttenuation(double preampDb, const QList<double> &bandsDb)
+// SPEC.md §Equaliser. Reported so that the interface can warn, never subtracted
+// from the signal — subtracting it is what made the equaliser cut-only in
+// BUG-008. The cascade peak is measured from the curve rather than assumed to
+// be the largest band; see BUG-005 and cascadePeakGain().
+double Equaliser::excessGain(double preampDb, const QList<double> &bandsDb)
 {
     return std::max(0.0, preampDb + cascadePeakGain(bandsDb));
 }
 
-double Equaliser::headroomAttenuation() const
+double Equaliser::excessGain() const
 {
-    return m_enabled ? headroomAttenuation(m_preamp, m_bands) : 0.0;
+    return m_enabled ? excessGain(m_preamp, m_bands) : 0.0;
 }
 
 bool Equaliser::createElements()
@@ -233,14 +234,12 @@ QList<double> Equaliser::targetBands() const
     return m_enabled ? m_bands : QList<double>(kBandCount, 0.0);
 }
 
-// Folding the attenuation into the preamp is exact — gain commutes with a
-// linear filter — and keeps the cascade's internal levels lower, which is where
-// AV-003's instability would begin.
+// The preamp is exactly what the user asked for. Nothing is subtracted from it:
+// the automatic attenuation that used to live here cancelled every boost in the
+// signal path, which is BUG-008.
 double Equaliser::targetPreampDb() const
 {
-    if (!m_enabled)
-        return 0.0;
-    return m_preamp - headroomAttenuation(m_preamp, m_bands);
+    return m_enabled ? m_preamp : 0.0;
 }
 
 void Equaliser::writeGains(const QList<double> &bandsDb, double preampDb)
@@ -290,10 +289,10 @@ void Equaliser::applyGains()
     if (!m_filterElement || !m_preampElement)
         return;
 
-    const double attenuation = m_enabled ? headroomAttenuation(m_preamp, m_bands) : 0.0;
-    if (!qFuzzyCompare(attenuation + 1.0, m_appliedAttenuation + 1.0)) {
-        m_appliedAttenuation = attenuation;
-        emit headroomChanged();
+    const double excess = excessGain();
+    if (!qFuzzyCompare(excess + 1.0, m_reportedExcess + 1.0)) {
+        m_reportedExcess = excess;
+        emit excessGainChanged();
     }
 
     // The first write after the elements are built is the initial state, not a
@@ -544,8 +543,11 @@ bool Equaliser::decodeEqf(const QByteArray &bytes, QList<double> *bands, double 
     return true;
 }
 
-bool Equaliser::importEqf(const QString &path)
+bool Equaliser::importEqf(const QUrl &fileUrl)
 {
+    // Takes a URL rather than a path so that a file chooser's selection can be
+    // passed straight through, as PlaylistModel::loadFrom does.
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         emit importFailed(file.errorString());

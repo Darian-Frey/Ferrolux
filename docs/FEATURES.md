@@ -69,7 +69,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Add individual files, whole folders (recursively), or a drag-and-drop selection from a file manager
 - Holds 20,000 entries without the UI dropping below 60 fps during scroll — see AV-008
 - Metadata read asynchronously; rows populate progressively rather than blocking the add
-**Status:** Complete (Phase 2, 2026-09-02) — 20,000 entries add in 17 ms with tags read on a private worker pool. Folder recursion and drag-and-drop both add. Scroll frame time is not yet measured; see ROADMAP.md Phase 2.
+**Status:** Complete (Phase 2, 2026-09-02) — 20,000 entries add in 17 ms with tags read on a private worker pool. Individual files, whole folders and a drag-and-drop selection all route through `addPaths`, which expands directories recursively, keeps only audio suffixes and sorts the result. Scroll frame time is not yet measured; see ROADMAP.md Phase 2.
 
 ### F-011 Playlist editing
 **Priority:** Must
@@ -124,7 +124,7 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - ±12 dB preamp applied ahead of the band filters
 - Combined preamp and band gain cannot drive the output into hard clipping — see AV-003
-**Status:** Complete (Phase 3, 2026-09-02) — ±12 dB preamp ahead of the band filters, with the headroom attenuation folded into the same stage. Verified against the worst case: ten bands at +12 dB with a +12 dB preamp on a near-full-scale source peaks at −3.65 dBFS with nothing non-finite. The first implementation clipped by 8 dB; see BUG-005.
+**Status:** Complete (Phase 3, 2026-09-02) — ±12 dB preamp ahead of the band filters. The combined gain path is measured and reported rather than attenuated: an earlier design subtracted it and thereby cancelled every boost, making the equaliser cut-only (BUG-008). Verified against the worst case: ten bands at +12 dB with a +12 dB preamp measures 32.04 dB of gain against 35.69 dB reported, with nothing non-finite — the figure bounds reality and the filters stay stable, which is what AV-003 actually requires.
 
 ### F-022 Presets
 **Priority:** Should
@@ -194,6 +194,8 @@ People who keep a local music library on Linux and want a player with the charac
 - Warm off-white shell, amber readouts, chunky moulded controls with visible travel state
 - Shuffle and repeat are physical toggle switches whose state is readable from the switch position alone, without a text label. They are a different class of control from the momentary transport buttons and must not be cycling buttons — the Phase 2 harness uses cycling buttons and is exactly what this criterion excludes
 - Hairline gaps between panel sections, specified in device-independent units. A hairline given in pixels is the founding defect of the project in miniature — see AV-005
+- Values are lit, legends are printed. Anything that reports a *value* — elapsed and remaining time, volume, balance position, equaliser gains — is rendered as an illuminated readout in the `readout` palette using the readout faces. Anything that *names* a control — band centre frequencies, `pre`, section titles, button legends — is silkscreened on the chassis in `ink`. The two must not be confused: a lit legend implies a state it does not have, and a printed value cannot change
+- Continuous controls carry a legible scale, and balance has a detent at centre. Centre is the position a balance control returns to most and the one position it cannot be set to by eye; a control that can be left imperceptibly off-centre with no way to see it is the defect, not the user's aim
 - All chrome drawn as vectors or shaders; no fixed-size bitmap assets in the control surface
 **Status:** Not started (Phase 5)
 **Notes:** The toggle-switch and hairline criteria come from the original design brief accompanying the mockup, recorded here on 2026-09-02 because they were otherwise carried only in that prose. The same brief is the source of the amber-or-VFD-green readout option in F-044 and the needle VU meters in F-032.

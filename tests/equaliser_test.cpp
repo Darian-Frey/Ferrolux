@@ -154,20 +154,24 @@ void testConfiguration()
           "editing a band marks the curve custom rather than lying about the preset");
 }
 
-void testHeadroom()
+void testExcessGain()
 {
-    std::printf("\nheadroom arithmetic (AV-003)\n");
+    std::printf("\nexcess gain reporting (AV-003)\n");
 
     const QList<double> flat(Equaliser::kBandCount, 0.0);
     const QList<double> maxed(Equaliser::kBandCount, 12.0);
     const QList<double> cut(Equaliser::kBandCount, -12.0);
 
-    check(qFuzzyIsNull(Equaliser::headroomAttenuation(0.0, flat)),
-          "a flat curve needs no attenuation");
-    const double worst = Equaliser::headroomAttenuation(12.0, maxed);
+    check(qFuzzyIsNull(Equaliser::excessGain(0.0, flat)),
+          "a flat curve exceeds unity by nothing");
+    const double worst = Equaliser::excessGain(12.0, maxed);
     check(worst > 33.0 && worst < 37.0,
-          "the worst case asks for the cascade peak plus preamp, not max_band plus preamp",
-          QStringLiteral("%1 dB — the old max_band rule said 24").arg(worst, 0, 'f', 2));
+          "the worst case is the cascade peak plus preamp, not max_band plus preamp",
+          QStringLiteral("%1 dB").arg(worst, 0, 'f', 2));
+    check(qFuzzyIsNull(Equaliser::excessGain(-12.0, cut)),
+          "an all-cut curve exceeds unity by nothing");
+    check(qFuzzyIsNull(Equaliser::excessGain(-6.0, { 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 })),
+          "a preamp cut exactly offsetting a boost exceeds unity by nothing");
 
     // The peak is sampled on a log grid rather than solved for, so it lands
     // just under the true maximum. A hundredth of a decibel is far inside any
@@ -176,21 +180,23 @@ void testHeadroom()
     check(std::fabs(single - 12.0) < 0.01,
           "a single boosted band peaks at its own gain",
           QStringLiteral("%1 dB").arg(single, 0, 'f', 4));
-    check(Equaliser::cascadePeakGain({ 12, 12, 12, 12, 12, 12, 12, 12, 12, 12 }) > 20.0,
+    check(Equaliser::cascadePeakGain(maxed) > 20.0,
           "ten overlapping bands peak well above any one of them",
-          QStringLiteral("%1 dB")
-              .arg(Equaliser::cascadePeakGain({ 12, 12, 12, 12, 12, 12, 12, 12, 12, 12 }), 0, 'f', 2));
-    check(qFuzzyIsNull(Equaliser::cascadePeakGain(flat)),
-          "a flat curve has unity cascade gain");
-    check(qFuzzyIsNull(Equaliser::headroomAttenuation(-12.0, cut)),
-          "an all-cut curve needs no attenuation");
-    check(qFuzzyIsNull(Equaliser::headroomAttenuation(-6.0, { 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 })),
-          "a preamp cut exactly offsetting a boost needs none");
-    check(Equaliser::headroomAttenuation(0.0, { 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 }) > 0.0,
-          "a single boosted band still asks for attenuation");
+          QStringLiteral("%1 dB").arg(Equaliser::cascadePeakGain(maxed), 0, 'f', 2));
 
-    // The response is evaluated on every gain change, so a slider drag runs it
-    // at frame rate. It has to be cheap enough that dragging is free.
+    // BUG-008: the figure is reported, never subtracted. A boost must boost.
+    Equaliser eq;
+    eq.setEnabled(true);
+    eq.setPreamp(6.0);
+    check(eq.excessGain() > 5.9 && eq.excessGain() < 6.1,
+          "a raised preamp is reported as excess rather than cancelled",
+          QStringLiteral("%1 dB").arg(eq.excessGain(), 0, 'f', 2));
+
+    eq.setEnabled(false);
+    check(qFuzzyIsNull(eq.excessGain()), "a disabled equaliser reports no excess");
+
+    // The response evaluation runs on every gain change, so a slider drag runs
+    // it at frame rate. It has to be cheap enough that dragging is free.
     QElapsedTimer timer;
     timer.start();
     volatile double sink = 0.0;
@@ -199,8 +205,8 @@ void testHeadroom()
         sink += Equaliser::cascadePeakGain(maxed);
     const double microseconds = double(timer.nsecsElapsed()) / 1000.0 / kRuns;
     // Generous, because a Debug build runs this about six times slower than a
-    // Release one (roughly 950 us against 145). The bound is set to catch an
-    // order-of-magnitude regression, not to police the constant factor.
+    // Release one. The bound catches an order-of-magnitude regression, not the
+    // constant factor.
     check(microseconds < 2000.0,
           "the worst-case response evaluation is cheap enough to run per gain change",
           QStringLiteral("%1 us per call").arg(microseconds, 0, 'f', 1));
@@ -292,13 +298,30 @@ void testWorstCaseGain()
     const double peak = peakOf(loud);
 
     check(!loud.isEmpty(), "the extreme setting still produces audio");
+
+    // What AV-003 is actually about. Its concern was that clipping inside an
+    // IIR cascade can drive the filters unstable rather than merely distorting.
+    // In F32LE, levels above unity are ordinary; instability would show as a
+    // non-finite sample or a runaway magnitude.
     check(std::isfinite(peak), "no sample is infinite or NaN — the filters stayed stable",
           QStringLiteral("peak %1").arg(peak, 0, 'f', 4));
-    check(peak <= 1.0,
-          "ten bands at +12 dB with a +12 dB preamp does not exceed full scale",
+    check(peak < 1000.0, "the cascade does not run away",
           QStringLiteral("peak %1 (%2 dBFS)")
               .arg(peak, 0, 'f', 4)
               .arg(peak > 0 ? 20.0 * std::log10(peak) : -99.0, 0, 'f', 2));
+
+    // BUG-008: the output is expected to exceed unity now, because nothing
+    // attenuates it. The reported figure must bound what actually happens —
+    // it is modelled at the highest supported rate and so should never
+    // under-state the real peak at 44.1 kHz.
+    const double measuredDb = peak > 0 ? 20.0 * std::log10(peak / sourcePeak) : -99.0;
+    const double reported = extreme.excessGain();
+    check(peak > 1.0, "an extreme boost does exceed full scale, as an equaliser should",
+          QStringLiteral("%1 dBFS").arg(20.0 * std::log10(peak), 0, 'f', 2));
+    check(measuredDb <= reported + 0.5,
+          "the reported excess bounds the measured gain rather than under-stating it",
+          QStringLiteral("measured %1 dB, reported %2 dB")
+              .arg(measuredDb, 0, 'f', 2).arg(reported, 0, 'f', 2));
 }
 
 // SPEC.md §Equaliser specifies a 30 ms linear interpolation on any gain change,
@@ -418,7 +441,7 @@ int main(int argc, char *argv[])
     QCoreApplication app(argc, argv);
 
     testConfiguration();
-    testHeadroom();
+    testExcessGain();
     testEqf();
     testBypassIsBitIdentical();
     testWorstCaseGain();

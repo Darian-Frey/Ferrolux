@@ -23,6 +23,121 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-008 The headroom rule cancels every boost, so the equaliser can only cut
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-02, reported from listening
+**Related:** F-020, F-021, AV-003, BUG-005, SPEC.md §Equaliser
+
+The headroom rule attenuates by `max(0, preamp + cascade_peak)`. Since the
+cascade peak *is* the largest gain the curve produces, the attenuation cancels
+it exactly. The equaliser cannot make anything louder — only quieter.
+
+| Action | Net at the peak | Net elsewhere |
+|--------|-----------------|---------------|
+| Preamp +6 dB, flat bands | 0.00 dB | 0.00 dB |
+| Preamp +12 dB, flat bands | 0.00 dB | 0.00 dB |
+| One band +12 dB | 0.00 dB | −12.00 dB |
+| Built-in `treble` preset | 0.00 dB | −12.37 dB |
+| One band −12 dB | 0.00 dB | 0.00 dB |
+
+Every reported symptom follows: the preamp does nothing when raised, raising a
+band makes everything else quieter in proportion, presets sound quiet, and cuts
+behave normally because a cut needs no attenuation.
+
+This is a design fault in the rule, introduced by the BUG-005 fix. That fix was
+correct about *when* the output would clip and wrong to conclude the engine
+should always prevent it.
+
+**The danger AV-003 named has also changed.** Its concern was that "clipping in
+a filter chain can also drive the filters into instability rather than merely
+distorting". Since BUG-007 the chain runs in `F32LE`, where internal levels
+above unity are ordinary and no instability follows. What remains is clipping at
+the sink conversion — audible distortion, not a broken filter — which is what
+every comparable player leaves to the user's preamp and volume.
+
+**Candidate resolutions**, for the author to choose:
+1. Remove the automatic attenuation. The manual preamp is the control for this,
+   as it is in Winamp, foobar2000 and VLC, and AV-003's stated failure mode is
+   already addressed by float processing. The worst case becomes audible
+   distortion at extreme settings rather than a silently useless equaliser.
+2. Make it an option, default off. Keeps the mitigation reachable for anyone who
+   wants a guarantee, at the cost of a setting that needs explaining.
+3. Offset it by the headroom the volume control already provides —
+   `max(0, preamp + cascade + 20·log₁₀(v³))`. Mostly invisible at normal
+   listening levels, but it couples equaliser behaviour to volume position,
+   so moving the volume would alter the tonal balance. Surprising.
+
+Resolution 1 is recommended. SPEC.md §Equaliser and AV-003 both need amending
+to match whichever is chosen, and `tests/equaliser_test`'s worst-case check will
+need restating — under resolution 1 it asserts stability and finiteness rather
+than an absence of clipping.
+
+**Resolved 2026-09-02.** Candidate 1 adopted. Nothing is subtracted from the
+signal; `Equaliser::excessGain()` reports the figure so the interface can warn,
+and the manual preamp is the control for level. SPEC.md §Equaliser and AV-003
+are both amended. `tests/equaliser_test` now asserts that an extreme boost *does*
+exceed full scale — as an equaliser should — that no sample is non-finite, and
+that the reported figure bounds the measured gain: 32.04 dB measured against
+35.69 dB reported, conservative by the margin expected from modelling at 192 kHz.
+
+### BUG-009 Dragging the position bar snapped back instead of seeking
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-02, reported from use
+**Related:** F-003, ARCHITECTURE.md §Key invariants item 4
+
+The harness bound the position slider's value to `Engine.position`, with a
+`scrubbing` flag intended to suspend it during a drag. The flag did not work:
+the expression `scrubbing ? value : Engine.position` refers to the property it
+assigns, and the binding stayed live regardless, so the per-frame position poll
+re-asserted the old value sixty times a second. A drag was undone as fast as it
+was made.
+
+**Fixed** with a `Binding` on the value guarded by `when: !positionBar.pressed`,
+which genuinely suspends the binding while the handle is held, and
+`restoreMode: Binding.RestoreNone` so releasing does not restore a stale value
+before the seek lands.
+
+Worth noting the invariant did its job here: position is polled once per frame
+by design, and the defect was the UI fighting that poll rather than the poll
+being wrong.
+
+### BUG-007 The filter chain ran the equaliser in 16-bit integer, and it was audible
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-02, reported from listening — "the audio is very scratchy"
+**Related:** F-020, AV-003, SPEC.md §Pipeline
+
+The audio-filter bin pinned its capsfilter to `channels=2` but left the sample
+format to negotiation. Against a 16-bit source the whole chain settled on
+`S16LE`, so `equalizer-nbands` ran ten cascaded IIR biquads in 16-bit integer,
+rounding after every section. On real music the result was plainly gritty. It
+applied whether or not the equaliser was enabled, because the element processes
+at unity rather than short-circuiting.
+
+Confirmed by inspecting negotiated caps on the element's pads: `format=S16LE` on
+both sink and src.
+
+**Fixed** by adding `format=F32LE` to the same capsfilter. Caps negotiation
+propagates upstream, so one constraint places the whole chain — preamp, band
+filters and balance — in float, and the trailing `audioconvert` returns to
+whatever the sink wants. Re-inspected: `F32LE` on both pads.
+
+**Why the tests did not catch it.** `tests/equaliser_test` builds its own chain
+around the `Equaliser` elements rather than using the engine's, so it never saw
+the format the real pipeline negotiates. Worse, the bypass check passed
+*honestly*: at unity gain an S16 round trip really is bit-exact, so a test
+asserting transparency will pass while the element is quietly working at a
+precision that ruins the signal as soon as any gain is applied. The test proved
+the element was transparent and never asked what precision it was transparent
+in.
+
+`tests/acceptance_transport` now asserts, against the engine's own pipeline,
+that the equaliser has negotiated a floating-point format. Checking the real
+pipeline rather than a reconstruction is the point: the reconstruction is
+exactly what missed this.
+
 *None.*
 
 ### BUG-004 SPEC.md names an equaliser element that cannot meet D-007

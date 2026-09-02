@@ -93,7 +93,20 @@ public:
     void setAuthoritativeDuration(const QUrl &url, qint64 durationNs);
 
 public slots:
+    // Raw URLs, already known to be playable files. Folders passed here become
+    // rows in their own right, which is never what anyone wants — use addPaths.
     void addUrls(const QList<QUrl> &urls);
+
+    // The route everything user-facing should take: expands directories
+    // recursively, keeps only things that look like audio, and sorts the
+    // result. F-010 asks for files, whole folders and a drag-and-drop
+    // selection, and all three arrive here.
+    void addPaths(const QList<QUrl> &inputs);
+
+    // Suffixes treated as audio. Matching by suffix rather than by content:
+    // sniffing twenty thousand files to decide whether to list them would
+    // defeat the point of listing them.
+    static QStringList audioSuffixes();
     void removeRows(QList<int> rows);
     void clear();
     bool undo();
