@@ -147,6 +147,19 @@ SPEC.md §Duration describes; adding `xingmux` produces the ordinary case where 
 tag is exact. `tests/metadata_reader_test` takes the FLAC, the headerless MP3 and
 optionally the Xing one, and asserts the right behaviour for each.
 
+A third fixture is useful once the meters exist — a steady sine whose peak sits
+at −18 dBFS, so its RMS is 3 dB below the VU reference and the needle settles at
+a known 0.707:
+
+```bash
+gst-launch-1.0 -q audiotestsrc num-buffers=400 wave=sine freq=1000 volume=0.12589 \
+  ! audioconvert ! audio/x-raw,rate=44100,channels=2 \
+  ! flacenc ! filesink location=tone-ref.flac
+```
+
+`acceptance_transport` takes it as an optional third argument and falls back to
+the first file without it.
+
 `lamemp3enc` comes from `gstreamer1.0-plugins-ugly`, which is a test-only
 dependency and is not required to build or run Ferrolux.
 

@@ -23,9 +23,11 @@
 #include "core/Engine.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
+#include "meters/MeterSource.h"
 
 using ferrolux::core::Engine;
 using ferrolux::library::PlaylistModel;
+using ferrolux::meters::MeterSource;
 
 namespace {
 
@@ -249,6 +251,90 @@ void runPipelineFormat(const QString &path)
     engine.stop();
 }
 
+// F-030. The analysis elements are pass-through and post on the bus; this
+// checks the whole path from a playing pipeline to display-ready meter state,
+// which the pure meters_test suite deliberately does not cover.
+void runMeters(const QString &path)
+{
+    std::printf("\nmeter acquisition (F-030)\n");
+
+    Engine engine;
+    MeterSource meters;
+
+    int levelMessages = 0;
+    int spectrumMessages = 0;
+    int spectrumBins = 0;
+    int levelChannels = 0;
+    int sampleRate = 0;
+
+    QObject::connect(&engine, &Engine::levelMeasured,
+                     [&](const QList<double> &rms, const QList<double> &peak,
+                         const QList<double> &decay) {
+                         ++levelMessages;
+                         levelChannels = int(rms.size());
+                         meters.consumeLevel(rms, peak, decay);
+                     });
+    QObject::connect(&engine, &Engine::spectrumMeasured,
+                     [&](const QList<float> &magnitudes, int rate) {
+                         ++spectrumMessages;
+                         spectrumBins = int(magnitudes.size());
+                         sampleRate = rate;
+                         meters.consumeSpectrum(magnitudes, rate);
+                     });
+
+    engine.setSource(QUrl::fromLocalFile(QFileInfo(path).absoluteFilePath()));
+    engine.play();
+    check(spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000),
+          "pipeline reaches Playing");
+
+    // Counters start from the moment the connections are made, which includes
+    // the spin to Playing. Reset before measuring, or preroll traffic is
+    // counted as though it arrived during the window.
+    levelMessages = 0;
+    spectrumMessages = 0;
+
+    QElapsedTimer clock;
+    clock.start();
+    while (clock.elapsed() < 1000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        engine.poll();
+        meters.advance(5.0);
+    }
+
+    check(levelMessages > 0, "level posts on the bus",
+          QStringLiteral("%1 messages in 1 s").arg(levelMessages));
+    check(spectrumMessages > 0, "spectrum posts on the bus",
+          QStringLiteral("%1 messages in 1 s").arg(spectrumMessages));
+
+    // 16 ms interval, so roughly sixty a second. Wide bounds: the interval is a
+    // floor, not a promise, and a loaded machine will deliver fewer.
+    // A 16 ms interval is about sixty a second, but the elements run ahead of
+    // the sink rather than in step with it (BUG-011), so the arrival rate is
+    // bursty. Wide bounds: this checks that messages flow at a plausible rate,
+    // not that they are evenly spaced.
+    check(levelMessages > 20 && levelMessages < 300,
+          "at a plausible rate for the configured 16 ms interval",
+          QStringLiteral("%1 in one second").arg(levelMessages));
+
+    check(spectrumBins == 512, "spectrum reports the configured 512 analysis bins",
+          QString::number(spectrumBins));
+    check(levelChannels == 2, "level reports both channels",
+          QString::number(levelChannels));
+    check(sampleRate > 0, "the sample rate is recovered from negotiated caps",
+          QStringLiteral("%1 Hz").arg(sampleRate));
+
+    // Something must actually be moving.
+    float loudest = 0.0f;
+    for (float value : meters.magnitudes())
+        loudest = std::max(loudest, value);
+    check(loudest > 0.0f, "the spectrum bands carry signal",
+          QStringLiteral("loudest band %1").arg(loudest, 0, 'f', 3));
+    check(meters.vuDeflection(0) > 0.0, "the VU needle has moved off its rest",
+          QStringLiteral("%1").arg(meters.vuDeflection(0), 0, 'f', 4));
+
+    engine.stop();
+}
+
 void runGapless(const QString &first, const QString &second)
 {
     std::printf("\ngapless handover (F-005)\n");
@@ -350,16 +436,24 @@ int main(int argc, char *argv[])
 
     const QStringList files = app.arguments().mid(1);
     if (files.size() < 2) {
-        std::fprintf(stderr, "usage: acceptance_transport <flac> <vbr-mp3>\n");
+        std::fprintf(stderr, "usage: acceptance_transport <flac> <vbr-mp3> [reference-tone]\n");
         return 2;
     }
 
     runGainLaws();
 
-    for (const QString &file : files)
+    // Only the first two: a third argument, when given, is the reference tone
+    // for the meter checks and is deliberately short, so the transport
+    // expectations about duration do not apply to it.
+    for (const QString &file : files.mid(0, 2))
         runFile(file);
 
     runPipelineFormat(files.first());
+
+    // A steady tone at reference level if one is supplied, since a needle
+    // settling on a known value says more than one twitching at a percussive
+    // fixture. Falls back to the first file so the suite still runs without it.
+    runMeters(files.size() > 2 ? files.at(2) : files.first());
 
     runGapless(files.first(), files.at(1));
 

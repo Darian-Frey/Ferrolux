@@ -133,6 +133,31 @@ GstElement *Engine::buildAudioFilter()
     GstElement *matrix = gst_element_factory_make("audiomixmatrix", "fx-balance");
     GstElement *convertOut = gst_element_factory_make("audioconvert", "fx-convert-out");
 
+    // SPEC.md §Pipeline: both analysis elements are pass-through and sit last,
+    // after the equaliser and the balance, so the meters show the signal as
+    // heard rather than as decoded.
+    GstElement *level = gst_element_factory_make("level", "fx-level");
+    GstElement *spectrum = gst_element_factory_make("spectrum", "fx-spectrum");
+    if (level) {
+        g_object_set(level,
+                     "post-messages", TRUE,
+                     "interval", guint64(16000000),      // ~one per frame at 60 fps
+                     "peak-ttl", guint64(1500000000),
+                     "peak-falloff", 20.0,
+                     nullptr);
+    }
+    if (spectrum) {
+        g_object_set(spectrum,
+                     "post-messages", TRUE,
+                     "bands", guint(512),                // analysis resolution, not display
+                     "interval", guint64(16000000),
+                     "threshold", gint(-80),
+                     "multi-channel", FALSE,
+                     nullptr);
+    }
+    m_levelElement = level;
+    m_spectrumElement = spectrum;
+
     const bool haveEqualiser = m_equaliser.createElements();
     if (!haveEqualiser)
         qCWarning(lcCore) << "equaliser unavailable; the filter chain will be flat";
@@ -178,16 +203,32 @@ GstElement *Engine::buildAudioFilter()
     // then (from Phase 4) the analysis elements. Everything that changes what
     // is heard sits upstream of everything that measures it.
     bool linked = false;
+    GstElement *tail = matrix;
     if (haveEqualiser) {
         GstElement *preamp = m_equaliser.preampElement();
         GstElement *bands = m_equaliser.filterElement();
-        gst_bin_add_many(GST_BIN(bin), convertIn, preamp, bands, stereo, matrix,
-                         convertOut, nullptr);
-        linked = gst_element_link_many(convertIn, preamp, bands, stereo, matrix,
-                                       convertOut, nullptr);
+        gst_bin_add_many(GST_BIN(bin), convertIn, preamp, bands, stereo, matrix, nullptr);
+        linked = gst_element_link_many(convertIn, preamp, bands, stereo, matrix, nullptr);
     } else {
-        gst_bin_add_many(GST_BIN(bin), convertIn, stereo, matrix, convertOut, nullptr);
-        linked = gst_element_link_many(convertIn, stereo, matrix, convertOut, nullptr);
+        gst_bin_add_many(GST_BIN(bin), convertIn, stereo, matrix, nullptr);
+        linked = gst_element_link_many(convertIn, stereo, matrix, nullptr);
+    }
+
+    if (linked && level && spectrum) {
+        gst_bin_add_many(GST_BIN(bin), level, spectrum, nullptr);
+        linked = gst_element_link_many(tail, level, spectrum, nullptr);
+        tail = spectrum;
+    } else if (level || spectrum) {
+        qCWarning(lcCore) << "analysis elements unavailable; the meters will be blank";
+        if (level) gst_object_unref(level);
+        if (spectrum) gst_object_unref(spectrum);
+        m_levelElement = nullptr;
+        m_spectrumElement = nullptr;
+    }
+
+    if (linked) {
+        gst_bin_add(GST_BIN(bin), convertOut);
+        linked = gst_element_link(tail, convertOut);
     }
 
     if (!linked) {
@@ -246,6 +287,7 @@ void Engine::setSource(const QUrl &url)
     m_seekable = false;
     m_playRequested = false;
     m_handoverPending.storeRelease(0);
+    m_analysisRate = 0;
 
     if (!m_errorText.isEmpty()) {
         m_errorText.clear();
@@ -432,6 +474,14 @@ void Engine::poll()
     }
 }
 
+qint64 Engine::runningTime() const
+{
+    if (!m_pipeline)
+        return -1;
+    const GstClockTime now = gst_element_get_current_running_time(m_pipeline);
+    return GST_CLOCK_TIME_IS_VALID(now) ? qint64(now) : -1;
+}
+
 void Engine::refreshSeekable()
 {
     if (!m_pipeline)
@@ -449,9 +499,85 @@ void Engine::refreshSeekable()
     }
 }
 
+// Parses the two analysis messages into plain values. Runs on the main loop, so
+// nothing here is on a streaming thread — see AV-001.
+void Engine::handleAnalysisMessage(GstMessage *message)
+{
+    const GstStructure *structure = gst_message_get_structure(message);
+    if (!structure)
+        return;
+    const gchar *name = gst_structure_get_name(structure);
+
+    if (g_strcmp0(name, "level") == 0) {
+        // `level` carries its per-channel figures in a GValueArray — GLib's
+        // deprecated boxed type — not a GstValueArray, and not a GstValueList
+        // as `spectrum` uses for its magnitudes. Three similarly named
+        // container types, three different accessors, and reaching for the
+        // wrong one returns empty rather than failing. See BUG-011.
+        const auto readArray = [structure](const char *field) {
+            QList<double> values;
+            const GValue *boxed = gst_structure_get_value(structure, field);
+            if (!boxed || !G_VALUE_HOLDS(boxed, G_TYPE_VALUE_ARRAY))
+                return values;
+
+            const auto *array = static_cast<const GValueArray *>(g_value_get_boxed(boxed));
+            if (!array)
+                return values;
+
+            values.reserve(int(array->n_values));
+            for (guint i = 0; i < array->n_values; ++i) {
+                values.append(g_value_get_double(
+                    g_value_array_get_nth(const_cast<GValueArray *>(array), i)));
+            }
+            return values;
+        };
+        guint64 runningTime = 0;
+        gst_structure_get_clock_time(structure, "running-time", &runningTime);
+        emit levelMeasured(readArray("rms"), readArray("peak"), readArray("decay"),
+                           qint64(runningTime));
+        return;
+    }
+
+    if (g_strcmp0(name, "spectrum") == 0) {
+        // Magnitude arrives as a GstValueList, not a GstValueArray. They are
+        // different types with different accessors, and reaching for the wrong
+        // one yields an empty result rather than an error.
+        const GValue *list = gst_structure_get_value(structure, "magnitude");
+        if (!list || !GST_VALUE_HOLDS_LIST(list))
+            return;
+
+        if (m_analysisRate <= 0 && m_spectrumElement) {
+            if (GstPad *pad = gst_element_get_static_pad(m_spectrumElement, "sink")) {
+                if (GstCaps *caps = gst_pad_get_current_caps(pad)) {
+                    if (GstStructure *audio = gst_caps_get_structure(caps, 0))
+                        gst_structure_get_int(audio, "rate", &m_analysisRate);
+                    gst_caps_unref(caps);
+                }
+                gst_object_unref(pad);
+            }
+        }
+        if (m_analysisRate <= 0)
+            return; // without the rate the frequency mapping is meaningless
+
+        const guint count = gst_value_list_get_size(list);
+        QList<float> magnitudes;
+        magnitudes.reserve(int(count));
+        for (guint i = 0; i < count; ++i)
+            magnitudes.append(g_value_get_float(gst_value_list_get_value(list, i)));
+
+        guint64 runningTime = 0;
+        gst_structure_get_clock_time(structure, "running-time", &runningTime);
+        emit spectrumMeasured(magnitudes, m_analysisRate, qint64(runningTime));
+    }
+}
+
 void Engine::handleMessage(GstMessage *message)
 {
     switch (GST_MESSAGE_TYPE(message)) {
+    case GST_MESSAGE_ELEMENT:
+        handleAnalysisMessage(message);
+        break;
+
     case GST_MESSAGE_ERROR: {
         GError *error = nullptr;
         gchar *debug = nullptr;

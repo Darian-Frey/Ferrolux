@@ -163,13 +163,27 @@ Each display band takes the maximum of the analysis bins whose centre frequencie
 
 Where a display band spans fewer than one analysis bin — which happens at the bottom of the range — the nearest bin is used and the band is marked as interpolated. No display band may be left empty. See AV-011.
 
+Measured at 44.1 kHz with 512 analysis bins, whose bins are 43.07 Hz wide: **4 of the 24 display bands and 12 of the 48** fall below one bin and are interpolated. The consequence is visible and is accepted rather than hidden — an interpolated band borrows the nearest bin, which already belongs to a real band, so the lowest few bars move in lockstep. At 24 bands, band 3 shares bin 1 with band 4 and band 6 shares bin 3 with band 7. Bars that move together are honest about the analysis resolution; a bar stuck at silence would not be, and would read as missing bass rather than as a limit of the transform.
+
 ### Smoothing and ballistics
 
 **Spectrum smoothing.** Exponential moving average per band, asymmetric: attack coefficient 0.6, release coefficient 0.15, applied per 16 ms update. Fast rise, slow fall, which is what makes a spectrum display readable rather than frantic. **Provisional.**
 
 **Peak-hold.** Cap rises instantly to any new maximum, holds for 1500 ms, then falls at 20 dB/s.
 
-**VU ballistics.** The needle is a first-order system with a 300 ms integration time to 99% of full deflection for a steady sine at reference level, matching the IEC 60268-17 standard VU characteristic. Overshoot is 1% to 1.5%. This is the single most important constant in the meter design: instantaneous RMS looks twitchy and immediately reads as a fake, and the lag is the entire character of the instrument.
+**VU ballistics.** The needle is a **second-order** system reaching 99% of full deflection at 300 ms for a steady sine at reference level, with 1% to 1.5% overshoot, matching the IEC 60268-17 standard VU characteristic.
+
+Second-order, not first-order. A first-order step response is monotonic — it approaches its final value and never passes it — so it cannot overshoot by any amount, and the overshoot is where a real needle's visible settle-back comes from. This section previously specified a first-order system *and* an overshoot, which are two different systems; see BUG-010.
+
+Solved for the stated behaviour, first reaching 99% at exactly 300 ms:
+
+| Overshoot | Damping ratio ζ | ωn (rad/s) | Peak at |
+|-----------|-----------------|------------|---------|
+| 1.00% | 0.8261 | 13.973 | 399 ms |
+| 1.25% | 0.8127 | 13.512 | 399 ms |
+| 1.50% | 0.8007 | 13.126 | 400 ms |
+
+The 1.25% midpoint is used: ζ = 0.8127, ωn = 13.512 rad/s. **Provisional** — the point chosen within the standard's range is open, though the order of the system is not. Measured against the implementation: 99% at 302.0 ms, 1.16% overshoot peaking at 401 ms. This is the single most important constant in the meter design: instantaneous RMS looks twitchy and immediately reads as a fake, and the lag is the entire character of the instrument.
 
 Reference level (0 VU) maps to −18 dBFS. **Provisional** — this is a broadcast convention rather than a universal one, and may want to be user-configurable.
 

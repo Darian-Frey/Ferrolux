@@ -23,6 +23,165 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-010 The VU ballistics are specified as a system that cannot behave as described
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-02, starting Phase 4
+**Related:** F-032, AV-012, D-005, SPEC.md §Meters
+
+SPEC.md §Meters specifies: "The needle is a first-order system with a 300 ms
+integration time to 99% of full deflection for a steady sine at reference level,
+matching the IEC 60268-17 standard VU characteristic. Overshoot is 1% to 1.5%."
+
+A first-order system's step response is monotonic. It approaches its final value
+and never passes it, so it cannot overshoot by 1%, or by anything. The two halves
+of that sentence describe different systems.
+
+The IEC 60268-17 VU characteristic is a **second-order** underdamped response,
+which is where the overshoot comes from and why a real VU needle visibly settles
+back after a transient. That settling is a large part of what AV-012 means when
+it says an instantaneous meter "reads immediately as fake".
+
+Solved for the specified behaviour — first reaching 99% at exactly 300 ms:
+
+| Overshoot | Damping ratio ζ | ωn (rad/s) | Peak at |
+|-----------|-----------------|------------|---------|
+| 1.00% | 0.8261 | 13.973 | 399 ms |
+| 1.25% | 0.8127 | 13.512 | 399 ms |
+| 1.50% | 0.8007 | 13.126 | 400 ms |
+
+At the 16 ms update interval in SPEC.md §Pipeline, ωn·dt = 0.216 rad per step,
+comfortably inside the stability limit for the discrete integrator.
+
+**Recommended:** the 1.25% midpoint, ζ = 0.8127 and ωn = 13.512 rad/s, with
+SPEC.md's "first-order" corrected to "second-order". The choice within the range
+is genuinely open — 1% is the more conservative reading of the standard — but
+first-order is not one of the options.
+
+**Resolved 2026-09-02.** Implemented as a second-order system at the 1.25%
+midpoint — ζ = 0.8127, ωn = 13.512 rad/s — integrated semi-implicitly, because
+explicit Euler on an oscillator gains energy and would slowly wind the needle
+up. SPEC.md §Meters now states the order correctly and carries the solved
+constants. Measured by `tests/meters_test`: 99% deflection at 302.0 ms against
+the 300 ms target, 1.16% overshoot peaking at 401 ms, settling at exactly 1.0000
+for a reference-level signal and 0.5012 for one 6 dB below it.
+
+The choice of 1.25% within the standard's 1% to 1.5% range stays provisional.
+The order of the system does not: a first-order system cannot overshoot at all.
+
+
+### BUG-011 Meter messages arrive over a second ahead of the audio
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-02, wiring the analysis elements in Phase 4
+**Related:** F-030, F-031, F-032, AV-004, ARCHITECTURE.md §Data flow, SPEC.md §Pipeline
+
+`level` and `spectrum` sit in `playbin3`'s audio-filter, which is upstream of
+the sink. Only the sink synchronises to the clock; everything above it runs as
+fast as the sink's queue will accept, so the analysis elements process — and
+post — well ahead of what is being heard.
+
+**Measured** against a reference tone through the real element arrangement:
+mean lead **1307 ms**, worst **1412 ms**, over 353 samples. A meter fed on
+message arrival would display a transient more than a second before it was
+audible, which is not a meter.
+
+This is not a defect in the pipeline order. SPEC.md places the analysis elements
+last so the meters show the signal as heard, and that is right; the elements
+report the right samples at the wrong wall-clock moment. Nor is it AV-004, which
+concerns queue depth and interval jitter — this is a fixed, large offset that
+jitter analysis would not reveal.
+
+**The information needed is already present.** Every `level` and `spectrum`
+message carries a `running-time`, and `gst_element_get_current_running_time` on
+the pipeline gives the position actually being rendered. The values must be held
+and applied when the clock reaches their timestamp, rather than on arrival.
+
+That makes the meter path a scheduled queue rather than a direct connection, and
+it needs recording in ARCHITECTURE.md §Data flow, which currently describes bus
+messages as feeding `MeterSource` directly. `MeterSource` itself is unaffected —
+its smoothing and ballistics are correct, they are simply being fed too early.
+
+**Candidate resolutions:**
+1. Hold timestamped frames in a queue and release them as the pipeline's running
+   time advances. Exact, uses figures both elements already publish, and costs a
+   bounded queue of about 1.5 seconds of frames — roughly 90 entries.
+2. Move the analysis elements below the sink. Not possible with `autoaudiosink`
+   without replacing it, and it would put analysis after the point where the
+   signal has left the application.
+3. Accept the lead. Not viable: 1.3 seconds is not a synchronisation error, it
+   is a different part of the music.
+
+Resolution 1 is recommended.
+
+**Resolved 2026-09-02.** Candidate 1 adopted. `Engine` publishes the
+`running-time` each message carries alongside the pipeline's current running
+time; `MeterSource` holds frames in a bounded queue and releases them as the
+clock reaches them. Every frame that has come due is applied, not just the
+newest — the smoothing coefficients are defined per update interval, so skipping
+frames would make the display settle faster than specified and quietly undo the
+ballistics. The queue is capped at 128 frames, roughly 1.5 seconds, and its
+depth is exposed so AV-004's concern can be observed rather than guessed at.
+Confirmed in use: a steady depth near 150 across both queues while playing,
+which is the lead being absorbed.
+
+
+### BUG-012 Closing the window left the process running and the music playing
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-02, reported from use
+**Related:** F-052, AV-001
+
+Closing the harness window removed it from the screen but did not end the
+process. Audio continued to the end of the track and then stopped, while the
+process stayed alive indefinitely and had to be killed from a terminal.
+
+**The cause was object lifetime, not the close handling.** `main()` held
+`Engine` — which owns the pipeline — as a local, and called `gst_deinit()`
+immediately after `app.exec()` returned. Locals are destroyed when `main`
+returns, so `gst_deinit()` ran while a live pipeline still existed and blocked
+for ever waiting for a teardown that could not begin until the owner was
+destroyed, which could not happen until `gst_deinit()` returned.
+
+**Fixed** by scoping every object that owns a GStreamer resource inside a block
+that closes before `gst_deinit()`. Verified closing under both render loops and
+mid-playback: exits in about a second in all three, against never.
+
+**A first diagnosis was recorded here and was wrong**, which is worth keeping
+rather than quietly replacing. It attributed the hang to the file and folder
+choosers added for the native dialogs being windows in their own right,
+defeating `quitOnLastWindowClosed`. That was plausible and false: a minimal
+reproduction with an `ApplicationWindow` and a `FileDialog` quit cleanly. The
+real evidence came from thread states — the main thread and the render thread
+both sat in `futex_do_wait`, which said the event loop had already exited and
+the process was stuck in teardown, not that quit had never fired. Instrumenting
+each shutdown step then placed it exactly.
+
+The `onClosing: Qt.quit()` handler added under the wrong diagnosis is kept. It
+is not needed — `quitOnLastWindowClosed` was working the whole time — but
+stating the intent explicitly costs nothing and does not depend on a heuristic
+about how many windows happen to exist.
+
+### BUG-013 The VU readout never moved because a QML binding had nothing to watch
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-02, reported from use
+**Related:** F-030, F-032
+
+The harness read the needle with `Meters.vuDeflection(0)`, a plain method call.
+A QML binding tracks the properties it reads, and a method call exposes none, so
+the expression was evaluated once at startup and never again. The readout sat at
+0.000 for the whole session while the spectrum bars beside it — bound to the
+`magnitudes` property, which has a change signal — moved correctly.
+
+Two things were wrong and both had to be fixed. Deflection is now a notifying
+property rather than only a method, and `advance()` emits `updated()`. It had
+not: only `consumeSpectrum` did, so even a correctly bound needle would have
+refreshed at the spectrum message rate rather than as the ballistics moved.
+
+The lesson generalises past this instance: anything a shader or a delegate reads
+every frame has to be a property with a change signal, not a getter.
+
 ### BUG-008 The headroom rule cancels every boost, so the equaliser can only cut
 **Status:** fixed
 **Severity:** high

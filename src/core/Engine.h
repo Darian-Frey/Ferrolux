@@ -41,6 +41,7 @@
 #pragma once
 
 #include <QAtomicInt>
+#include <QList>
 #include <QByteArray>
 #include <QMutex>
 #include <QObject>
@@ -146,6 +147,10 @@ public slots:
     // change signals only when a value has actually moved.
     void poll();
 
+    // The pipeline's current running time, which is the moment actually being
+    // rendered. -1 when there is no clock yet.
+    qint64 runningTime() const;
+
 signals:
     void stateChanged();
     void sourceChanged();
@@ -158,6 +163,18 @@ signals:
 
     void endOfStream();
     void previousTrackRequested();
+
+    // Analysis, parsed from element messages on the bus and handed on as plain
+    // values. GStreamer types stop here, per ARCHITECTURE.md invariant 2, which
+    // is what lets meters/ be tested without a pipeline. All in decibels, as
+    // the elements report them.
+    // runningTimeNs is the moment in the stream these figures describe, which
+    // is well ahead of what is being heard — see BUG-011. Consumers schedule
+    // against it rather than applying on arrival.
+    void levelMeasured(const QList<double> &rmsDb, const QList<double> &peakDb,
+                       const QList<double> &decayDb, qint64 runningTimeNs);
+    void spectrumMeasured(const QList<float> &magnitudesDb, int sampleRate,
+                          qint64 runningTimeNs);
 
     // Playback has already crossed into the next track without a gap. Emitted
     // from the bus handler on the main loop, never from the streaming thread
@@ -177,12 +194,16 @@ private:
     void setState(State state);
     void fail(const QString &text);
     void handleMessage(GstMessage *message);
+    void handleAnalysisMessage(GstMessage *message);
     void refreshSeekable();
 
     Equaliser m_equaliser;
 
     GstElement *m_pipeline = nullptr;   // playbin3
     GstElement *m_balanceElement = nullptr; // audiomixmatrix inside the filter bin
+    GstElement *m_levelElement = nullptr;
+    GstElement *m_spectrumElement = nullptr;
+    int m_analysisRate = 0;                 // cached from negotiated caps
     unsigned int m_busWatch = 0;
 
     State m_state = Stopped;

@@ -103,16 +103,32 @@ as Phase 2's:
 
 ## Phase 4 — Meters
 **Goal:** Displays that are worth looking at.
-**Status:** Not started
+**Status:** In progress, started 2026-09-02
 **Features delivered:** F-030, F-031, F-032, F-033
 **Deliverables:**
-- [ ] `meters/MeterSource` consuming `level` and `spectrum` bus messages
-- [ ] Ballistics, smoothing and peak-hold on the CPU per SPEC.md §Meters
+- [x] `meters/MeterSource` consuming `level` and `spectrum` bus messages
+- [x] Ballistics, smoothing and peak-hold on the CPU per SPEC.md §Meters
 - [ ] `meters/MeterTexture` — an `Nx1` RG16 texture item exposed to QML
 - [ ] Spectrum bar and mirrored-spectrum shaders with logarithmic mapping
 - [ ] VU needle shader with correct integration time
 - [ ] LED peak ladder shader
 - [ ] Mode cycling on click, persisted
+
+**Four defects found by building it.** BUG-010: SPEC.md specified a first-order
+VU with a 1% to 1.5% overshoot, and a first-order system cannot overshoot at all
+— the IEC characteristic is second-order, now solved and implemented. BUG-011 is
+the significant one: the analysis elements sit upstream of the sink, so their
+messages arrive a measured 1307 ms ahead of the audio they describe, and a meter
+fed on arrival would show a transient more than a second early. BUG-012: closing
+the window left the process alive for ever, because `gst_deinit()` ran while a
+live pipeline still existed. BUG-013: the VU readout never moved, because a QML
+binding over a plain method call has nothing to watch.
+
+AV-011 is also quantified rather than feared: at 44.1 kHz, 4 of the 24 display
+bands and 12 of the 48 span less than one analysis bin, so they borrow the
+nearest and the lowest bars move in lockstep. That is recorded in SPEC.md as an
+accepted consequence — bars moving together are honest about the analysis
+resolution, whereas a bar stuck at silence would read as missing bass.
 
 **Acceptance:** All four modes hold 60 fps at 3840×2160 on the reference hardware with a headroom margin of at least 30% of the frame budget. The VU needle is visually indistinguishable from a reference deck when both are fed the same programme material.
 

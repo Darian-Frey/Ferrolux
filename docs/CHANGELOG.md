@@ -100,7 +100,30 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   folders, drag-and-drop and command-line arguments all use it. Dropping a
   folder previously added the folder itself as a row.
 
+- `meters/MeterSource`: logarithmic band mapping, asymmetric smoothing,
+  peak-hold and second-order VU ballistics, all on the CPU per D-005 and
+  testable without rendering. `level` and `spectrum` are in the pipeline, last
+  in the chain so the meters show the signal as heard. 22 checks in
+  `tests/meters_test`, plus end-to-end acquisition in `acceptance_transport`.
+- A plain spectrum and VU readout in the harness — rectangles, not the
+  shader-rendered display F-031 and F-032 call for, to prove the data is right
+  and correctly timed before any GPU work.
+
 ### Fixed
+- BUG-012: closing the window left the process running and the audio playing.
+  `gst_deinit()` ran while a live pipeline still existed, because the objects
+  owning it were locals destroyed only when `main` returned. Now scoped ahead
+  of it. A first diagnosis blamed the file choosers for defeating
+  `quitOnLastWindowClosed` and was wrong; both are recorded.
+- BUG-011: `level` and `spectrum` sit upstream of the sink, so their messages
+  arrived a measured 1307 ms ahead of the audio. Frames are now held against
+  the running time they carry and released as the clock reaches them.
+- BUG-010: SPEC.md specified a first-order VU system with a 1–1.5% overshoot.
+  A first-order response is monotonic and cannot overshoot. Corrected to the
+  second-order IEC characteristic; measured at 302.0 ms to 99% with 1.16%.
+- BUG-013: the VU readout never moved. A QML binding over a plain method call
+  tracks nothing, so it evaluated once; and `advance()` never emitted a change
+  signal, so even a correct binding would have refreshed at the wrong rate.
 - BUG-008: the headroom rule attenuated by exactly the cascade's peak gain, so
   it cancelled every boost. Raising a band lowered everything else, raising the
   preamp did nothing at all, and only cuts worked. Nothing is attenuated now;

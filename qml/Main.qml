@@ -22,11 +22,25 @@ ApplicationWindow {
     visible: true
     title: qsTr("Ferrolux RS-1 — Phase 3 harness")
 
-    // Invariant 4: the single position poll for the whole application.
+    // Invariant 4: the single position poll for the whole application. It also
+    // drives the meters, releasing queued analysis frames as the pipeline's
+    // clock reaches them and advancing the ballistics by the frame's own
+    // elapsed time.
     FrameAnimation {
+        id: frame
         running: true
-        onTriggered: Engine.poll()
+        onTriggered: {
+            Engine.poll()
+            Meters.releaseUpTo(Engine.runningTime())
+            Meters.advance(frameTime * 1000)
+        }
     }
+
+    // Explicit rather than relying on quitOnLastWindowClosed. Not strictly
+    // needed — that default was working — but it states the intent without
+    // depending on how many windows happen to exist. The hang this was first
+    // written for turned out to be a teardown deadlock in main(); see BUG-012.
+    onClosing: Qt.quit()
 
     readonly property var stateNames: ["Stopped", "Loading", "Playing", "Paused", "Error"]
     readonly property var repeatNames: ["off", "all", "one"]
@@ -318,6 +332,78 @@ ApplicationWindow {
                             text: window.formatTime(duration)
                             opacity: 0.7
                         }
+                    }
+                }
+            }
+        }
+
+        // ---- meters --------------------------------------------------------
+        // Plain rectangles, not the shader-rendered display F-031 asks for.
+        // This exists to prove the data is right and correctly timed; the real
+        // meters are drawn on the GPU from a texture, per D-004.
+        Frame {
+            Layout.fillWidth: true
+            padding: 6
+
+            RowLayout {
+                anchors.fill: parent
+                spacing: 10
+
+                // Spectrum bars, one per display band, sharing the width
+                // available rather than sitting at a fixed size in a wide gap.
+                Item {
+                    id: spectrumArea
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 56
+                    readonly property real gap: 2
+                    readonly property real barWidth:
+                        Math.max(1, (width - gap * (Meters.bandCount - 1)) / Meters.bandCount)
+
+                    Row {
+                        anchors.fill: parent
+                        spacing: spectrumArea.gap
+
+                        Repeater {
+                            model: Meters.bandCount
+                            delegate: Item {
+                                required property int index
+                                width: spectrumArea.barWidth
+                                height: spectrumArea.height
+
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: Math.max(1, Meters.magnitudes[index] * parent.height)
+                                    color: "#EF9F27"
+                                }
+                                // Peak-hold cap, the texture's green channel.
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: Meters.peaks[index] * (parent.height - height)
+                                    width: parent.width
+                                    height: 2
+                                    color: "#854F0B"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // VU, as numbers until there is a needle.
+                ColumnLayout {
+                    spacing: 2
+                    Label {
+                        font.family: "monospace"
+                        text: qsTr("L %1").arg(Meters.vu[0].toFixed(3))
+                    }
+                    Label {
+                        font.family: "monospace"
+                        text: qsTr("R %1").arg(Meters.vu[1].toFixed(3))
+                    }
+                    Label {
+                        font.pixelSize: 10
+                        opacity: 0.6
+                        text: qsTr("queued %1").arg(Meters.queueDepth)
                     }
                 }
             }

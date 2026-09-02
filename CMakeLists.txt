@@ -34,6 +34,8 @@ qt_add_executable(ferrolux
     src/core/Engine.h
     src/core/Equaliser.cpp
     src/core/Equaliser.h
+    src/meters/MeterSource.cpp
+    src/meters/MeterSource.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
@@ -79,6 +81,8 @@ qt_add_executable(acceptance_transport
     src/library/PlaylistModel.h
     src/library/PlaylistIO.cpp
     src/library/PlaylistIO.h
+    src/meters/MeterSource.cpp
+    src/meters/MeterSource.h
 )
 target_include_directories(acceptance_transport PRIVATE src)
 target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer)
@@ -113,6 +117,15 @@ qt_add_executable(equaliser_test
 target_include_directories(equaliser_test PRIVATE src)
 target_link_libraries(equaliser_test PRIVATE Qt6::Core PkgConfig::GStreamer PkgConfig::GStreamerApp)
 add_test(NAME equaliser COMMAND equaliser_test)
+
+qt_add_executable(meters_test
+    tests/meters_test.cpp
+    src/meters/MeterSource.cpp
+    src/meters/MeterSource.h
+)
+target_include_directories(meters_test PRIVATE src)
+target_link_libraries(meters_test PRIVATE Qt6::Core)
+add_test(NAME meters COMMAND meters_test)
 
 if(FERROLUX_TEST_FLAC AND FERROLUX_TEST_MP3)
     add_test(NAME transport

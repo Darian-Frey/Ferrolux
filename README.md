@@ -6,11 +6,11 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 and 2 built, Phase 3 under way.** Transport, a 20,000-entry
-> playlist, shuffle, repeat, playlist file I/O, gapless playback and a ten-band
-> equaliser all work, behind a deliberately plain harness. There is no panel yet
-> — that is Phase 5, and it is the reason the project exists. See
-> [Status](#status) below.
+> **Status: Phases 1 to 3 built, Phase 4 under way.** Transport, a 20,000-entry
+> playlist, shuffle, repeat, playlist file I/O, gapless playback, a ten-band
+> equaliser and live spectrum and VU metering all work, behind a deliberately
+> plain harness. There is no panel yet — that is Phase 5, and it is the reason
+> the project exists. See [Status](#status) below.
 
 ---
 
@@ -39,10 +39,11 @@ The interface is modelled on late-1970s and 1980s high-end tape decks: a warm
 off-white chassis, amber readouts, chunky moulded controls with visible travel,
 and meters that behave like instruments rather than animations.
 
-That last point is where most of the effort goes. The VU needle is specified as
-a first-order system with a 300 ms integration time and 1–1.5% overshoot, per
-IEC 60268-17 — because instantaneous RMS looks twitchy and reads immediately as
-a fake. The lag is the entire character of the instrument.
+That last point is where most of the effort goes. The VU needle is a second-order
+system reaching 99% deflection at 300 ms with 1–1.5% overshoot, per IEC 60268-17
+— because instantaneous RMS looks twitchy and reads immediately as a fake. The
+lag, and the slight settle-back after it, are the entire character of the
+instrument. Measured: 302.0 ms and 1.16%.
 
 A static mockup of the intended layout is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
@@ -81,7 +82,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 | 1 | Transport core | **Complete** 2026-09-02 |
 | 2 | Playlist | Feature-complete 2026-09-02 |
 | 3 | Equaliser | Feature-complete 2026-09-02 |
-| 4 | Meters | Not started |
+| 4 | Meters | In progress |
 | 5 | The panel | Not started |
 | 6 | Desktop integration | Not started |
 | 7 | RS-1 release | Not started |
