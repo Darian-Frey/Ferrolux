@@ -40,6 +40,9 @@
 
 #pragma once
 
+#include <QAtomicInt>
+#include <QByteArray>
+#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QUrl>
@@ -99,6 +102,20 @@ public:
 
 public slots:
     void setSource(const QUrl &url);
+
+    // Arms the gapless handover (F-005). The playlist model calls this on the
+    // main thread whenever the next entry changes; playbin3's about-to-finish
+    // handler consumes it on a streaming thread. Passing an empty URL disarms,
+    // which is how the end of a playlist stops rather than looping.
+    //
+    // The cached URI is a pre-encoded QByteArray behind a dedicated mutex, so
+    // the streaming thread performs one short lock and a memcpy and touches no
+    // application state at all. That mutex is a leaf: it is never held while
+    // anything else is taken, and never contended with UI work. This is the
+    // narrow reading of ARCHITECTURE.md invariant 1 that F-005 requires — see
+    // AV-001 and AV-006.
+    void setNextSource(const QUrl &url);
+
     void play();
     void pause();
     void stop();
@@ -134,8 +151,15 @@ signals:
     void endOfStream();
     void previousTrackRequested();
 
+    // Playback has already crossed into the next track without a gap. Emitted
+    // from the bus handler on the main loop, never from the streaming thread
+    // that performed the handover. The playlist advances its cursor in response;
+    // it must not start playback, because playback never stopped.
+    void gaplessAdvance();
+
 private:
     friend int busDispatch(GstBus *, GstMessage *, void *);
+    friend void aboutToFinish(GstElement *, void *);
 
     void buildPipeline();
     void teardownPipeline();
@@ -160,6 +184,17 @@ private:
     double m_balance = 0.0;
     QString m_errorText;
     bool m_playRequested = false;
+
+    // Written on the main thread, read on a streaming thread.
+    QMutex m_nextMutex;
+    QByteArray m_nextUri;
+    // The URI the streaming thread actually handed over to, so that the main
+    // thread can bring m_source up to date when STREAM_START arrives. Without
+    // it, source() keeps reporting the previous track across a gapless join and
+    // anything keyed on it — the duration correction, most obviously — lands on
+    // the wrong entry.
+    QByteArray m_handoverUri;
+    QAtomicInt m_handoverPending{0};
 };
 
 } // namespace ferrolux::core

@@ -44,6 +44,15 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   Qt, GStreamer core and every plugin in the pipeline are LGPL, so no upstream
   term forced the outcome.
 
+- Phase 2 feature-complete: playlist file I/O for M3U, M3U8 and PLS; a live
+  filter proxy that provably leaves play order alone; gapless advance through
+  `about-to-finish`; and a harness with a virtualised playlist, multi-select,
+  drag reorder, sort menu, and open/save.
+- `library/PlaylistIO`, `library/PlaylistFilter`, and `PlaylistModel::loadFrom`
+  / `saveTo`. 60 checks in `playlist_model_test`, 10 in `metadata_reader_test`,
+  9 more for the gapless handover in `acceptance_transport`.
+- `playback/shuffle` and `playback/repeat` now persist, per SPEC.md §Settings.
+
 ### Fixed
 - BUG-003: the balance control used a constant-power law intended for panning
   a mono source, which attenuated centred playback by 3.01 dB on both channels

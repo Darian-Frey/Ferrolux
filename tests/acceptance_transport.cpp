@@ -21,8 +21,10 @@
 #include <functional>
 
 #include "core/Engine.h"
+#include "library/PlaylistModel.h"
 
 using ferrolux::core::Engine;
+using ferrolux::library::PlaylistModel;
 
 namespace {
 
@@ -195,6 +197,76 @@ void runFile(const QString &path)
     check(engine.state() == Engine::Stopped, "returns to Stopped after EOS");
 }
 
+// F-005. The audible half of gapless — "no discontinuity at the join" — needs a
+// known-gapless reference recording and a capture of the sink, which AV-006
+// describes and this harness does not attempt. What is verified here is the
+// mechanism: that the handover happens through about-to-finish without the
+// pipeline ever returning to Stopped, and that the playlist follows it without
+// restarting playback.
+void runGapless(const QString &first, const QString &second)
+{
+    std::printf("\ngapless handover (F-005)\n");
+
+    Engine engine;
+    PlaylistModel playlist;
+
+    bool sawHandover = false;
+    bool sawStopped = false;
+    int sourceLoads = 0;
+
+    QObject::connect(&engine, &Engine::stateChanged, [&] {
+        if (engine.state() == Engine::Stopped)
+            sawStopped = true;
+    });
+    QObject::connect(&playlist, &PlaylistModel::currentEntryChanged,
+                     [&](const QUrl &url) {
+                         if (url.isEmpty())
+                             return;
+                         ++sourceLoads;
+                         engine.setSource(url);
+                         engine.play();
+                     });
+    QObject::connect(&playlist, &PlaylistModel::nextEntryChanged,
+                     &engine, &Engine::setNextSource);
+    QObject::connect(&engine, &Engine::gaplessAdvance, [&] {
+        sawHandover = true;
+        playlist.advanceForHandover();
+    });
+
+    const QUrl a = QUrl::fromLocalFile(QFileInfo(first).absoluteFilePath());
+    const QUrl b = QUrl::fromLocalFile(QFileInfo(second).absoluteFilePath());
+    playlist.addUrls({ a, b });
+    playlist.setCurrentRow(0);
+
+    check(spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000),
+          "first track reaches Playing");
+    check(spin(engine, [&] { return engine.duration() > 0; }, 5000),
+          "duration known before the join");
+
+    // Seek close to the end so about-to-finish fires within the test's patience.
+    engine.seek(engine.duration() - 2 * kSecond);
+    spin(engine, [] { return false; }, 300);
+
+    sawStopped = false;             // only the join itself is under test
+    const int loadsBefore = sourceLoads;
+
+    check(spin(engine, [&] { return sawHandover; }, 12000),
+          "about-to-finish handed over to the next track");
+    check(!sawStopped, "the pipeline never returned to Stopped across the join");
+    check(engine.state() == Engine::Playing, "still Playing after the join");
+    check(playlist.currentRow() == 1, "the playlist advanced its cursor",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+    check(sourceLoads == loadsBefore,
+          "the handover did not re-load the source, which would have caused a gap");
+    check(engine.source() == b, "engine reports the track it handed over to",
+          engine.source().fileName());
+
+    // The last entry has no successor, so the handover must disarm rather than
+    // loop or stall.
+    spin(engine, [] { return false; }, 200);
+    check(playlist.nextRow() == -1, "no next entry at the end of the list");
+}
+
 void runStopStartCycles(const QString &path, int cycles)
 {
     std::printf("\n%d stop-start cycles\n", cycles);
@@ -240,6 +312,8 @@ int main(int argc, char *argv[])
 
     for (const QString &file : files)
         runFile(file);
+
+    runGapless(files.first(), files.at(1));
 
     runStopStartCycles(files.first(), 20);
 

@@ -104,6 +104,12 @@ public slots:
 
     void sortBy(SortKey key, Qt::SortOrder order = Qt::AscendingOrder);
 
+    // Playlist file I/O (F-013). Loading replaces the contents and is undoable,
+    // because replacing a playlist is as destructive as clearing one. Format is
+    // chosen from the file's suffix; see SPEC.md §Playlist file formats.
+    bool loadFrom(const QUrl &fileUrl);
+    bool saveTo(const QUrl &fileUrl) const;
+
     void setCurrentRow(int row);
     void setShuffle(bool shuffle);
     void setRepeat(RepeatMode mode);
@@ -114,6 +120,12 @@ public slots:
     int previousRow() const;
     bool advance();
     bool retreat();
+
+    // Moves the cursor to reflect a handover that playback has *already* made,
+    // without emitting currentEntryChanged. Emitting it would tell the engine to
+    // load the track it is in the middle of playing, which would produce exactly
+    // the gap gapless exists to avoid. See F-005 and AV-006.
+    bool advanceForHandover();
 
 signals:
     void countChanged();
@@ -133,6 +145,7 @@ signals:
     void nextEntryChanged(const QUrl &url);
 
     void metadataNeeded(const QList<QUrl> &urls);
+    void ioError(const QString &message);
 
 private:
     struct Snapshot {
@@ -142,6 +155,7 @@ private:
         int cursor = -1;
     };
 
+    bool step(bool notify);
     void rebuildOrder();
     void reshuffleFrom(int cursor);
     void takeSnapshot();

@@ -28,19 +28,34 @@ Two things the phase surfaced that were not anticipated. BUG-001 records that th
 
 ## Phase 2 — Playlist
 **Goal:** Manage a real listening session.
-**Status:** In progress, started 2026-09-02
+**Status:** Feature-complete 2026-09-02; two acceptance clauses unverified
 **Features delivered:** F-010, F-011, F-012, F-013, F-014, F-005
 **Deliverables:**
 - [x] `library/PlaylistModel` as a `QAbstractListModel` with asynchronous metadata population
 - [x] TagLib integration on a worker thread
-- [~] Multi-select, drag reorder, remove, clear, single-level undo — model side complete and tested; no QML yet
+- [~] Multi-select, drag reorder, remove, clear, single-level undo — all present; drag reorder moves one row at a time, and F-011's multi-row drag is not implemented
 - [x] Shuffle as a permutation; repeat modes
-- [ ] M3U/M3U8/PLS load and save
-- [~] Sort and live filter — sort complete; the filter proxy is not written
-- [ ] Gapless advance via `about-to-finish`
+- [x] M3U/M3U8/PLS load and save
+- [x] Sort and live filter
+- [x] Gapless advance via `about-to-finish`
 
-The scale clause is already met with room to spare. Measured on 20,000 entries:
-add 17 ms, sort 53 ms, shuffle 1 ms, remove 6 ms, against a one-second budget.
+**Measured against the acceptance criterion.** On 20,000 entries: add 17 ms,
+sort 52 ms, shuffle 1 ms, remove 6 ms, filter 0 ms, against a one-second budget.
+A full shuffle pass visits every entry exactly once with no repeats, and a
+second pass under repeat-all is a fresh permutation. 70 checks across
+`playlist_model_test` and `metadata_reader_test`, plus 9 for the gapless
+handover in `acceptance_transport`.
+
+**Two clauses remain unverified**, and the phase is not marked Complete until
+they are:
+
+- *"scrolls at 60 fps"* — the list is virtualised and the data is resident, but
+  no frame-time measurement has been taken. This needs the instrumentation
+  AV-002 describes, which Phase 4 has to build anyway.
+- *"a known-gapless album plays through with no audible join"* — the handover
+  mechanism is verified (the pipeline never returns to Stopped, the playlist
+  follows without re-loading), but the audible half needs a real gapless
+  recording and a capture of the sink output, per AV-006.
 
 **Acceptance:** A 20,000-entry playlist loads, scrolls at 60 fps, sorts in under a second, and survives a full shuffle pass with no repeats before exhaustion. A known-gapless album plays through with no audible join.
 

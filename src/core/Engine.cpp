@@ -52,6 +52,33 @@ int busDispatch(GstBus *, GstMessage *message, void *data)
     return TRUE; // stay installed
 }
 
+// Gapless handover. THIS RUNS ON A STREAMING THREAD (AV-001), and is the only
+// code in Ferrolux that does. It is deliberately three operations: take a leaf
+// mutex, copy a pre-encoded URI, set one property. No allocation of application
+// objects, no signal emission, no query of the playlist model — which lives on
+// the main thread and must not be reached from here (AV-006).
+//
+// The application is told about the handover later, from the bus handler, when
+// GST_MESSAGE_STREAM_START arrives on the main loop.
+void aboutToFinish(GstElement *playbin, void *data)
+{
+    Engine *engine = static_cast<Engine *>(data);
+
+    QByteArray uri;
+    {
+        QMutexLocker locker(&engine->m_nextMutex);
+        uri = engine->m_nextUri;
+        if (!uri.isEmpty())
+            engine->m_handoverUri = uri;
+    }
+
+    if (uri.isEmpty())
+        return; // end of the playlist: let it finish and post EOS
+
+    engine->m_handoverPending.storeRelease(1);
+    g_object_set(playbin, "uri", uri.constData(), nullptr);
+}
+
 Engine::Engine(QObject *parent)
     : QObject(parent)
 {
@@ -77,6 +104,8 @@ void Engine::buildPipeline()
     GstElement *sink = gst_element_factory_make("autoaudiosink", "ferrolux-sink");
     if (sink)
         g_object_set(m_pipeline, "audio-sink", sink, nullptr);
+
+    g_signal_connect(m_pipeline, "about-to-finish", G_CALLBACK(aboutToFinish), this);
 
     GstBus *bus = gst_element_get_bus(m_pipeline);
     m_busWatch = gst_bus_add_watch(bus, busDispatch, this);
@@ -186,6 +215,7 @@ void Engine::setSource(const QUrl &url)
     m_duration = -1;
     m_seekable = false;
     m_playRequested = false;
+    m_handoverPending.storeRelease(0);
 
     if (!m_errorText.isEmpty()) {
         m_errorText.clear();
@@ -202,6 +232,13 @@ void Engine::setSource(const QUrl &url)
     setState(Loading);
     gst_element_set_state(m_pipeline, GST_STATE_PAUSED);
     qCInfo(lcCore) << "loading" << url.toString();
+}
+
+void Engine::setNextSource(const QUrl &url)
+{
+    const QByteArray encoded = url.isEmpty() ? QByteArray() : url.toString().toUtf8();
+    QMutexLocker locker(&m_nextMutex);
+    m_nextUri = encoded;
 }
 
 void Engine::play()
@@ -411,6 +448,30 @@ void Engine::handleMessage(GstMessage *message)
 
     case GST_MESSAGE_DURATION_CHANGED:
         m_duration = -1; // forces the next poll() to re-query
+        break;
+
+    case GST_MESSAGE_STREAM_START:
+        // Distinguishes a gapless handover from an ordinary first start: only
+        // the about-to-finish path arms the flag, and consuming it here means a
+        // normal setSource() cannot be mistaken for one.
+        if (m_handoverPending.fetchAndStoreOrdered(0) == 1) {
+            QByteArray handedTo;
+            {
+                QMutexLocker locker(&m_nextMutex);
+                handedTo = m_handoverUri;
+            }
+            if (!handedTo.isEmpty()) {
+                m_source = QUrl(QString::fromUtf8(handedTo));
+                emit sourceChanged();
+            }
+
+            m_position = 0;
+            m_duration = -1;
+            emit positionChanged();
+            emit durationChanged();
+            qCInfo(lcCore) << "gapless handover to" << m_source.toString();
+            emit gaplessAdvance();
+        }
         break;
 
     case GST_MESSAGE_STATE_CHANGED:

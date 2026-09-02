@@ -5,6 +5,8 @@
 
 #include <QRandomGenerator>
 
+#include "library/PlaylistIO.h"
+
 #include <algorithm>
 
 namespace ferrolux::library {
@@ -313,6 +315,48 @@ void PlaylistModel::sortBy(SortKey key, Qt::SortOrder order)
     emitOrderSignals();
 }
 
+bool PlaylistModel::loadFrom(const QUrl &fileUrl)
+{
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    QString error;
+    const QList<PlaylistEntry> loaded = PlaylistIO::load(path, &error);
+    if (loaded.isEmpty() && !error.isEmpty()) {
+        emit ioError(error);
+        return false;
+    }
+
+    takeSnapshot();
+
+    beginResetModel();
+    m_entries = loaded;
+    m_cursor = -1;
+    rebuildOrder();
+    endResetModel();
+
+    QList<QUrl> urls;
+    urls.reserve(m_entries.size());
+    for (const PlaylistEntry &entry : std::as_const(m_entries))
+        urls.append(entry.url);
+
+    emit countChanged();
+    emit currentRowChanged();
+    emit canUndoChanged();
+    // The playlist file's own titles are placeholders; real tags still get read.
+    emit metadataNeeded(urls);
+    emitOrderSignals();
+    return true;
+}
+
+bool PlaylistModel::saveTo(const QUrl &fileUrl) const
+{
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    QString error;
+    if (PlaylistIO::save(path, m_entries, &error))
+        return true;
+    emit const_cast<PlaylistModel *>(this)->ioError(error);
+    return false;
+}
+
 void PlaylistModel::applyMetadata(const QList<PlaylistEntry> &results)
 {
     if (results.isEmpty())
@@ -449,11 +493,22 @@ int PlaylistModel::previousRow() const
 
 bool PlaylistModel::advance()
 {
+    return step(true);
+}
+
+bool PlaylistModel::advanceForHandover()
+{
+    return step(false);
+}
+
+bool PlaylistModel::step(bool notify)
+{
     if (m_order.isEmpty())
         return false;
 
     if (m_repeat == RepeatOne && m_cursor >= 0) {
-        emit currentEntryChanged(m_entries.at(m_order.at(m_cursor)).url);
+        if (notify)
+            emit currentEntryChanged(m_entries.at(m_order.at(m_cursor)).url);
         return true;
     }
 
@@ -469,7 +524,8 @@ bool PlaylistModel::advance()
         return false;
     }
 
-    emit currentEntryChanged(m_entries.at(m_order.at(m_cursor)).url);
+    if (notify)
+        emit currentEntryChanged(m_entries.at(m_order.at(m_cursor)).url);
     return true;
 }
 

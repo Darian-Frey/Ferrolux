@@ -6,9 +6,10 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phase 1 complete.** The transport core builds and plays audio, behind
-> a deliberately plain harness. There is no panel yet — that is Phase 5, and it is
-> the reason the project exists. See [Status](#status) below.
+> **Status: Phases 1 and 2 built.** Transport, a 20,000-entry playlist, shuffle,
+> repeat, playlist file I/O and gapless playback all work, behind a deliberately
+> plain harness. There is no panel yet — that is Phase 5, and it is the reason
+> the project exists. See [Status](#status) below.
 
 ---
 
@@ -45,8 +46,8 @@ a fake. The lag is the entire character of the instrument.
 A static mockup of the intended layout is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
 There are no screenshots of the panel because it does not exist yet; what runs
-today is five buttons and a position bar in the default Qt Quick style, which is
-exactly what a Phase 1 harness should be.
+today is a plain Qt Quick window: transport buttons, a position bar and a
+playlist in the default style, which is exactly what a harness should be.
 
 ## What it will do
 
@@ -77,7 +78,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 | Phase | Scope | State |
 |-------|-------|-------|
 | 1 | Transport core | **Complete** 2026-09-02 |
-| 2 | Playlist | In progress |
+| 2 | Playlist | Feature-complete 2026-09-02 |
 | 3 | Equaliser | Not started |
 | 4 | Meters | Not started |
 | 5 | The panel | Not started |

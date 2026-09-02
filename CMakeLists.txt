@@ -36,6 +36,10 @@ qt_add_executable(ferrolux
     src/library/PlaylistModel.h
     src/library/MetadataReader.cpp
     src/library/MetadataReader.h
+    src/library/PlaylistIO.cpp
+    src/library/PlaylistIO.h
+    src/library/PlaylistFilter.cpp
+    src/library/PlaylistFilter.h
 )
 
 # RESOURCE_PREFIX is pinned rather than left to default: Qt 6.4 places QML
@@ -66,6 +70,10 @@ qt_add_executable(acceptance_transport
     tests/acceptance_transport.cpp
     src/core/Engine.cpp
     src/core/Engine.h
+    src/library/PlaylistModel.cpp
+    src/library/PlaylistModel.h
+    src/library/PlaylistIO.cpp
+    src/library/PlaylistIO.h
 )
 target_include_directories(acceptance_transport PRIVATE src)
 target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer)
@@ -75,6 +83,10 @@ qt_add_executable(playlist_model_test
     tests/playlist_model_test.cpp
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
+    src/library/PlaylistIO.cpp
+    src/library/PlaylistIO.h
+    src/library/PlaylistFilter.cpp
+    src/library/PlaylistFilter.h
 )
 target_include_directories(playlist_model_test PRIVATE src)
 target_link_libraries(playlist_model_test PRIVATE Qt6::Core)

@@ -49,7 +49,7 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - Consecutive tracks from a gapless album play with no audible discontinuity at the join
 - Verified against a known-gapless reference recording
-**Status:** Not started (Phase 2)
+**Status:** Partial (Phase 2, 2026-09-02) — the handover mechanism is implemented and verified: `about-to-finish` swaps the URI on the streaming thread from a pre-cached value, the pipeline never returns to Stopped across the join, and the playlist follows without re-loading the source. The audible clause is **not** verified; it needs a real gapless recording and a capture of the sink, per AV-006.
 **Notes:** Depends on `playbin3`'s about-to-finish handling; see AV-006.
 
 ### F-006 ReplayGain
@@ -69,7 +69,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Add individual files, whole folders (recursively), or a drag-and-drop selection from a file manager
 - Holds 20,000 entries without the UI dropping below 60 fps during scroll — see AV-008
 - Metadata read asynchronously; rows populate progressively rather than blocking the add
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-09-02) — 20,000 entries add in 17 ms with tags read on a private worker pool. Folder recursion and drag-and-drop both add. Scroll frame time is not yet measured; see ROADMAP.md Phase 2.
 
 ### F-011 Playlist editing
 **Priority:** Must
@@ -77,7 +77,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Multi-select with modifier keys, remove selection, clear all
 - Drag to reorder, including multi-row drags
 - Undo for the last destructive operation
-**Status:** Not started (Phase 2)
+**Status:** Partial (Phase 2, 2026-09-02) — multi-select with Ctrl and Shift, remove, clear and single-level undo of both are complete and tested. Drag reorder moves a single row; F-011's multi-row drag is not implemented, and reordering is disabled while a filter is active because the drop position would be ambiguous.
 
 ### F-012 Play order
 **Priority:** Must
@@ -85,21 +85,21 @@ People who keep a local music library on Linux and want a player with the charac
 - Shuffle produces a permutation without repeats until the list is exhausted, not independent random picks
 - Repeat modes: off, repeat-all, repeat-one
 - Shuffle state survives track changes and is not recomputed on each advance
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-09-02) — order is a held permutation with a cursor into it. Verified: a pass visits every entry exactly once, `nextRow()` is stable across repeated calls, and a second pass under repeat-all is a fresh permutation.
 
 ### F-013 Playlist file I/O
 **Priority:** Should
 **Acceptance:**
 - Load and save M3U, M3U8 and PLS
 - Relative paths preserved on save when the playlist file sits above the media
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-09-02) — M3U, M3U8 and PLS round-trip URLs and durations including `-1`. Read tolerantly: unknown directives, absent headers, CRLF and out-of-order PLS keys are all skipped rather than fatal.
 
 ### F-014 Sort and filter
 **Priority:** Should
 **Acceptance:**
 - Sort by title, artist, album, duration, path or file date
 - Live text filter narrows the visible rows without altering play order
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-09-02) — sort permutes the model and so changes play order; the filter is a proxy and provably does not, which is asserted directly. Filtering 20,000 rows takes under a millisecond.
 
 ### F-015 Session restore
 **Priority:** Should
