@@ -197,6 +197,19 @@ ApplicationWindow {
                 cacheBuffer: 200
                 ScrollBar.vertical: ScrollBar {}
 
+                // Row index the dragged selection would land before, or -1.
+                property int dropIndicator: -1
+
+                Rectangle {
+                    parent: list.contentItem
+                    visible: list.dropIndicator >= 0
+                    y: list.dropIndicator * 24
+                    width: list.width
+                    height: 2
+                    color: palette.highlight
+                    z: 2
+                }
+
                 // A plain Rectangle rather than an ItemDelegate: selection needs
                 // the keyboard modifiers from the click, and ItemDelegate's
                 // onClicked does not carry them.
@@ -229,25 +242,47 @@ ApplicationWindow {
                         onClicked: function(mouse) { window.selectRow(row.sourceRow, mouse.modifiers) }
                         onDoubleClicked: Playlist.setCurrentRow(row.sourceRow)
 
-                        onPressed: function(mouse) { pressedY = mouse.y; dragging = false }
+                        onPressed: function(mouse) {
+                            pressedY = mouse.y
+                            dragging = false
+                            // Dragging a row that is not part of the current
+                            // selection starts a fresh single-row drag, rather
+                            // than silently carrying an unrelated selection.
+                            if (window.selection.indexOf(row.sourceRow) < 0)
+                                window.selectRow(row.sourceRow, 0)
+                        }
+
                         onPositionChanged: function(mouse) {
-                            if (PlaylistView.filterText !== "")
+                            if (PlaylistView.filterText !== "" || !pressed)
                                 return
-                            if (!pressed)
-                                return
-                            if (!dragging && Math.abs(mouse.y - pressedY) < row.height)
+                            if (!dragging && Math.abs(mouse.y - pressedY) < row.height / 2)
                                 return
                             dragging = true
 
                             const inList = mapToItem(list.contentItem, mouse.x, mouse.y)
-                            let target = Math.floor(inList.y / row.height)
-                            target = Math.max(0, Math.min(Playlist.count - 1, target))
-                            if (target !== row.index) {
-                                const destination = target > row.index ? target + 1 : target
-                                if (Playlist.moveRows(row.sourceRow, 1, destination))
-                                    window.selection = [target]
-                            }
+                            list.dropIndicator = Math.max(0, Math.min(Playlist.count,
+                                                          Math.round(inList.y / row.height)))
                         }
+
+                        onReleased: {
+                            // Committed on release, not continuously: a
+                            // multi-row move is an arbitrary permutation and so
+                            // resets the model, which would fight a live drag.
+                            if (dragging && list.dropIndicator >= 0) {
+                                const landed = Playlist.moveSelection(window.selection,
+                                                                      list.dropIndicator)
+                                if (landed >= 0) {
+                                    const block = []
+                                    for (let i = 0; i < window.selection.length; ++i)
+                                        block.push(landed + i)
+                                    window.selection = block
+                                }
+                            }
+                            dragging = false
+                            list.dropIndicator = -1
+                        }
+
+                        onCanceled: { dragging = false; list.dropIndicator = -1 }
                     }
 
                     RowLayout {

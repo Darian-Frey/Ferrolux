@@ -33,7 +33,7 @@ Two things the phase surfaced that were not anticipated. BUG-001 records that th
 **Deliverables:**
 - [x] `library/PlaylistModel` as a `QAbstractListModel` with asynchronous metadata population
 - [x] TagLib integration on a worker thread
-- [~] Multi-select, drag reorder, remove, clear, single-level undo — all present; drag reorder moves one row at a time, and F-011's multi-row drag is not implemented
+- [x] Multi-select, drag reorder, remove, clear, single-level undo
 - [x] Shuffle as a permutation; repeat modes
 - [x] M3U/M3U8/PLS load and save
 - [x] Sort and live filter
@@ -42,7 +42,7 @@ Two things the phase surfaced that were not anticipated. BUG-001 records that th
 **Measured against the acceptance criterion.** On 20,000 entries: add 17 ms,
 sort 52 ms, shuffle 1 ms, remove 6 ms, filter 0 ms, against a one-second budget.
 A full shuffle pass visits every entry exactly once with no repeats, and a
-second pass under repeat-all is a fresh permutation. 70 checks across
+second pass under repeat-all is a fresh permutation. 80 checks across
 `playlist_model_test` and `metadata_reader_test`, plus 9 for the gapless
 handover in `acceptance_transport`.
 

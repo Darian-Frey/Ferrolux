@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFile>
 #include <QSet>
+#include <QStringList>
 #include <QTemporaryDir>
 #include <QUrl>
 
@@ -98,6 +99,73 @@ void testContents()
     ordered.moveRows(2, 1, 0);
     check(ordered.entryAt(0).url == third, "moveRows relocates a single row");
     check(ordered.rowCount() == 5, "moveRows preserves the row count");
+}
+
+// F-011's multi-row drag. The interaction lives in throwaway QML, but the
+// permutation it performs is real logic and is tested here.
+void testMultiRowMove()
+{
+    std::printf("\nmulti-row move (F-011)\n");
+
+    const auto titles = [](const PlaylistModel &model) {
+        QStringList out;
+        for (int i = 0; i < model.rowCount(); ++i)
+            out << model.entryAt(i).url.fileName();
+        return out.join(QLatin1Char(','));
+    };
+
+    // A non-contiguous selection collapses into a block at the destination,
+    // keeping the selected rows in their own relative order.
+    PlaylistModel model;
+    model.addUrls(synthesise(6, QStringLiteral("t")));
+    const QString before = titles(model);
+    const int landed = model.moveSelection({ 0, 2, 4 }, 6);
+    check(landed == 3, "a scattered selection lands as one block",
+          QStringLiteral("first moved row is now %1").arg(landed));
+    check(titles(model) == QStringLiteral(
+              "t-000001.flac,t-000003.flac,t-000005.flac,"
+              "t-000000.flac,t-000002.flac,t-000004.flac"),
+          "unselected rows close up and selected rows keep their order",
+          titles(model));
+    check(before != titles(model), "the move actually changed the order");
+
+    // Moving upwards.
+    PlaylistModel up;
+    up.addUrls(synthesise(6, QStringLiteral("t")));
+    check(up.moveSelection({ 3, 5 }, 1) == 1, "a selection can move upwards");
+    check(titles(up) == QStringLiteral(
+              "t-000000.flac,t-000003.flac,t-000005.flac,"
+              "t-000001.flac,t-000002.flac,t-000004.flac"),
+          "upward move preserves relative order", titles(up));
+
+    // The playing entry must survive the reshuffle of indices.
+    PlaylistModel playing;
+    playing.addUrls(synthesise(20, QStringLiteral("t")));
+    playing.setCurrentRow(7);
+    const QUrl current = playing.entryAt(7).url;
+    playing.moveSelection({ 1, 2, 15 }, 20);
+    check(playing.currentRow() >= 0 && playing.entryAt(playing.currentRow()).url == current,
+          "the current entry stays current across a multi-row move",
+          QStringLiteral("row %1").arg(playing.currentRow()));
+
+    // Under shuffle the permutation must be carried across, not discarded.
+    PlaylistModel shuffled;
+    shuffled.addUrls(synthesise(50, QStringLiteral("t")));
+    shuffled.setShuffle(true);
+    shuffled.advance();
+    const QUrl nextBefore = shuffled.entryAt(shuffled.nextRow()).url;
+    shuffled.moveSelection({ 4, 9, 14 }, 40);
+    check(shuffled.nextRow() >= 0
+              && shuffled.entryAt(shuffled.nextRow()).url == nextBefore,
+          "shuffle order survives a multi-row move");
+
+    // Rejections.
+    PlaylistModel guard;
+    guard.addUrls(synthesise(5, QStringLiteral("t")));
+    check(guard.moveSelection({}, 0) == -1, "an empty selection is rejected");
+    check(guard.moveSelection({ 0, 99 }, 0) == -1, "an out-of-range row is rejected");
+    check(guard.moveSelection({ 1, 2 }, 1) == -1,
+          "a move that changes nothing is rejected");
 }
 
 void testPlayOrder()
@@ -390,6 +458,7 @@ int main(int argc, char *argv[])
 
     testContents();
     testPlayOrder();
+    testMultiRowMove();
     testSortAndCurrent();
     testPlaylistIO();
     testFilter();

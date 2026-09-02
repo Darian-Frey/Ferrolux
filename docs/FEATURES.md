@@ -77,7 +77,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Multi-select with modifier keys, remove selection, clear all
 - Drag to reorder, including multi-row drags
 - Undo for the last destructive operation
-**Status:** Partial (Phase 2, 2026-09-02) — multi-select with Ctrl and Shift, remove, clear and single-level undo of both are complete and tested. Drag reorder moves a single row; F-011's multi-row drag is not implemented, and reordering is disabled while a filter is active because the drop position would be ambiguous.
+**Status:** Complete (Phase 2, 2026-09-02) — multi-select with Ctrl and Shift, remove, clear, and single-level undo of both. Drag reorder handles a non-contiguous selection: it collapses into one contiguous block at the drop point, preserving the selected rows' relative order, and the current entry and any shuffle permutation survive the move. The permutation is tested independently of the interaction that drives it. Reordering is disabled while a filter is active, because a drop position between two visible rows is ambiguous when rows are hidden between them.
 
 ### F-012 Play order
 **Priority:** Must
@@ -191,8 +191,11 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - Transport, display, playlist and equaliser sections present in one window
 - Warm off-white shell, amber readouts, chunky moulded controls with visible travel state
+- Shuffle and repeat are physical toggle switches whose state is readable from the switch position alone, without a text label. They are a different class of control from the momentary transport buttons and must not be cycling buttons — the Phase 2 harness uses cycling buttons and is exactly what this criterion excludes
+- Hairline gaps between panel sections, specified in device-independent units. A hairline given in pixels is the founding defect of the project in miniature — see AV-005
 - All chrome drawn as vectors or shaders; no fixed-size bitmap assets in the control surface
 **Status:** Not started (Phase 5)
+**Notes:** The toggle-switch and hairline criteria come from the original design brief accompanying the mockup, recorded here on 2026-09-02 because they were otherwise carried only in that prose. The same brief is the source of the amber-or-VFD-green readout option in F-044 and the needle VU meters in F-032.
 
 ### F-041 Resolution independence
 **Priority:** Must

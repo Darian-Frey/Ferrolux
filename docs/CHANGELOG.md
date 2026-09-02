@@ -53,6 +53,11 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   9 more for the gapless handover in `acceptance_transport`.
 - `playback/shuffle` and `playback/repeat` now persist, per SPEC.md §Settings.
 
+- `PlaylistModel::moveSelection` completes F-011: a non-contiguous selection
+  moves as one block, preserving relative order, the current entry, and any
+  shuffle permutation. Ten checks cover the permutation independently of the
+  drag interaction that drives it.
+
 ### Fixed
 - BUG-003: the balance control used a constant-power law intended for panning
   a mono source, which attenuated centred playback by 3.01 dB on both channels
@@ -68,6 +73,10 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   with `fonttools varLib.instancer`, removing the version requirement.
 
 ### Changed
+- F-040 gains two acceptance criteria from the original design brief: shuffle
+  and repeat as physical toggle switches readable by position rather than
+  cycling buttons, and hairline panel gaps specified in device-independent
+  units (AV-005).
 - Both gain laws extracted as pure static functions on `core/Engine` and
   covered by unit checks in the acceptance harness, which now runs 34 checks.
 - D-012's consequence claiming Handjet's axes are token data amended in place;

@@ -102,6 +102,18 @@ public slots:
     // destination in the pre-move indexing.
     bool moveRows(int from, int count, int destination);
 
+    // Multi-row drag (F-011). Moves an arbitrary, possibly non-contiguous
+    // selection so that it becomes one contiguous block landing before
+    // `destination` in the pre-move indexing, preserving the selected rows'
+    // relative order. Returns the new index of the first moved row, or -1 if
+    // the move was rejected — callers use it to follow the selection, which
+    // has different row numbers afterwards.
+    //
+    // Collapsing a scattered selection into a block is what every file manager
+    // and playlist does; the alternative, preserving the gaps between selected
+    // rows, has no sensible meaning once the rows between them have moved.
+    int moveSelection(QList<int> rows, int destination);
+
     void sortBy(SortKey key, Qt::SortOrder order = Qt::AscendingOrder);
 
     // Playlist file I/O (F-013). Loading replaces the contents and is undoable,

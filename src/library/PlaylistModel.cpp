@@ -262,6 +262,83 @@ bool PlaylistModel::moveRows(int from, int count, int destination)
     return true;
 }
 
+int PlaylistModel::moveSelection(QList<int> rows, int destination)
+{
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    if (rows.isEmpty() || rows.first() < 0 || rows.last() >= m_entries.size())
+        return -1;
+    if (destination < 0 || destination > m_entries.size())
+        return -1;
+
+    // Where the block lands once the selected rows have been lifted out: the
+    // number of unselected rows that sit above the destination.
+    int insertAt = 0;
+    for (int row = 0; row < destination; ++row) {
+        if (!rows.contains(row))
+            ++insertAt;
+    }
+
+    // A move that would put the block back exactly where it already is.
+    if (rows.size() == rows.last() - rows.first() + 1 && rows.first() == insertAt)
+        return -1;
+
+    const int currentBefore = currentRow();
+
+    QList<PlaylistEntry> moved;
+    QList<int> movedFrom;
+    QList<PlaylistEntry> remaining;
+    QList<int> remainingFrom;
+    moved.reserve(rows.size());
+    remaining.reserve(m_entries.size() - rows.size());
+
+    for (int row = 0; row < m_entries.size(); ++row) {
+        if (rows.contains(row)) {
+            moved.append(m_entries.at(row));
+            movedFrom.append(row);
+        } else {
+            remaining.append(m_entries.at(row));
+            remainingFrom.append(row);
+        }
+    }
+
+    QList<PlaylistEntry> rebuilt;
+    QList<int> oldToNew(m_entries.size(), -1);
+    rebuilt.reserve(m_entries.size());
+
+    for (int i = 0; i < insertAt; ++i) {
+        oldToNew[remainingFrom.at(i)] = int(rebuilt.size());
+        rebuilt.append(remaining.at(i));
+    }
+    for (int i = 0; i < moved.size(); ++i) {
+        oldToNew[movedFrom.at(i)] = int(rebuilt.size());
+        rebuilt.append(moved.at(i));
+    }
+    for (int i = insertAt; i < remaining.size(); ++i) {
+        oldToNew[remainingFrom.at(i)] = int(rebuilt.size());
+        rebuilt.append(remaining.at(i));
+    }
+
+    // A reset rather than a sequence of beginMoveRows: an arbitrary selection
+    // is an arbitrary permutation, and expressing it as legal single-row moves
+    // costs more than it saves. The harness therefore commits the move on drop
+    // rather than continuously during the drag.
+    beginResetModel();
+    m_entries = std::move(rebuilt);
+    if (!m_shuffle) {
+        rebuildOrder();
+        m_cursor = currentBefore >= 0 ? oldToNew.value(currentBefore, -1) : -1;
+    } else {
+        for (int &index : m_order)
+            index = oldToNew.value(index, index);
+    }
+    endResetModel();
+
+    emit currentRowChanged();
+    emitOrderSignals();
+    return insertAt;
+}
+
 void PlaylistModel::sortBy(SortKey key, Qt::SortOrder order)
 {
     if (m_entries.size() < 2)
