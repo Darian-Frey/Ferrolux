@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Shane Hartley
+#
 # Ferrolux RS-1 — Phase 1 (transport core).
 #
 # Toolchain minimums come from BUILD.md, with one correction: that document

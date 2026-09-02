@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Shane Hartley
+//
 // Ferrolux RS-1 — entry point.
 //
 // Phase 1 wires the engine to a throwaway QML harness. Settings persistence is

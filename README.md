@@ -6,9 +6,9 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: pre-implementation.** This repository currently contains design
-> documentation and nothing else. There is no source code, no build system and
-> no executable. Phase 1 has not started. See [Status](#status) below.
+> **Status: Phase 1 complete.** The transport core builds and plays audio, behind
+> a deliberately plain harness. There is no panel yet — that is Phase 5, and it is
+> the reason the project exists. See [Status](#status) below.
 
 ---
 
@@ -44,7 +44,9 @@ a fake. The lag is the entire character of the instrument.
 
 A static mockup of the intended layout is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
-There are no screenshots, because there is nothing to screenshot yet.
+There are no screenshots of the panel because it does not exist yet; what runs
+today is five buttons and a position bar in the default Qt Quick style, which is
+exactly what a Phase 1 harness should be.
 
 ## What it will do
 
@@ -62,10 +64,10 @@ exclusion is reasoned in [FEATURES.md](docs/FEATURES.md).
 
 ## Built on
 
-Qt 6.5 with QML for presentation, C++20 for the engine, GStreamer 1.20 with
-`playbin3` for audio, and TagLib for metadata. Linux only — X11 and Wayland
-both supported and tested, with platform-specific code confined to one
-directory so a future port is bounded work rather than a rewrite.
+Qt 6.4 with QML for presentation, C++20 for the engine, GStreamer 1.20 with
+`playbin3` for audio, and TagLib for metadata from Phase 2. Linux only — X11 and
+Wayland both supported, with platform-specific code confined to one directory so
+a future port is bounded work rather than a rewrite.
 
 The reasoning for each of these, and the alternatives rejected, is in
 [DECISIONS.md](docs/DECISIONS.md).
@@ -74,7 +76,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 
 | Phase | Scope | State |
 |-------|-------|-------|
-| 1 | Transport core | Not started |
+| 1 | Transport core | **Complete** 2026-09-02 |
 | 2 | Playlist | Not started |
 | 3 | Equaliser | Not started |
 | 4 | Meters | Not started |
@@ -89,21 +91,21 @@ and meter work is meaningless until there is a signal to meter. Full plan in
 
 ## Building
 
-Not yet possible. When Phase 1 lands:
-
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/ferrolux ~/Music/some-album/
+./build/ferrolux ~/Music/some-album/track.flac
 ```
 
-Toolchain versions and per-distribution package lists are in
-[BUILD.md](docs/BUILD.md), which is provisional until the first build actually
-succeeds.
+Dependencies, per-distribution package lists and troubleshooting are in
+[BUILD.md](docs/BUILD.md), written from the first working build rather than from
+intention. Phase 1 needs Qt 6 Base and Declarative, GStreamer 1.20 and its base,
+good and bad plugin sets; TagLib and Qt Shader Tools arrive with later phases.
 
 ## Documentation
 
-The design documentation is complete and is the substance of this repository.
+The design documentation is the larger half of this repository and is meant to
+be read, not skimmed.
 [`docs/README.md`](docs/README.md) is the index; the entries most worth reading
 first are [DECISIONS.md](docs/DECISIONS.md) for why the project is shaped the
 way it is, [SPEC.md](docs/SPEC.md) for the constants that define its behaviour,
@@ -115,16 +117,21 @@ page links rather than restates, so the two cannot disagree.
 
 ## Licence
 
-**Not yet chosen**, which means no permissions are granted to anyone at
-present — not to use, copy, modify or redistribute. Qt's open-source licensing
-and the GStreamer plugin sets in use both constrain the decision, and it must
-be settled before the first public commit of source code. Tracked as
-[D-010](docs/DECISIONS.md), recorded as Proposed rather than Accepted so the
-gap stays visible.
+**GPL-3.0-or-later.** The full text is in [LICENSE](LICENSE), and every source
+file carries an `SPDX-License-Identifier` header.
 
-Bundled fonts are a separate question and already settled: all four are SIL
-Open Font License 1.1, redistributable under whatever D-010 concludes. See
-[D-012](docs/DECISIONS.md).
+You may use, study, modify and redistribute Ferrolux. If you distribute it, or
+anything derived from it, you must pass on the same freedoms and provide
+complete corresponding source. It cannot be incorporated into proprietary
+software.
+
+Nothing in the dependency set forced this — Qt, GStreamer and its plugins are
+all LGPL — so it is a deliberate choice rather than an obligation. The
+reasoning, including why copyleft is *less* packaging work here than a
+permissive licence would be, is recorded as [D-010](docs/DECISIONS.md).
+
+The bundled fonts are separately licensed under the SIL Open Font License 1.1
+and are redistributable on their own terms. See [D-012](docs/DECISIONS.md).
 
 ---
 

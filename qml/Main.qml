@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Shane Hartley
+//
 // Throwaway Phase 1 harness — five transport buttons and a position bar, per
 // ROADMAP.md Phase 1. This is deliberately plain Qt Quick Controls with no
 // styling at all: the cassette futurism panel is Phase 5 (F-040), and dressing

@@ -237,13 +237,15 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 ---
 
 ### D-010 Project licence
-**Decided:** —
+**Decided:** 2026-09-02
 **Recorded:** 2026-09-02
-**Status:** Proposed
-**Authors:** Shane Hartley
-**Related:** README.md, D-001, D-002, ROADMAP.md Phase 7
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude, session 2026-09-02)
+**Related:** README.md, D-001, D-002, D-012, ROADMAP.md Phase 7, FEATURES.md §Future
 
 **Context.** No licence has been chosen. This must be settled before the first public commit of source code. Two upstream dependencies constrain the choice. Qt 6's open-source distribution is offered under LGPLv3 and GPLv3; using it under LGPL imposes relinking obligations but does not dictate the application's own licence. GStreamer's core and base plugins are LGPL, but plugin sets vary, and some codecs distributed in the wider ecosystem carry terms that propagate.
+
+**The constraint proved weaker than assumed.** Audited on 2026-09-02 against the Phase 1 build. The binary links only Qt 6 Base and Declarative — both offered under LGPLv3, GPLv2 *and* GPLv3, so a v2 route was open — plus glib, gobject and GStreamer core. Every plugin the pipeline uses — `playbin3`, `audioconvert`, `capsfilter`, `audiomixmatrix`, `equalizer-10bands`, `level`, `spectrum`, `autoaudiosink` and the decoders — reports LGPL. Ubuntu's `gst-libav` is built without `--enable-gpl` and ships as LGPL-2+. TagLib is LGPLv2.1/MPL, and the bundled fonts are OFL 1.1 per D-012. Nothing in the dependency set forces copyleft, so this was decided on merit rather than obligation.
 
 **Options.**
 - **A. GPLv3.** Consistent with the surrounding ecosystem, avoids any question about plugin propagation, matches what comparable players use. Cost: forecloses proprietary derivatives, including any the author might later want.
@@ -251,13 +253,23 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 - **C. MIT or Apache-2.0.** Maximum permissiveness. Requires care that no GPL plugin dependency is linked rather than loaded, and that Qt is used under LGPL terms with relinking preserved.
 - **D. Dual licensing.** Rejected as disproportionate for a solo project with no commercial intent.
 
-**Decision.** Not yet made. Recorded as Proposed so the gap is visible rather than silent.
+**Decision.** Option A, as **GPL-3.0-or-later**. `LICENSE` carries the unmodified GPLv3 text; every source file carries an `SPDX-License-Identifier: GPL-3.0-or-later` header and a copyright line.
 
-**Consequences.** Until this is settled, the repository should carry documentation only. Publishing source without a licence leaves contributors and packagers with no permissions at all, which is a worse outcome than any of the options above.
+Four reasons, in order of weight.
 
-**Reversal conditions.** Not applicable until a decision is made. Once accepted, reversal after third-party contributions have been merged is effectively impossible without their consent, which is itself a reason to settle it early.
+1. Permissive licensing buys an application almost nothing. It exists to maximise *library* adoption — people embed your code in their own product — and nobody embeds a music player. Permissive terms would give away the right to fork Ferrolux proprietary and return no adoption benefit for it.
+2. Copyleft is *less* compliance work here, not more. ROADMAP.md Phase 7 requires a Flatpak, which bundles Qt. Under a permissive licence the LGPLv3 §4 relinking obligation for that bundled Qt still applies and must be discharged for every binary shipped. Under GPL, complete corresponding source is provided anyway and the obligation is met by construction.
+3. The asset being protected is the design. D-003 makes visual identity the project's own responsibility and the deliberate trade for abandoning the skin ecosystem. The panel, the token set and the shader chrome are the work; copyleft keeps them from being shipped inside a closed product.
+4. GPLv3 rather than GPLv2 for the explicit patent grant, and "or later" rather than v3-only so the project is not stranded on a single revision.
 
----
+**Consequences.**
+- The repository can carry source. The documentation-only restriction is lifted.
+- Ferrolux cannot be incorporated into proprietary software by anyone else.
+- Qt's LGPL relinking obligation is discharged automatically by the GPL source requirement, removing a recurring packaging burden from Phase 7.
+- The author is not bound by his own licence and may relicense or dual-license at will **while sole copyright holder**. This is the answer to Option A's stated cost: what forecloses a future proprietary version is merging third-party contributions, not this decision.
+- GPLv3 §6 requires Installation Information for "User Products", so a locked-down device build would not comply. This bears directly on the hardware companion candidate in FEATURES.md and is the one place choosing v3 over v2 costs something.
+
+**Reversal conditions.** Reversal is possible only while the author remains sole copyright holder; once third-party contributions are merged it requires every contributor's consent. If the hardware companion candidate is promoted and would ship on a locked device, revisit *before* accepting any outside contribution, because that is the point of no return. A CLA or DCO policy should therefore be settled before the first external pull request rather than after it.
 
 ### D-011 In-repository bug and improvement catalogues
 **Decided:** 2026-09-02

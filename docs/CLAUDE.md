@@ -17,7 +17,7 @@ passes its acceptance harness.
 - `qml/Main.qml` — throwaway Phase 1 harness, plain Qt Quick Controls
 - `tests/acceptance_transport.cpp` — headless Phase 1 acceptance harness
 - `docs/` — this document set
-- `LICENSE` — **absent**, blocking publication of source. See DECISIONS.md D-010
+- `LICENSE` — GPL-3.0-or-later, settled 2026-09-02 (D-010). Source files carry SPDX headers
 - Not yet present: `meters/`, `library/`, `platform/`, `resources/`, `tools/`
 
 Two open defects, both found during Phase 1 and neither blocking it. **BUG-001**:
@@ -110,7 +110,8 @@ Do not change these without asking.
 - **Adding a library database, tag editing, video, or streaming service integration.** All explicitly excluded. Candidate features in FEATURES.md are ideas, not permission.
 - **Changing the equaliser band layout or range.** Fixed by D-007 for preset compatibility.
 - **Replacing the GStreamer backend or the Qt/QML choice.** D-001 and D-002 are Accepted; the reversal conditions in those entries are the only route to reopening them.
-- **Choosing a licence.** D-010 is Proposed and is the author's decision, not an implementation detail. Do not add a `LICENSE` file on your own initiative.
+- **Relicensing.** D-010 is Accepted as GPL-3.0-or-later. Do not change it, and do not add differently-licensed code to the tree. New source files get an `SPDX-License-Identifier: GPL-3.0-or-later` header and a copyright line.
+- **Accepting outside contributions.** Merging third-party code permanently removes the author's ability to relicense, which D-010 flags as the point of no return for the hardware companion candidate. A CLA or DCO policy is the author's decision and is not yet settled.
 - **Promoting candidate features into the roadmap.** Requires a recorded decision first.
 
 Per Maintenance Rule 8: when you discover a bug or notice an improvement candidate while working on something else, log it in BUGS.md or IMPROVEMENTS.md rather than fixing or applying it inline. The author decides whether to act immediately, defer or decline. This rule exists specifically because AI partners default to acting on discoveries, and the value of those catalogues depends on their completeness.

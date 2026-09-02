@@ -38,6 +38,12 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   the ROADMAP.md Phase 1 acceptance criterion.
 - BUG-001 and BUG-002 logged, both found during Phase 1.
 
+- D-010 accepted: the project is licensed **GPL-3.0-or-later**. `LICENSE`
+  added with the unmodified GPLv3 text; SPDX headers and copyright lines added
+  to every source file. A dependency audit recorded in D-010 established that
+  Qt, GStreamer core and every plugin in the pipeline are LGPL, so no upstream
+  term forced the outcome.
+
 ### Fixed
 - BUG-003: the balance control used a constant-power law intended for panning
   a mono source, which attenuated centred playback by 3.01 dB on both channels

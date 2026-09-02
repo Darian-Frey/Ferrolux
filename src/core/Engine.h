@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Shane Hartley
+//
 // core/Engine.h — playback engine for Ferrolux RS-1.
 //
 // Delivers F-001 through F-004. Owns the GStreamer pipeline outright:

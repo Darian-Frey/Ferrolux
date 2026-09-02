@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Shane Hartley
+//
 // Phase 1 acceptance harness.
 //
 // Drives core/Engine through the criteria in ROADMAP.md Phase 1 without a
