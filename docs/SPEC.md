@@ -168,7 +168,7 @@ when reading bytes.
 
 Normalisation maps the `spectrum` threshold (−80 dB) to 0.0 and 0 dB to 1.0. Sampling uses linear filtering; shaders may sample between texel centres to interpolate between bands.
 
-**Display band count:** 24 for spectrum bars, 48 for mirrored spectrum. **Provisional** — chosen for legibility at typical panel widths, to be confirmed during Phase 4.
+**Display band count:** 24 for spectrum bars, 48 for mirrored spectrum and for flame. **Provisional** — chosen for legibility at typical panel widths, to be confirmed during Phase 4.
 
 ### Frequency mapping
 
@@ -183,7 +183,11 @@ Each display band takes the maximum of the analysis bins whose centre frequencie
 
 Where a display band spans fewer than one analysis bin — which happens at the bottom of the range — the nearest bin is used and the band is marked as interpolated. No display band may be left empty. See AV-011.
 
-Measured at 44.1 kHz with 512 analysis bins, whose bins are 43.07 Hz wide: **4 of the 24 display bands and 12 of the 48** fall below one bin and are interpolated. The consequence is visible and is accepted rather than hidden — an interpolated band borrows the nearest bin, which already belongs to a real band, so the lowest few bars move in lockstep. At 24 bands, band 3 shares bin 1 with band 4 and band 6 shares bin 3 with band 7. Bars that move together are honest about the analysis resolution; a bar stuck at silence would not be, and would read as missing bass rather than as a limit of the transform.
+Measured at 44.1 kHz with 512 analysis bins, whose bins are 43.07 Hz wide: **4 of the 24 display bands and 12 of the 48** fall below one bin.
+
+Such a band's centre is expressed in fractional bin coordinates and its magnitude is **interpolated in decibels between the two bins either side**. It is not rounded to the nearest bin. Rounding gives adjacent starved bands one identical value, and the result is visible: at 24 bands the three lowest bars move as a single welded group and the next two as another. Interpolating gives each band its own value, so the bottom of the display moves as a spectrum rather than as a set of linked levers.
+
+The resolution limit is still real and is not hidden by this — neighbouring low bands remain highly correlated because they genuinely describe overlapping content. What changes is that they are no longer identical, which is the difference between a display that is honest about its resolution and one that looks broken.
 
 ### Smoothing and ballistics
 
@@ -205,9 +209,52 @@ Solved for the stated behaviour, first reaching 99% at exactly 300 ms:
 
 The 1.25% midpoint is used: ζ = 0.8127, ωn = 13.512 rad/s. **Provisional** — the point chosen within the standard's range is open, though the order of the system is not. Measured against the implementation: 99% at 302.0 ms, 1.16% overshoot peaking at 401 ms. This is the single most important constant in the meter design: instantaneous RMS looks twitchy and immediately reads as a fake, and the lag is the entire character of the instrument.
 
-Reference level (0 VU) maps to −18 dBFS. **Provisional** — this is a broadcast convention rather than a universal one, and may want to be user-configurable.
+Reference level (0 VU) maps to **−9 dBFS**, and is configurable under
+`meters/reference-level`.
+
+Not −18 dBFS. That is EBU broadcast alignment, which assumes programme far
+quieter than a consumer master. Measured across six ordinary tracks: sustained
+RMS runs −10 to −22 dBFS, mostly near −15, with loud passages reaching −6.3.
+Against −18 that pegs the needle before the music starts. Against −9 the same
+material settles near half deflection and its loudest moments land at 1.36, the
+top of the needle's travel — which is the span the instrument exists to show.
+See BUG-014.
+
+The needle travels to 1.4, not to 1.0. A VU meter's scale continues past 0 VU
+and the arc changes colour there, so a needle above reference reads as *over*
+rather than as one resting against its end stop.
+
+Deflection is linear in amplitude rather than in decibels, which is why a VU
+scale crowds towards its left end as a real one does.
+
+**Peak indication is a different scale and must not share the VU's.** A sample
+peak legitimately runs ten decibels or more above RMS, so any mapping that suits
+one pegs the other. Peaks use a decibel scale ending at full scale with a floor
+of −60 dB, as hardware peak meters do: −10.6 dBFS reads 0.823, −1 dBFS reads
+0.983. The LED ladder's over-level threshold sits at −6 dBFS so that its hot
+colour means near clipping rather than merely loud.
 
 **Peak indicator.** Rendered alongside the VU needle, driven directly from `level`'s peak values with the element's own TTL and falloff. No additional smoothing.
+
+On the peak scale above, so the lamp lights from about −4 dBFS. A lamp that lights on ordinary programme conveys nothing; it exists to say the signal is close to full scale, which is precisely what the needle's ballistic cannot show.
+
+### Rest and hold
+
+Stopping and pausing are different events, and the display distinguishes them.
+
+**Pause holds.** The needles and bars stay where the music left them. The signal
+has not gone away; it is suspended, and a deck that dropped its meters on pause
+would be lying about that.
+
+**Stop releases to rest.** The bars fall at the spectrum's own release
+coefficient and the needles fall under their own ballistic, because that fall is
+the same physical system as the rise. A needle that snaps to zero reads as a
+meter being switched off rather than one that has stopped being driven.
+Anything still held in the scheduling queue is discarded, since it describes
+audio that will now never be heard.
+
+The engine's state is the authority, so this holds however playback came to a
+halt — the end of a playlist, a file that failed, or the transport button.
 
 ### Display modes
 
@@ -215,6 +262,7 @@ Reference level (0 VU) maps to −18 dBFS. **Provisional** — this is a broadca
 |------|-----------|-----------------|-------|
 | Spectrum bars | `spectrum` | Summed | Default |
 | Mirrored spectrum | `spectrum-mirror` | Summed | Reflected about the horizontal axis |
+| Flame | `flame` | Summed | F-035. Continuous curve rather than bars, shaded in contour steps. Uses the finer band count for the same reason the mirrored mode does |
 | Stereo VU | `vu` | Per channel | Two needles |
 | LED peak ladder | `ladder` | Per channel | Segmented, no interpolation between segments |
 | Oscilloscope | `scope` | Per channel | Candidate, F-034; needs the PCM tap |
@@ -285,7 +333,7 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `equaliser/preset` | string | `flat` | Name only; values are authoritative |
 | `equaliser/user/<name>` | list\<double\> | — | One key per user preset, the name being the key. Eleven values: ten band gains in band order, then the preamp. A name containing `/` is rejected, since it would open a settings subgroup rather than name a preset. A user preset shadows a built-in of the same name. |
 | `meters/mode` | string | `spectrum` | Identifier from the display mode table |
-| `meters/reference-level` | double | −18.0 | dBFS for 0 VU |
+| `meters/reference-level` | double | −9.0 | dBFS for 0 VU. Not the −18 broadcast figure — see §Meters and BUG-014 |
 | `ui/theme` | string | `ferric` | Token set name |
 | `ui/compact` | bool | false | F-042 |
 | `ui/geometry` | bytearray | — | Window position and size |

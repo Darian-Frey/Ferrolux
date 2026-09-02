@@ -23,6 +23,90 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-015 A path on the command line starts playing, which is not what the documents say
+**Status:** fixed
+**Severity:** low
+**Found:** 2026-09-02, reported from use
+**Related:** F-052, BUILD.md
+
+`ferrolux ~/Music` adds the tree and immediately begins playing the first track.
+BUILD.md says the opposite — "an optional file argument is loaded but not
+started" — and that is what Phase 1 did: `setSource` and nothing more.
+
+The change was made in Phase 2 and not noticed. Wiring the playlist replaced the
+direct `setSource` with `playlist.setCurrentRow(0)`, and setting the current row
+emits `currentEntryChanged`, which the engine answers by loading *and* playing.
+Nothing in the diff looked like a behaviour change, which is how it passed
+review; no test covers what the application does with an argument, because until
+Phase 6 there is no CLI to test.
+
+Handing a folder of several hundred tracks and having audio start unbidden is
+also a surprising default, and F-052 hints the default was never meant to be
+that: it lists `--play` among the argument forms, and an explicit `--play` earns
+its place only if the bare default is something else.
+
+**Candidate resolutions**, for the author to choose:
+1. Load and select the first track without playing, matching BUILD.md and Phase
+   1. Explicit `--play` then means something when F-052 arrives.
+2. Keep playing, and correct BUILD.md. Matches what most players do with a file
+   argument, at the cost of being startling with a directory.
+3. Play for a file, select only for a directory. Matches intent most closely and
+   is the most surprising to describe.
+
+Whichever is chosen, BUILD.md must agree with it, and F-052 should record the
+default alongside the flags rather than leaving it implied.
+
+**Resolved 2026-09-02.** Candidate 1 adopted. `PlaylistModel::selectWithoutPlaying`
+makes a row current and emits `currentEntryPrepared`, which the engine answers
+by loading only; choosing a row by hand still emits `currentEntryChanged` and
+still plays. A separate signal rather than a flag, so neither path can quietly
+acquire the other's behaviour. Verified: a file argument now reaches Paused and
+never Playing, and four checks in `playlist_model_test` pin both paths including
+that each arms the next entry for the gapless handover.
+
+### BUG-014 The VU and ladder pegged on ordinary music
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-02, reported from use
+**Related:** F-032, F-033, SPEC.md §Meters, SPEC.md §Settings
+
+Every level-driven display read close to full on normal material. The needles
+sat past the end of their arc and nearly every ladder segment was lit, most of
+them in the over-level colour.
+
+Two separate causes, both scaling rather than measurement.
+
+**The VU reference was a broadcast figure.** SPEC.md set 0 VU at −18 dBFS,
+which is EBU alignment and assumes programme far quieter than a consumer
+master. Measured on ordinary material: RMS runs about −13.7 dBFS with peaks near
+−10.6. Against −18 that is a deflection of 1.641 rising to 2.34 — past the end
+stop before the music starts. The reference is now −9 dBFS. Measured across six
+ordinary tracks, sustained RMS runs −10 to −22 dBFS with loud passages reaching
+−6.3; against −9 that material settles near half deflection and its loudest
+moments land at 1.36, the top of the needle's travel. The arc continues past
+0 VU and changes colour there, so a needle above reference reads as over rather
+than as one resting against its stop. SPEC.md §Settings always
+described this key as configurable and the figure as provisional; only the
+default was wrong.
+
+**The peak indicator shared the spectrum's scale.** It was normalised over the
+spectrum element's −80 dB floor, so a −10 dBFS peak read 0.87 and the ladder was
+almost fully lit whatever was playing. Peaks now have their own decibel scale
+ending at full scale, floor −60 dB, which is what every hardware peak meter
+does: −10.6 dBFS reads 0.823 and −1 dBFS reads 0.983.
+
+Sharing one scale between the two was the underlying mistake. A sample peak
+legitimately runs ten decibels or more above RMS, so any scale that suits one
+pegs the other. The ladder also gained a proper per-channel peak-hold, so the
+marked segment is a held maximum above the lit run rather than the run's own
+top, and its over-level threshold moved to −6 dBFS so red means near clipping
+rather than merely loud.
+
+Seven checks in `tests/meters_test` now assert both scales against the measured
+figures rather than against ideal ones, including that the old −18 dBFS
+reference would peg — so the regression is pinned, not just corrected.
+
+
 ### BUG-010 The VU ballistics are specified as a system that cannot behave as described
 **Status:** fixed
 **Severity:** medium

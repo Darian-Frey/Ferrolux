@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick ShaderTools)
 qt_standard_project_setup()
 
 find_package(PkgConfig REQUIRED)
@@ -52,6 +52,17 @@ qt_add_executable(ferrolux
 # RESOURCE_PREFIX is pinned rather than left to default: Qt 6.4 places QML
 # resources under /<URI>/ and Qt 6.5 changed the default to /qt/qml/<URI>/, so
 # an unpinned prefix makes the load path depend on the Qt version in use.
+# Fragment shaders for the meter display modes, compiled to .qsb by qsb at
+# build time. Requires qt6-shadertools-dev; see BUILD.md.
+qt_add_shaders(ferrolux "ferrolux_meter_shaders"
+    PREFIX "/qt/qml/Ferrolux"
+    FILES
+        qml/shaders/spectrum.frag
+        qml/shaders/vu.frag
+        qml/shaders/ladder.frag
+        qml/shaders/flame.frag
+)
+
 qt_add_qml_module(ferrolux
     URI Ferrolux
     VERSION 1.0

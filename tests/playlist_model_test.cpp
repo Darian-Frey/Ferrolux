@@ -168,6 +168,37 @@ void testMultiRowMove()
           "a move that changes nothing is rejected");
 }
 
+// BUG-015. Selecting a row by hand plays it; a path on the command line does
+// not. The difference is a separate signal, not a flag, so that neither path
+// can quietly acquire the other's behaviour.
+void testSelectWithoutPlaying()
+{
+    std::printf("\nselecting without playing (BUG-015)\n");
+
+    PlaylistModel model;
+    model.addUrls(synthesise(5));
+
+    int played = 0;
+    int prepared = 0;
+    QObject::connect(&model, &PlaylistModel::currentEntryChanged, [&] { ++played; });
+    QObject::connect(&model, &PlaylistModel::currentEntryPrepared, [&] { ++prepared; });
+
+    model.selectWithoutPlaying(0);
+    check(prepared == 1 && played == 0,
+          "selecting without playing prepares the entry and does not start it",
+          QStringLiteral("prepared %1, played %2").arg(prepared).arg(played));
+    check(model.currentRow() == 0, "and the row is current, so Play has something to do");
+
+    model.setCurrentRow(2);
+    check(played == 1, "choosing a row by hand still plays it",
+          QStringLiteral("played %1").arg(played));
+
+    // Both paths must leave the next entry armed, or the first gapless handover
+    // after startup would have nothing to hand over to.
+    check(model.nextRow() == 3, "either way the next entry is armed",
+          QString::number(model.nextRow()));
+}
+
 void testPlayOrder()
 {
     std::printf("\nplay order (F-012)\n");
@@ -469,6 +500,7 @@ int main(int argc, char *argv[])
     QCoreApplication app(argc, argv);
 
     testContents();
+    testSelectWithoutPlaying();
     testPlayOrder();
     testMultiRowMove();
     testSortAndCurrent();

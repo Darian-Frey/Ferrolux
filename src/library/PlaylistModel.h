@@ -136,6 +136,12 @@ public slots:
     bool saveTo(const QUrl &fileUrl) const;
 
     void setCurrentRow(int row);
+
+    // Makes a row current and loads it, without starting playback. What a path
+    // on the command line means: it says *what* to listen to, not that
+    // listening should begin. Selecting a row by hand still plays it, which is
+    // why this is a separate call rather than a flag on the one above.
+    void selectWithoutPlaying(int row);
     void setShuffle(bool shuffle);
     void setRepeat(RepeatMode mode);
 
@@ -163,6 +169,9 @@ signals:
     // explicit selection, or the current row being removed. Engine listens to
     // this; it is the only route by which anything starts playing.
     void currentEntryChanged(const QUrl &url);
+
+    // The current entry has changed but should be loaded rather than played.
+    void currentEntryPrepared(const QUrl &url);
 
     // The next URL in play order, or an empty QUrl when the list ends here.
     // Engine caches this for the gapless handover, which runs on a streaming

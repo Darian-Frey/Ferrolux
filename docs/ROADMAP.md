@@ -108,11 +108,14 @@ as Phase 2's:
 **Deliverables:**
 - [x] `meters/MeterSource` consuming `level` and `spectrum` bus messages
 - [x] Ballistics, smoothing and peak-hold on the CPU per SPEC.md §Meters
-- [ ] `meters/MeterTexture` — an `Nx1` RG16 texture item exposed to QML
-- [ ] Spectrum bar and mirrored-spectrum shaders with logarithmic mapping
-- [ ] VU needle shader with correct integration time
-- [ ] LED peak ladder shader
-- [ ] Mode cycling on click, persisted
+- [x] `meters/MeterTexture` — an `Nx1` texture item exposed to QML; the layout diverges from RG16 and SPEC.md §Meters records why
+- [x] Spectrum bar and mirrored-spectrum shaders with logarithmic mapping
+- [x] VU needle shader with correct integration time
+- [x] LED peak ladder shader
+- [x] Mode cycling on click, persisted
+- [x] Flame mode (F-035), added during the phase at the author's request
+- [x] Rest on stop, hold on pause
+- [ ] Frame-time instrumentation for AV-002
 
 **Four defects found by building it.** BUG-010: SPEC.md specified a first-order
 VU with a 1% to 1.5% overshoot, and a first-order system cannot overshoot at all

@@ -23,6 +23,8 @@
 #pragma once
 
 #include <QList>
+#include <QString>
+#include <QStringList>
 #include <QObject>
 
 #include <array>
@@ -34,6 +36,10 @@ class MeterSource : public QObject
     Q_OBJECT
 
     Q_PROPERTY(int bandCount READ bandCount NOTIFY bandCountChanged)
+    // The display mode lives here rather than in the view because it decides
+    // the band count: a mirrored spectrum wants twice the resolution of an
+    // upright one at the same width. Identifiers are those in SPEC.md §Meters.
+    Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(QList<float> magnitudes READ magnitudes NOTIFY updated)
     Q_PROPERTY(QList<float> peaks READ peaks NOTIFY updated)
     Q_PROPERTY(int queueDepth READ queueDepth NOTIFY updated)
@@ -43,6 +49,8 @@ class MeterSource : public QObject
     // while the bars, bound to a notifying property, moved correctly.
     Q_PROPERTY(QList<double> vu READ vuLevels NOTIFY updated)
     Q_PROPERTY(QList<double> peakIndicators READ peakIndicatorLevels NOTIFY updated)
+    Q_PROPERTY(QList<double> channelPeaks READ channelPeakLevels NOTIFY updated)
+    Q_PROPERTY(double referenceLevel READ referenceLevel WRITE setReferenceLevel NOTIFY referenceLevelChanged)
 
 public:
     // SPEC.md §Meters. Display band counts are provisional, chosen for
@@ -72,12 +80,34 @@ public:
     // 99%-at-300 ms condition.
     static constexpr double kVuDamping = 0.8127;
     static constexpr double kVuNaturalFrequency = 13.512; // rad/s
-    static constexpr double kVuReferenceDb = -18.0;       // 0 VU, SPEC.md §Settings
+
+    // 0 VU, in dBFS. Configurable, and SPEC.md §Settings always said it should
+    // be: it is an alignment convention, not a property of the signal.
+    //
+    // -9 rather than the -18 broadcast figure originally specified. EBU
+    // alignment assumes programme far quieter than a consumer master. Measured
+    // across six ordinary tracks: sustained RMS runs -10 to -22 dBFS, mostly
+    // near -15, with loud passages reaching -6.3. Against -18 that pegs the
+    // needle before the music starts; against -9 the same material sits around
+    // half deflection and its loudest moments land at the top of the travel,
+    // which is the span a VU meter exists to show. See BUG-014.
+    static constexpr double kDefaultReferenceDb = -9.0;
+
+    // Peak metering is a different scale from the VU and must not share one. A
+    // sample peak legitimately runs ten decibels or more above RMS, so mapping
+    // it against the VU reference pegs it permanently. Peaks are shown on a
+    // decibel scale ending at full scale, as every hardware peak meter does.
+    static constexpr double kPeakFloorDb = -60.0;
 
     explicit MeterSource(QObject *parent = nullptr);
 
     int bandCount() const { return m_bandCount; }
     void setBandCount(int bands);
+
+    QString mode() const { return m_mode; }
+    void setMode(const QString &mode);
+    Q_INVOKABLE void cycleMode();
+    Q_INVOKABLE static QStringList modes();
 
     // Display-ready state, all normalised 0..1 except the VU deflection, which
     // is in VU units where 1.0 is 0 VU and may exceed 1.0 on peaks.
@@ -86,6 +116,19 @@ public:
     Q_INVOKABLE double vuDeflection(int channel) const;
     QList<double> vuLevels() const;
     QList<double> peakIndicatorLevels() const;
+
+    // Held maximum of the *deflection* per channel, with the same hold and decay
+    // as the spectrum caps. The ladder marks this above its lit run.
+    //
+    // On the VU scale, not the peak one. A ladder driven by sample peak sits
+    // near full on any modern master — peaks really are within a few decibels
+    // of full scale, so that reading is correct and tells the viewer nothing.
+    // Driven by the ballistic level it moves with the music, and its hot
+    // threshold can mean something: above 0 VU.
+    QList<double> channelPeakLevels() const;
+
+    double referenceLevel() const { return m_referenceDb; }
+    void setReferenceLevel(double decibels);
     Q_INVOKABLE double peakIndicator(int channel) const;
 
     // Analysis input, applied immediately. Both take the values a GStreamer
@@ -122,6 +165,16 @@ public:
 
     void reset();
 
+    // Whether the display is falling back to rest.
+    //
+    // Stopping and pausing are different events and the meters should say so.
+    // A paused deck holds its needles where the music left them — the signal
+    // has not gone away, it is suspended. A stopped one has nothing to show,
+    // and its needles fall back under their own ballistic rather than snapping
+    // to zero, because that fall is the same physical system as the rise.
+    Q_INVOKABLE void setReleasing(bool releasing);
+    bool isReleasing() const { return m_releasing; }
+
     // Which analysis bins feed a display band, for a given band count and rate.
     // Exposed so AV-011 can be tested directly rather than inferred from a
     // rendered picture.
@@ -129,11 +182,20 @@ public:
         int first = 0;
         int last = 0;
         bool interpolated = false; // spans less than one analysis bin
+        // Where the band's centre falls in bin coordinates, for the
+        // interpolated case. Fractional on purpose: taking the *nearest* bin
+        // makes several starved bands share one value and move in lockstep,
+        // which is visible as a group of bars welded together at the bottom of
+        // the display. Interpolating between neighbours gives each its own
+        // value, which is what "interpolated" was always supposed to mean.
+        double centreBin = 0.0;
     };
     static QList<BandRange> bandRanges(int displayBands, int analysisBins, int sampleRate);
 
 signals:
     void bandCountChanged();
+    void modeChanged();
+    void referenceLevelChanged();
     void updated();
 
 private:
@@ -151,10 +213,12 @@ private:
 
     void rebuildRanges(int analysisBins, int sampleRate);
 
+    bool m_releasing = false;
     QList<SpectrumFrame> m_spectrumQueue;
     QList<LevelFrame> m_levelQueue;
 
     int m_bandCount = kSpectrumBands;
+    QString m_mode = QStringLiteral("spectrum");
     int m_analysisBins = 0;
     int m_sampleRate = 0;
     QList<BandRange> m_ranges;
@@ -168,6 +232,9 @@ private:
     std::array<double, kChannels> m_vuVelocity {};
     std::array<double, kChannels> m_vuTarget {};
     std::array<double, kChannels> m_peakIndicator {};
+    std::array<double, kChannels> m_channelPeak {};
+    std::array<double, kChannels> m_channelPeakHoldMs {};
+    double m_referenceDb = kDefaultReferenceDb;
 };
 
 } // namespace ferrolux::meters

@@ -20,6 +20,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QSettings>
 #include <QUrl>
 
@@ -33,6 +34,7 @@
 #include "library/PlaylistFilter.h"
 #include "library/PlaylistModel.h"
 #include "meters/MeterSource.h"
+#include "meters/MeterTexture.h"
 
 using ferrolux::core::Engine;
 using ferrolux::core::Equaliser;
@@ -40,6 +42,7 @@ using ferrolux::library::MetadataReader;
 using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
 using ferrolux::meters::MeterSource;
+using ferrolux::meters::MeterTexture;
 
 int main(int argc, char *argv[])
 {
@@ -81,6 +84,14 @@ int main(int argc, char *argv[])
                              meters.queueSpectrum(magnitudes, rate, runningTime);
                          });
 
+        // Stopping releases the display to rest; pausing holds it. The engine's
+        // own state is the authority, so this stays right however playback came
+        // to a halt — the end of a playlist, a file that failed, or the button.
+        QObject::connect(&engine, &Engine::stateChanged, &meters, [&engine, &meters] {
+            const auto state = engine.state();
+            meters.setReleasing(state == Engine::Stopped || state == Engine::Error);
+        });
+
         // Metadata: the model asks, the reader answers on a worker pool, the model
         // applies the results. Neither knows anything about the other's threading.
         QObject::connect(&playlist, &PlaylistModel::metadataNeeded,
@@ -99,6 +110,14 @@ int main(int argc, char *argv[])
 
         // Gapless: the next URI is cached ahead of time so that the streaming
         // thread never has to ask the model for it. See F-005 and AV-006.
+        // Prepared rather than started: the entry is loaded and the position
+        // bar and duration populate, but nothing is heard until Play.
+        QObject::connect(&playlist, &PlaylistModel::currentEntryPrepared, &engine,
+                         [&engine](const QUrl &url) {
+                             if (!url.isEmpty())
+                                 engine.setSource(url);
+                         });
+
         QObject::connect(&playlist, &PlaylistModel::nextEntryChanged,
                          &engine, &Engine::setNextSource);
         QObject::connect(&engine, &Engine::gaplessAdvance, &playlist,
@@ -143,7 +162,13 @@ int main(int argc, char *argv[])
             equaliser->setEnabled(settings.value(QStringLiteral("equaliser/enabled"), false).toBool());
         }
 
-        QObject::connect(&app, &QGuiApplication::aboutToQuit, &engine, [&engine, &playlist] {
+        meters.setMode(settings.value(QStringLiteral("meters/mode"),
+                                      QStringLiteral("spectrum")).toString());
+        meters.setReferenceLevel(
+            settings.value(QStringLiteral("meters/reference-level"),
+                           MeterSource::kDefaultReferenceDb).toDouble());
+
+        QObject::connect(&app, &QGuiApplication::aboutToQuit, &engine, [&engine, &playlist, &meters] {
             QSettings out;
             out.setValue(QStringLiteral("playback/volume"), engine.volume());
             out.setValue(QStringLiteral("playback/balance"), engine.balance());
@@ -164,24 +189,36 @@ int main(int argc, char *argv[])
             out.setValue(QStringLiteral("equaliser/preamp"), eq->preamp());
             out.setValue(QStringLiteral("equaliser/bands"), bands);
             out.setValue(QStringLiteral("equaliser/preset"), eq->preset());
+            out.setValue(QStringLiteral("meters/mode"), meters.mode());
+            out.setValue(QStringLiteral("meters/reference-level"), meters.referenceLevel());
         });
 
-        QQmlApplicationEngine qml;
+        // The texture item is instantiated from QML so it joins the scene graph and
+    // can be named as a ShaderEffect source.
+    qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
+
+    QQmlApplicationEngine qml;
         qml.rootContext()->setContextProperty(QStringLiteral("Engine"), &engine);
         qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), &playlist);
         qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), &view);
         qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
         qml.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
 
-        // Phase 2 command line stays minimal; the --enqueue / --play / --replace
-        // forms in F-052 arrive with single-instance handling in Phase 6.
+        // A path on the command line fills the playlist and selects the first
+        // track, but does not start it. Handing over a directory of several
+        // hundred files and having audio begin unbidden is a surprise, and
+        // F-052's explicit --play form only means something if the bare default
+        // is not that. See BUG-015.
+        //
+        // The --enqueue / --play / --replace forms themselves arrive with
+        // single-instance handling in Phase 6.
         QList<QUrl> arguments;
         for (const QString &argument : app.arguments().mid(1))
             arguments.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
         if (!arguments.isEmpty()) {
             playlist.addPaths(arguments);
             if (playlist.rowCount() > 0)
-                playlist.setCurrentRow(0);
+                playlist.selectWithoutPlaying(0);
         }
 
         qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));

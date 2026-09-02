@@ -30,6 +30,38 @@ MeterSource::MeterSource(QObject *parent)
     setBandCount(kSpectrumBands);
 }
 
+QStringList MeterSource::modes()
+{
+    // SPEC.md §Meters. `scope` is F-034 and needs the PCM tap, so it is absent.
+    return { QStringLiteral("spectrum"), QStringLiteral("spectrum-mirror"),
+             QStringLiteral("flame"), QStringLiteral("vu"), QStringLiteral("ladder") };
+}
+
+void MeterSource::setMode(const QString &mode)
+{
+    if (!modes().contains(mode) || m_mode == mode)
+        return;
+
+    m_mode = mode;
+
+    // A mirrored spectrum has half the height per side, so it earns twice the
+    // horizontal resolution at the same width. The other modes read the same
+    // band data and do not care how finely it is divided.
+    // Flame reads the texture as a continuous curve, so it benefits from the
+    // finer division the mirrored mode also uses.
+    const bool wantsFineBands = mode == QStringLiteral("spectrum-mirror")
+                             || mode == QStringLiteral("flame");
+    setBandCount(wantsFineBands ? kMirroredBands : kSpectrumBands);
+    emit modeChanged();
+}
+
+void MeterSource::cycleMode()
+{
+    const QStringList all = modes();
+    const int at = all.indexOf(m_mode);
+    setMode(all.at((at + 1) % all.size()));
+}
+
 void MeterSource::setBandCount(int bands)
 {
     bands = qBound(1, bands, 512);
@@ -80,15 +112,20 @@ QList<MeterSource::BandRange> MeterSource::bandRanges(int displayBands, int anal
         if (first < 0) {
             // AV-011. At the bottom of the range a display band is narrower
             // than one analysis bin — at 44.1 kHz with 512 bins, four of the
-            // lowest 24 bands and twelve of the lowest 48 fall in this gap.
-            // The nearest bin is used and the band marked interpolated. No
+            // lowest 24 bands and twelve of the lowest 48 fall in this gap. No
             // display band may be left empty: an empty band renders as silence
             // and reads as missing bass rather than as a limit of the analysis.
+            //
+            // The band's centre is recorded in fractional bin coordinates and
+            // the magnitude is interpolated between the two bins either side.
+            // Rounding to the nearest bin instead makes adjacent starved bands
+            // share one value and move as a single welded group.
             const double centre = std::sqrt(lower * upper);
-            const int nearest = qBound(0, int(std::lround(centre / binWidth - 0.5)),
-                                       analysisBins - 1);
-            range.first = nearest;
-            range.last = nearest;
+            const double position = qBound(0.0, centre / binWidth - 0.5,
+                                           double(analysisBins - 1));
+            range.first = int(std::floor(position));
+            range.last = qMin(range.first + 1, analysisBins - 1);
+            range.centreBin = position;
             range.interpolated = true;
         } else {
             range.first = first;
@@ -117,9 +154,24 @@ void MeterSource::consumeSpectrum(const QList<float> &magnitudesDb, int sampleRa
     for (int band = 0; band < m_bandCount && band < m_ranges.size(); ++band) {
         const BandRange &range = m_ranges.at(band);
 
-        double loudest = kFloorDb;
-        for (int bin = range.first; bin <= range.last && bin < magnitudesDb.size(); ++bin)
-            loudest = std::max(loudest, double(magnitudesDb.at(bin)));
+        double loudest;
+        if (range.interpolated) {
+            // Linear between the two bins the band's centre falls between, in
+            // decibels. Each starved band lands somewhere different, so the
+            // lowest bars move independently instead of in lockstep.
+            const int low = qBound(0, range.first, int(magnitudesDb.size()) - 1);
+            const int high = qBound(0, range.last, int(magnitudesDb.size()) - 1);
+            const double fraction = qBound(0.0, range.centreBin - double(range.first), 1.0);
+            loudest = double(magnitudesDb.at(low)) * (1.0 - fraction)
+                    + double(magnitudesDb.at(high)) * fraction;
+        } else {
+            // The maximum across the band's bins, not the mean: averaging a
+            // wide upper band buries the transients that are the interesting
+            // part of a spectrum display.
+            loudest = kFloorDb;
+            for (int bin = range.first; bin <= range.last && bin < magnitudesDb.size(); ++bin)
+                loudest = std::max(loudest, double(magnitudesDb.at(bin)));
+        }
 
         const float target = normalise(loudest);
         const float current = m_magnitudes.at(band);
@@ -138,23 +190,41 @@ void MeterSource::consumeSpectrum(const QList<float> &magnitudesDb, int sampleRa
     emit updated();
 }
 
+void MeterSource::setReferenceLevel(double decibels)
+{
+    decibels = qBound(-40.0, decibels, 0.0);
+    if (qFuzzyCompare(decibels + 100.0, m_referenceDb + 100.0))
+        return;
+    m_referenceDb = decibels;
+    emit referenceLevelChanged();
+}
+
 void MeterSource::consumeLevel(const QList<double> &rmsDb, const QList<double> &peakDb,
                                const QList<double> &decayDb)
 {
     Q_UNUSED(peakDb)
 
     for (int channel = 0; channel < kChannels; ++channel) {
+        const size_t i = size_t(channel);
+
         if (channel < rmsDb.size()) {
             // 0 VU sits at the reference level, so a signal at reference reads
-            // 1.0 and the needle rests where the scale says it should.
-            const double relativeDb = rmsDb.at(channel) - kVuReferenceDb;
-            m_vuTarget[size_t(channel)] = std::pow(10.0, relativeDb / 20.0);
+            // 1.0 and the needle rests where the scale says it should. The
+            // deflection is linear in amplitude, not in decibels, which is what
+            // makes a VU scale crowd towards its left end as a real one does.
+            const double relativeDb = rmsDb.at(channel) - m_referenceDb;
+            m_vuTarget[i] = std::pow(10.0, relativeDb / 20.0);
         }
+
         if (channel < decayDb.size()) {
-            // The peak indicator is driven straight from the element's own
-            // decaying peak, with its TTL and falloff, and is deliberately not
-            // smoothed further: it exists to show what the needle cannot follow.
-            m_peakIndicator[size_t(channel)] = normalise(decayDb.at(channel));
+            // Peaks get their own decibel scale ending at full scale, not the
+            // VU's amplitude ratio. A sample peak runs well above RMS, so
+            // sharing the VU reference would peg it on any real material. Not
+            // smoothed further either: the element's own TTL and falloff are
+            // the ballistic, and the indicator exists to show what the needle
+            // cannot follow.
+            const double clamped = qBound(kPeakFloorDb, decayDb.at(channel), 0.0);
+            m_peakIndicator[i] = (clamped - kPeakFloorDb) / (0.0 - kPeakFloorDb);
         }
     }
 }
@@ -163,10 +233,41 @@ void MeterSource::consumeLevel(const QList<double> &rmsDb, const QList<double> &
 // oscillator gains energy and would slowly wind the needle up; the semi-implicit
 // form is stable at the update rates in use. See BUG-010 for why the system is
 // second order rather than the first-order one SPEC.md described.
+void MeterSource::setReleasing(bool releasing)
+{
+    if (m_releasing == releasing)
+        return;
+    m_releasing = releasing;
+
+    if (m_releasing) {
+        // Anything still queued describes audio that will never be heard now.
+        m_spectrumQueue.clear();
+        m_levelQueue.clear();
+
+        // Aim the needles at rest and let the ballistic carry them there. A
+        // needle that snaps to zero looks like a meter being switched off; one
+        // that falls at its own rate looks like a meter that has stopped being
+        // driven, which is what has happened.
+        m_vuTarget.fill(0.0);
+    }
+}
+
 void MeterSource::advance(double elapsedMs)
 {
     if (elapsedMs <= 0.0)
         return;
+
+    // Falling back to rest. The spectrum uses its own release coefficient, so
+    // the bars settle at the rate they would settle at anyway — the display
+    // does not acquire a second, different decay for this one case.
+    if (m_releasing) {
+        const double steps = elapsedMs / 16.0;
+        const double factor = std::pow(1.0 - kRelease, std::max(0.0, steps));
+        for (int band = 0; band < m_magnitudes.size(); ++band)
+            m_magnitudes[band] = float(double(m_magnitudes.at(band)) * factor);
+        for (int channel = 0; channel < kChannels; ++channel)
+            m_peakIndicator[size_t(channel)] *= factor;
+    }
 
     const double dt = elapsedMs / 1000.0;
     const double wn = kVuNaturalFrequency;
@@ -181,6 +282,24 @@ void MeterSource::advance(double elapsedMs)
             m_vu[i] = 0.0;
             m_vuVelocity[i] = 0.0;
         }
+    }
+
+    // Per-channel hold, tracking the deflection the ladder actually shows. Held
+    // after the needle has moved this step, so the mark can never lag behind
+    // the run it is meant to sit above.
+    const double channelFallPerMs = (kPeakFallDbPerSecond / 1000.0) / 20.0;
+    for (int channel = 0; channel < kChannels; ++channel) {
+        const size_t i = size_t(channel);
+        if (m_vu[i] >= m_channelPeak[i]) {
+            m_channelPeak[i] = m_vu[i];
+            m_channelPeakHoldMs[i] = kPeakHoldMs;
+            continue;
+        }
+        if (m_channelPeakHoldMs[i] > 0.0) {
+            m_channelPeakHoldMs[i] -= elapsedMs;
+            continue;
+        }
+        m_channelPeak[i] = std::max(m_vu[i], m_channelPeak[i] - channelFallPerMs * elapsedMs);
     }
 
     // Peak-hold caps: hold, then fall at a fixed rate in decibels per second,
@@ -261,6 +380,15 @@ double MeterSource::vuDeflection(int channel) const
     return channel >= 0 && channel < kChannels ? m_vu[size_t(channel)] : 0.0;
 }
 
+QList<double> MeterSource::channelPeakLevels() const
+{
+    QList<double> values;
+    values.reserve(kChannels);
+    for (int channel = 0; channel < kChannels; ++channel)
+        values.append(m_channelPeak[size_t(channel)]);
+    return values;
+}
+
 double MeterSource::peakIndicator(int channel) const
 {
     return channel >= 0 && channel < kChannels ? m_peakIndicator[size_t(channel)] : 0.0;
@@ -275,6 +403,8 @@ void MeterSource::reset()
     m_vuVelocity.fill(0.0);
     m_vuTarget.fill(0.0);
     m_peakIndicator.fill(0.0);
+    m_channelPeak.fill(0.0);
+    m_channelPeakHoldMs.fill(0.0);
     m_spectrumQueue.clear();
     m_levelQueue.clear();
     emit updated();

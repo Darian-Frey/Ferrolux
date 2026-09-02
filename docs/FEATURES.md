@@ -158,7 +158,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Logarithmic frequency mapping with no visible bin collapse below 200 Hz — see AV-011
 - Peak-hold caps with configurable decay
 - Holds 60 fps at 4K on the reference hardware in BUILD.md
-**Status:** Not started (Phase 4)
+**Status:** Partial (Phase 4, 2026-09-02) — bars and the mirrored variant drawn per fragment from the meter texture, with antialiased edges resolved by smoothstep over one fragment rather than by a hard comparison, and peak-hold caps that go dark at rest. Bass spreads across many bands rather than collapsing; the four lowest of 24 are interpolated and SPEC.md §Meters records the consequence. Outstanding: the 60 fps measurement, which needs AV-002's instrumentation.
 
 ### F-032 Shader-rendered VU display
 **Priority:** Must
@@ -166,7 +166,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Needle ballistics match the integration time in SPEC.md §Meters, not instantaneous RMS
 - Separate faster peak indicator alongside the needle
 - Face, scale marks and needle share one antialiasing model
-**Status:** Not started (Phase 4)
+**Status:** Partial (Phase 4, 2026-09-02) — face, arc, tick marks, tapered needle, hub and peak lamp are all distance fields resolved by the same smoothstep over one fragment, so they share an antialiasing model by construction rather than by matching two techniques. Ballistics are not in the shader: deflection arrives already integrated from `MeterSource`, per D-005, measured at 302.0 ms to 99% with 1.16% overshoot. Outstanding: the comparison against a reference deck, which is a judgement rather than a measurement.
 
 ### F-033 Switchable display modes
 **Priority:** Must
@@ -174,7 +174,17 @@ People who keep a local music library on Linux and want a player with the charac
 - Cycle between spectrum bars, mirrored spectrum, stereo VU needles and LED peak ladder by clicking the display
 - Selection persists across restart
 - Switching does not interrupt audio or drop a frame
-**Status:** Not started (Phase 4)
+**Status:** Partial (Phase 4, 2026-09-02) — all four modes read the same texture and the same meter source, so switching hides one shader and shows another and cannot touch the pipeline. Clicking the display cycles; the choice persists under the SPEC.md §Settings `meters/mode` key. Outstanding: the dropped-frame claim, which needs AV-002's instrumentation to assert rather than assume.
+
+### F-035 Flame spectrum mode
+**Priority:** Could
+**Acceptance:**
+- The same band data as the bar display, read as a continuous curve rather than as discrete bars
+- Shaded in contour steps rather than a smooth gradient
+**Status:** Complete (Phase 4, 2026-09-02)
+**Notes:** Added at the author's request during Phase 4, and recorded here rather than left as an undocumented fifth mode. It costs nothing structurally: it reads the existing texture and the existing band data, and it is the one mode that spends what D-004 bought — sampling *between* band centres so linear filtering interpolates the silhouette for free. The bar display deliberately samples only at centres, because bars want one flat value each, which is why both read the same texture happily.
+
+The contour steps are the point rather than a stylisation. A continuous gradient reads as an airbrush; the steps read as flame, because a real flame's luminosity falls off in visible layers.
 
 ### F-034 Oscilloscope mode
 **Priority:** Could
@@ -251,7 +261,9 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - A second launch with file arguments enqueues into the running instance
 - `--enqueue`, `--play`, `--replace` argument forms supported
+- Without a flag, paths fill the playlist and select the first entry without starting playback
 **Status:** Not started (Phase 6)
+**Notes:** The bare default is recorded above rather than left implied. It was implied once, drifted to auto-play unnoticed during Phase 2, and had to be found by use — see BUG-015. An explicit `--play` only means something if the default is not it.
 
 ---
 

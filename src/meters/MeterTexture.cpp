@@ -6,7 +6,6 @@
 #include "meters/MeterSource.h"
 
 #include <QQuickWindow>
-#include <QSGSimpleTextureNode>
 #include <QSGTexture>
 #include <QSGTextureProvider>
 #include <QRunnable>
@@ -54,7 +53,6 @@ private:
 MeterTexture::MeterTexture(QQuickItem *parent)
     : QQuickItem(parent)
 {
-    setFlag(ItemHasContents, true);
 }
 
 MeterTexture::~MeterTexture() = default;
@@ -129,42 +127,58 @@ QSGTextureProvider *MeterTexture::textureProvider() const
     return m_provider;
 }
 
-// Render thread, during synchronisation with the GUI thread blocked. The only
-// place a texture is created or replaced.
-QSGNode *MeterTexture::updatePaintNode(QSGNode *node, UpdatePaintNodeData *)
+// Follows the item into and out of a scene. Connections are direct so that
+// synchronise() runs on the render thread that emits the signal, not queued
+// back onto the GUI thread where it would be exactly the AV-007 violation this
+// design exists to avoid.
+void MeterTexture::itemChange(ItemChange change, const ItemChangeData &data)
 {
-    if (m_staging.isNull() || !window()) {
-        delete node;
-        return nullptr;
+    if (change == ItemSceneChange) {
+        if (m_window)
+            disconnect(m_window, nullptr, this, nullptr);
+
+        m_window = data.window;
+
+        if (m_window) {
+            connect(m_window, &QQuickWindow::beforeSynchronizing,
+                    this, &MeterTexture::synchronise, Qt::DirectConnection);
+            connect(m_window, &QQuickWindow::sceneGraphInvalidated,
+                    this, &MeterTexture::invalidate, Qt::DirectConnection);
+        }
     }
+    QQuickItem::itemChange(change, data);
+}
+
+// Render thread, GUI thread blocked. The only place a texture is created or
+// replaced.
+void MeterTexture::synchronise()
+{
+    if (!m_window || m_staging.isNull())
+        return;
+    if (!m_stagingDirty && textureProvider() && m_provider->texture())
+        return;
 
     auto *provider = static_cast<MeterTextureProvider *>(textureProvider());
-
-    if (m_stagingDirty || !provider->texture()) {
-        QSGTexture *texture = window()->createTextureFromImage(m_staging);
-        if (texture) {
-            // Linear filtering is not decoration: it is what lets a shader read
-            // between band centres and get a smooth spectrum for free, per
-            // D-004. Clamping stops the lowest and highest bands wrapping into
-            // each other at the edges.
-            texture->setFiltering(QSGTexture::Linear);
-            texture->setHorizontalWrapMode(QSGTexture::ClampToEdge);
-            texture->setVerticalWrapMode(QSGTexture::ClampToEdge);
-            provider->adopt(texture);
-        }
-        m_stagingDirty = false;
+    QSGTexture *texture = m_window->createTextureFromImage(m_staging);
+    if (texture) {
+        // Linear filtering is not decoration: it lets a shader read between
+        // band centres and get a smooth spectrum for free, per D-004. The
+        // packed magnitude survives it because recombining the two bytes is
+        // linear in both, so an interpolated pair decodes to the interpolated
+        // value rather than tearing at byte boundaries. Clamping stops the
+        // lowest and highest bands wrapping into each other.
+        texture->setFiltering(QSGTexture::Linear);
+        texture->setHorizontalWrapMode(QSGTexture::ClampToEdge);
+        texture->setVerticalWrapMode(QSGTexture::ClampToEdge);
+        provider->adopt(texture);
     }
+    m_stagingDirty = false;
+}
 
-    // The item draws nothing itself — it exists to be sampled. A node is still
-    // returned so the scene graph keeps calling this on every frame the item is
-    // marked dirty.
-    auto *textureNode = static_cast<QSGSimpleTextureNode *>(node);
-    if (!textureNode)
-        textureNode = new QSGSimpleTextureNode;
-    textureNode->setTexture(provider->texture());
-    textureNode->setRect(0, 0, 0, 0); // zero-sized: sampled, never painted
-    textureNode->setOwnsTexture(false);
-    return textureNode;
+void MeterTexture::invalidate()
+{
+    delete m_provider;
+    m_provider = nullptr;
 }
 
 void MeterTexture::releaseResources()

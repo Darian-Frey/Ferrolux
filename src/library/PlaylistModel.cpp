@@ -556,6 +556,19 @@ void PlaylistModel::setCurrentRow(int row)
     emit currentEntryChanged(m_entries.at(row).url);
 }
 
+void PlaylistModel::selectWithoutPlaying(int row)
+{
+    if (row < 0 || row >= m_entries.size())
+        return;
+
+    const int position = int(m_order.indexOf(row));
+    if (position < 0)
+        return;
+
+    setCursor(position);
+    emit currentEntryPrepared(m_entries.at(row).url);
+}
+
 void PlaylistModel::setShuffle(bool shuffle)
 {
     if (m_shuffle == shuffle)

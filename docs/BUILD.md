@@ -99,7 +99,7 @@ cmake --build build-debug
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Run — an optional file argument is loaded but not started
+# Run — paths fill the playlist and select the first track, without starting it
 ./build-debug/ferrolux ~/Music/some-album/track.flac
 ```
 

@@ -7,6 +7,7 @@
 
 #include <QCoreApplication>
 #include <QList>
+#include <QPair>
 
 #include <cmath>
 #include <cstdio>
@@ -131,12 +132,45 @@ void testToneLandsInItsOwnBand()
           QStringLiteral("%1 of %2 bands share with their neighbour")
               .arg(shared).arg(all.size()));
 
-    // Interpolated bands cannot satisfy that — several share one analysis bin,
-    // so a tone in it lights all of them. What must hold is that none is silent.
+    // Interpolated bands share bins with their neighbours, so a tone in one
+    // lights several. What must hold is that none is silent.
     MeterSource source;
     source.consumeSpectrum(toneAt(ranges.at(0).first), kRate);
     check(source.magnitudes().at(0) > 0.0f,
           "an interpolated band still responds rather than reading silent");
+
+    // And that they do not move as one welded group. Rounding a starved band to
+    // its nearest bin gave several bands one identical value, which showed as
+    // three bars at the bottom of the display locked rigidly together.
+    QList<float> sloped(kBins, float(MeterSource::kFloorDb));
+    for (int bin = 0; bin < 12; ++bin)
+        sloped[bin] = float(MeterSource::kFloorDb + 6.0 * bin); // a ramp across the low bins
+
+    MeterSource ramped;
+    for (int i = 0; i < 40; ++i)
+        ramped.consumeSpectrum(sloped, kRate);
+
+    int interpolatedBands = 0;
+    int distinctValues = 0;
+    QList<float> seen;
+    for (int band = 0; band < ranges.size(); ++band) {
+        if (!ranges.at(band).interpolated)
+            continue;
+        ++interpolatedBands;
+        const float value = ramped.magnitudes().at(band);
+        bool duplicate = false;
+        for (float other : seen)
+            duplicate = duplicate || std::fabs(other - value) < 1e-6f;
+        if (!duplicate)
+            ++distinctValues;
+        seen.append(value);
+    }
+
+    check(interpolatedBands > 1, "there is more than one interpolated band to compare",
+          QString::number(interpolatedBands));
+    check(distinctValues == interpolatedBands,
+          "each interpolated band takes its own value across a sloped spectrum",
+          QStringLiteral("%1 distinct of %2").arg(distinctValues).arg(interpolatedBands));
 }
 
 void testSmoothingAsymmetry()
@@ -220,7 +254,7 @@ void testVuBallistics()
 
     MeterSource source;
     // A steady tone at reference level: 0 VU, so the needle should settle at 1.
-    const QList<double> reference { MeterSource::kVuReferenceDb, MeterSource::kVuReferenceDb };
+    const QList<double> reference { MeterSource::kDefaultReferenceDb, MeterSource::kDefaultReferenceDb };
     const QList<double> silence { -120.0, -120.0 };
     source.consumeLevel(reference, silence, silence);
 
@@ -269,8 +303,8 @@ void testVuBallistics()
     // Reference level is the anchor: a signal 6 dB below reference must read
     // half the deflection, not half the decibels.
     MeterSource quiet;
-    const QList<double> sixDown { MeterSource::kVuReferenceDb - 6.0,
-                                  MeterSource::kVuReferenceDb - 6.0 };
+    const QList<double> sixDown { MeterSource::kDefaultReferenceDb - 6.0,
+                                  MeterSource::kDefaultReferenceDb - 6.0 };
     quiet.consumeLevel(sixDown, silence, silence);
     for (int i = 0; i < 2000; ++i)
         quiet.advance(1.0);
@@ -282,6 +316,147 @@ void testVuBallistics()
 // The texture packing. A shader reads these bytes and reconstructs the values,
 // so encode and decode have to agree exactly — and the whole point of packing
 // magnitude across two channels is precision the display would otherwise lose.
+// The scales, checked against levels measured from ordinary music rather than
+// against ideal ones. Mean RMS -13.7 dBFS with peaks near -10.6 is what a
+// consumer master actually delivers, and a meter that pegs on it is not a
+// meter. See BUG-014.
+void testScalesAgainstRealMaterial()
+{
+    std::printf("\nscales against real material (BUG-014)\n");
+
+    const QList<double> silence { -120.0, -120.0 };
+
+    const auto settle = [&](double rmsDb, double peakDb) {
+        auto *source = new MeterSource;
+        source->consumeLevel({ rmsDb, rmsDb }, silence, { peakDb, peakDb });
+        for (int i = 0; i < 2000; ++i)
+            source->advance(1.0);
+        const double vu = source->vuDeflection(0);
+        const double peak = source->peakIndicator(0);
+        delete source;
+        return QPair<double, double>(vu, peak);
+    };
+
+    // A signal at the reference level is 0 VU by definition.
+    const auto atReference = settle(MeterSource::kDefaultReferenceDb, -60.0);
+    check(std::fabs(atReference.first - 1.0) < 0.01,
+          "a signal at the reference level reads 0 VU",
+          QString::number(atReference.first, 'f', 4));
+
+    // Ordinary loud material: should sit just under 0 VU, with headroom left
+    // for the peaks rather than pinned against the end stop.
+    const auto typical = settle(-15.0, -10.6);
+    check(typical.first > 0.35 && typical.first < 0.8,
+          "typical music sits below 0 VU with room above",
+          QStringLiteral("%1 for -15 dBFS RMS").arg(typical.first, 0, 'f', 3));
+
+    const auto loudest = settle(-6.3, -1.0);
+    check(loudest.first > 1.0 && loudest.first <= 1.4,
+          "the loudest real material lands at the top of the travel without pegging",
+          QStringLiteral("%1 for -6.3 dBFS RMS").arg(loudest.first, 0, 'f', 3));
+
+    // The old -18 dBFS broadcast reference is what pegged it.
+    auto *broadcast = new MeterSource;
+    broadcast->setReferenceLevel(-18.0);
+    broadcast->consumeLevel({ -13.7, -13.7 }, silence, silence);
+    for (int i = 0; i < 2000; ++i)
+        broadcast->advance(1.0);
+    check(broadcast->vuDeflection(0) > 1.5,
+          "and the -18 dBFS broadcast reference would have pegged it",
+          QStringLiteral("%1 — past the end of the scale").arg(broadcast->vuDeflection(0), 0, 'f', 3));
+    delete broadcast;
+
+    // Peaks are a decibel scale ending at full scale, not the VU's ratio.
+    check(typical.second > 0.7 && typical.second < 0.9,
+          "a -10.6 dBFS peak reads high on the peak indicator, which drives the lamp",
+          QString::number(typical.second, 'f', 3));
+    check(std::fabs(typical.first - 0.5) < 0.15,
+          "and the ladder, driven by the ballistic level, has room to move",
+          QStringLiteral("%1 of 1.25 full-scale").arg(typical.first, 0, 'f', 3));
+    check(loudest.second > 0.95,
+          "a -1 dBFS peak reads nearly full, as it should",
+          QString::number(loudest.second, 'f', 3));
+    check(settle(-60.0, -60.0).second < 0.02,
+          "and the floor of the peak scale reads empty");
+}
+
+// Stop and pause are different events. A paused deck holds; a stopped one falls
+// back to rest under the same ballistic that raised it.
+void testRestAndHold()
+{
+    std::printf("\nrest and hold\n");
+
+    MeterSource source;
+    const QList<double> loud { -6.0, -6.0 };
+    const QList<double> silence { -120.0, -120.0 };
+    const QList<float> tone = toneAt(23, 0.0f);
+
+    for (int i = 0; i < 60; ++i) {
+        source.consumeSpectrum(tone, kRate);
+        source.consumeLevel(loud, silence, loud);
+        source.advance(16.0);
+    }
+
+    float loudestBefore = 0.0f;
+    for (float value : source.magnitudes())
+        loudestBefore = std::max(loudestBefore, value);
+    const double needleBefore = source.vuDeflection(0);
+    check(loudestBefore > 0.5f && needleBefore > 0.5,
+          "the display is showing signal before the transport stops",
+          QStringLiteral("band %1, needle %2")
+              .arg(loudestBefore, 0, 'f', 2).arg(needleBefore, 0, 'f', 2));
+
+    // Pause: messages simply stop arriving. Nothing should move.
+    for (int i = 0; i < 30; ++i)
+        source.advance(16.0);
+    float loudestPaused = 0.0f;
+    for (float value : source.magnitudes())
+        loudestPaused = std::max(loudestPaused, value);
+    check(qFuzzyCompare(loudestPaused + 1.0f, loudestBefore + 1.0f),
+          "pausing holds the bars where they were",
+          QStringLiteral("%1 after 480 ms").arg(loudestPaused, 0, 'f', 3));
+    check(std::fabs(source.vuDeflection(0) - needleBefore) < 0.02,
+          "and holds the needle too",
+          QString::number(source.vuDeflection(0), 'f', 3));
+
+    // Stop: everything falls back, and gradually rather than at once.
+    source.setReleasing(true);
+    source.advance(16.0);
+    float loudestFirstStep = 0.0f;
+    for (float value : source.magnitudes())
+        loudestFirstStep = std::max(loudestFirstStep, value);
+    check(loudestFirstStep < loudestBefore && loudestFirstStep > loudestBefore * 0.5f,
+          "stopping starts the bars falling without dropping them",
+          QStringLiteral("%1 from %2 after one step")
+              .arg(loudestFirstStep, 0, 'f', 3).arg(loudestBefore, 0, 'f', 3));
+    check(source.vuDeflection(0) > needleBefore * 0.8,
+          "and the needle has barely begun to move, being a physical system",
+          QString::number(source.vuDeflection(0), 'f', 3));
+
+    for (int i = 0; i < 200; ++i)
+        source.advance(16.0);
+    float loudestRested = 0.0f;
+    for (float value : source.magnitudes())
+        loudestRested = std::max(loudestRested, value);
+    check(loudestRested < 0.01f, "and they reach rest",
+          QStringLiteral("band %1").arg(loudestRested, 0, 'e', 1));
+    check(source.vuDeflection(0) < 0.01,
+          "as does the needle", QString::number(source.vuDeflection(0), 'f', 4));
+
+    // Playing again must not leave it stuck in release.
+    source.setReleasing(false);
+    for (int i = 0; i < 60; ++i) {
+        source.consumeSpectrum(tone, kRate);
+        source.consumeLevel(loud, silence, loud);
+        source.advance(16.0);
+    }
+    float loudestAgain = 0.0f;
+    for (float value : source.magnitudes())
+        loudestAgain = std::max(loudestAgain, value);
+    check(loudestAgain > 0.5f, "and starting again brings it back",
+          QStringLiteral("%1").arg(loudestAgain, 0, 'f', 2));
+}
+
 void testTexturePacking()
 {
     std::printf("\ntexture packing (D-004)\n");
@@ -342,6 +517,8 @@ int main(int argc, char *argv[])
     testSmoothingAsymmetry();
     testPeakHold();
     testVuBallistics();
+    testScalesAgainstRealMaterial();
+    testRestAndHold();
     testTexturePacking();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",

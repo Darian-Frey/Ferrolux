@@ -73,14 +73,22 @@ public:
     static float decodePeak(quint8 blue);
 
 protected:
-    QSGNode *updatePaintNode(QSGNode *node, UpdatePaintNodeData *data) override;
+    // The texture is built during the scene graph's synchronisation phase
+    // rather than in updatePaintNode, because this item draws nothing and an
+    // item that draws nothing is never asked to paint. Synchronisation runs on
+    // the render thread with the GUI thread blocked, which is exactly the
+    // window AV-007 requires, and it happens whether or not the item is visible
+    // or has a size.
+    void itemChange(ItemChange change, const ItemChangeData &data) override;
     void releaseResources() override;
 
 signals:
     void sourceChanged();
 
 private slots:
-    void stage();
+    void stage();          // GUI thread: fills the image
+    void synchronise();    // render thread: uploads it
+    void invalidate();     // render thread: scene graph is going away
 
 private:
     MeterSource *m_source = nullptr;
@@ -90,6 +98,7 @@ private:
     QImage m_staging;
     bool m_stagingDirty = false;
 
+    QQuickWindow *m_window = nullptr;
     mutable class MeterTextureProvider *m_provider = nullptr;
 };
 
