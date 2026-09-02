@@ -219,7 +219,39 @@ description of behaviour the formula does not produce.
 
 ## Won't fix
 
-*None.*
+### BUG-006 `equalizer-nbands` advertises controllable band gains but never syncs them
+**Status:** wontfix
+**Severity:** low
+**Found:** 2026-09-02, implementing the gain ramp for F-020
+**Related:** F-020, D-006, SPEC.md §Equaliser
+
+Each band of `equalizer-nbands` exposes `gain` with GStreamer's `controllable`
+flag, and `gst_object_add_control_binding` accepts a
+`GstDirectControlBinding` over it without error. The binding then does nothing:
+`GstIirEqualizer` never calls `gst_object_sync_values` on its child bands while
+streaming, so the bound control source is never evaluated.
+
+Verified both ways against GStreamer 1.24.2. A linear interpolation control
+source bound to band 0 and driven through a playing pipeline left the gain at
+0.000 for the whole run. The identical source synchronised by hand with
+`gst_object_sync_values` interpolated exactly — 0.000, 3.000, 6.000, 9.000,
+12.000 across the requested 300 ms. The control machinery works; the element
+simply never asks it for a value.
+
+This matters because a control source is the obvious and documented way to ramp
+a gain in GStreamer, it attaches without complaint, and it fails silently. The
+next person to implement smoothing here will reach for it first.
+
+**Not ours to fix** — the defect is upstream, and D-006 commits RS-1 to the
+stock element. Ferrolux works around it by interpolating on the application
+thread: `Equaliser` steps the property from a 5 ms timer and computes the
+fraction from a clock rather than from a tick count, so timer jitter cannot
+stretch or shorten the 30 ms specified in SPEC.md. The element re-reads the gain
+once per buffer regardless, so driving it faster than that would buy nothing.
+
+Revisit if the parametric equaliser candidate is promoted and D-006's reversal
+conditions bring a hand-written cascade into scope, at which point the ramp
+belongs inside the filter and this element stops being involved.
 
 ## Deferred
 

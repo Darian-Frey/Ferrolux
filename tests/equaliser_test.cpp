@@ -9,6 +9,8 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QByteArray>
 #include <QList>
 
@@ -299,11 +301,120 @@ void testWorstCaseGain()
               .arg(peak > 0 ? 20.0 * std::log10(peak) : -99.0, 0, 'f', 2));
 }
 
+// SPEC.md §Equaliser specifies a 30 ms linear interpolation on any gain change,
+// so that dragging a slider does not step the filter coefficients and click.
+// The audible clause is not measured here; what is measured is that the applied
+// curve genuinely travels rather than jumping, and lands exactly on target.
+void testGainRamp()
+{
+    std::printf("\ngain ramp (F-020)\n");
+
+    Equaliser eq;
+    if (!eq.createElements()) {
+        check(false, "equaliser elements available");
+        return;
+    }
+    // The first write after the elements exist is the initial state and is
+    // applied whole; everything after it ramps.
+    check(!eq.isRamping(), "priming the elements does not start a ramp");
+
+    eq.setEnabled(true);
+    check(!eq.isRamping(), "enabling a flat curve changes nothing, so no ramp starts");
+
+    eq.setBand(4, 12.0);
+    check(eq.isRamping(), "a gain change starts a ramp");
+    check(std::fabs(eq.appliedBands().value(4)) < 1.0,
+          "the applied gain has not jumped to the target",
+          QStringLiteral("%1 dB").arg(eq.appliedBands().value(4), 0, 'f', 2));
+    check(qFuzzyCompare(eq.band(4), 12.0),
+          "but the reported setting is the target, so the UI does not lag");
+
+    QElapsedTimer clock;
+    clock.start();
+    double midpoint = -99.0;
+    while (clock.elapsed() < 200) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 2);
+        if (midpoint < -90.0 && clock.elapsed() >= 15)
+            midpoint = eq.appliedBands().value(4);
+        if (!eq.isRamping())
+            break;
+    }
+
+    check(midpoint > 2.0 && midpoint < 10.0,
+          "halfway through, the applied gain is partway there",
+          QStringLiteral("%1 dB at ~15 ms of 30").arg(midpoint, 0, 'f', 2));
+    check(!eq.isRamping(), "the ramp finishes",
+          QStringLiteral("%1 ms").arg(clock.elapsed()));
+    check(qFuzzyCompare(eq.appliedBands().value(4), 12.0),
+          "and lands exactly on the target, not near it",
+          QStringLiteral("%1 dB").arg(eq.appliedBands().value(4), 0, 'f', 6));
+
+    // Bypassing is a gain change too, and would click just as loudly.
+    eq.setEnabled(false);
+    check(eq.isRamping(), "toggling bypass ramps rather than jumping");
+    clock.restart();
+    while (eq.isRamping() && clock.elapsed() < 200)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 2);
+    check(qFuzzyIsNull(eq.appliedBands().value(4)),
+          "and settles at unity when disabled");
+}
+
+// F-022's user presets. Settings are redirected to a test location by main(),
+// so nothing here can reach a real configuration file.
+void testUserPresets()
+{
+    std::printf("\nuser presets (F-022)\n");
+
+    Equaliser eq;
+    eq.setBands({ 6, 5, 4, 3, 2, 1, 0, -1, -2, -3 });
+    eq.setPreamp(-4.0);
+
+    const QList<double> saved = eq.curve();
+    check(saved.size() == Equaliser::kBandCount + 1,
+          "a curve is eleven values — ten bands then the preamp",
+          QString::number(saved.size()));
+
+    check(eq.saveUserPreset(QStringLiteral("Test Curve")), "a user preset saves");
+    check(eq.userPresetNames().contains(QStringLiteral("Test Curve")),
+          "and appears in the user list");
+    check(eq.availablePresets().contains(QStringLiteral("Test Curve")),
+          "and in the combined chooser list");
+    check(eq.preset() == QStringLiteral("Test Curve"),
+          "saving names the current curve after the preset");
+
+    // Move away, then come back.
+    eq.applyPreset(QStringLiteral("flat"));
+    check(qFuzzyIsNull(eq.band(0)), "moving to a built-in changes the curve");
+
+    eq.applyPreset(QStringLiteral("Test Curve"));
+    bool restored = qFuzzyCompare(eq.preamp() + 100.0, -4.0 + 100.0);
+    for (int i = 0; i < Equaliser::kBandCount; ++i)
+        restored = restored && qFuzzyCompare(eq.band(i) + 100.0, saved.at(i) + 100.0);
+    check(restored, "recalling a user preset restores bands and preamp exactly");
+
+    check(!eq.saveUserPreset(QString()), "an empty name is rejected");
+    check(!eq.saveUserPreset(QStringLiteral("a/b")),
+          "a name containing a slash is rejected — it would open a settings group");
+
+    check(eq.removeUserPreset(QStringLiteral("Test Curve")), "a user preset is removable");
+    check(!eq.userPresetNames().contains(QStringLiteral("Test Curve")),
+          "and is gone afterwards");
+    check(!eq.removeUserPreset(QStringLiteral("Test Curve")),
+          "removing it twice reports failure rather than pretending");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
     gst_init(&argc, &argv);
+
+    // Redirect QSettings before anything can touch a real configuration file.
+    QStandardPaths::setTestModeEnabled(true);
+    QCoreApplication::setOrganizationName(QStringLiteral("ferrolux"));
+    QCoreApplication::setApplicationName(QStringLiteral("ferrolux-test"));
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+
     QCoreApplication app(argc, argv);
 
     testConfiguration();
@@ -311,6 +422,8 @@ int main(int argc, char *argv[])
     testEqf();
     testBypassIsBitIdentical();
     testWorstCaseGain();
+    testGainRamp();
+    testUserPresets();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");

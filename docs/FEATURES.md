@@ -117,7 +117,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Ten bands at the centre frequencies in SPEC.md §Equaliser, each adjustable ±12 dB
 - Adjusting a band takes effect without a pipeline restart and without an audible click
 - Bypass toggle returns bit-identical output to the unprocessed signal
-**Status:** Partial (Phase 3, 2026-09-02) — ten bands at Winamp's centres, ±12 dB, adjusted by property write with no pipeline restart. Bypass is verified **bit-identical** against a captured reference, with a control check confirming the element is genuinely in circuit. Outstanding: the 30 ms gain ramp, so a rapid slider drag can still click, and there are no equaliser controls in the harness.
+**Status:** Partial (Phase 3, 2026-09-02) — ten bands at Winamp's centres, ±12 dB, adjusted by property write with no pipeline restart. Bypass is verified **bit-identical** against a captured reference, with a control check confirming the element is genuinely in circuit. Gains ramp over 30 ms rather than jumping: verified to interpolate linearly, to land exactly on target, and to start no ramp for a change that changes nothing. The *audible* absence of zipper noise is not measured; see ROADMAP.md Phase 3.
 
 ### F-021 Preamp
 **Priority:** Must
@@ -132,7 +132,7 @@ People who keep a local music library on Linux and want a player with the charac
 - Built-in preset bank matching the classic named curves
 - User presets saved and recalled by name
 - Import of Winamp `.eqf` preset files
-**Status:** Partial (Phase 3, 2026-09-02) — the `.eqf` decoder is complete and tested, including the inverted scale where byte 0 is maximum boost and 63 maximum cut, and both the bare eleven-byte payload and the full library file with header and name. A built-in bank of nine curves recalls by name. Outstanding: user-saved presets are not persisted, and neither the bank nor the importer has a UI.
+**Status:** Partial (Phase 3, 2026-09-02) — the `.eqf` decoder is complete and tested, including the inverted scale where byte 0 is maximum boost and 63 maximum cut, and both the bare eleven-byte payload and the full library file with header and name. A built-in bank of nine curves recalls by name. User presets save and recall by name, shadowing a built-in of the same name, with names containing a slash rejected because they would open a settings subgroup rather than name a preset. Both the bank and the importer are reachable from the harness.
 **Notes:** The built-in curves are Ferrolux's own shaping, not byte copies of Winamp's bank. D-006 already establishes that the filter response differs from Winamp's, so reproducing its exact numbers would imply a fidelity that does not exist. Importing a real `.eqf` is the exact path.
 
 ### F-023 Per-track equaliser settings

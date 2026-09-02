@@ -33,9 +33,11 @@
 
 #pragma once
 
+#include <QElapsedTimer>
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 #include <array>
 
@@ -57,6 +59,19 @@ public:
     static constexpr double kGainLimit = 12.0;   // ±dB, per D-007
     static constexpr double kPreampLimit = 12.0;
 
+    // SPEC.md §Equaliser: gains are interpolated over 30 ms rather than jumped,
+    // so that dragging a slider does not produce zipper noise. Marked
+    // provisional there and still provisional here.
+    //
+    // Driven by a timer on this thread rather than by a GStreamer control
+    // source. `equalizer-nbands` advertises its band gains as controllable and
+    // a binding attaches without error, but the element never calls
+    // gst_object_sync_values on its bands while streaming, so a bound control
+    // source is silently inert — verified by comparing a bound source during
+    // playback (no movement at all) against manual synchronisation of the same
+    // source (exact linear interpolation). See BUG-006.
+    static constexpr int kRampMilliseconds = 30;
+
     // SPEC.md §Equaliser. Centres are Winamp's; bandwidths are the geometric
     // midpoints between neighbours, which makes the bands contiguous without
     // overlapping. The top three are necessarily narrow and high-Q because
@@ -65,6 +80,9 @@ public:
     static const std::array<double, kBandCount> &centreFrequencies();
     static const std::array<double, kBandCount> &bandwidths();
 
+    // Short labels for the ten centres, for use as control legends.
+    Q_INVOKABLE static QStringList bandLabels();
+
     explicit Equaliser(QObject *parent = nullptr);
 
     bool isEnabled() const { return m_enabled; }
@@ -72,6 +90,13 @@ public:
     QList<double> bands() const { return m_bands; }
     QString preset() const { return m_preset; }
     Q_INVOKABLE double band(int index) const;
+
+    // The gains currently written to the element, which during a ramp are
+    // between the old curve and the new one. bands() reports what the user
+    // asked for; this reports what is actually being applied.
+    QList<double> appliedBands() const { return m_writtenBands; }
+    double appliedPreampDb() const { return m_writtenPreampDb; }
+    bool isRamping() const { return m_rampTimer.isActive(); }
 
     // Peak magnitude of the whole band cascade, in dB, for a given curve.
     //
@@ -103,6 +128,24 @@ public:
     static QStringList presetNames();
     static QList<double> presetBands(const QString &name);
 
+    // User presets (F-022). Persisted under the key shape in SPEC.md §Settings.
+    //
+    // Stored here rather than in platform/ because there is no platform/ yet;
+    // main.cpp holds the playback settings for the same reason. Both move to
+    // platform/Settings in Phase 6, which is the one place this knowledge
+    // should end up.
+    // Built-ins and user presets together, which is what a chooser wants. A user
+    // preset shadowing a built-in appears once.
+    Q_INVOKABLE QStringList availablePresets() const;
+    Q_INVOKABLE QStringList userPresetNames() const;
+    Q_INVOKABLE bool saveUserPreset(const QString &name);
+    Q_INVOKABLE bool removeUserPreset(const QString &name);
+
+    // The full curve as eleven values — ten band gains then the preamp — which
+    // is the shape both `.eqf` and the settings store use.
+    QList<double> curve() const;
+    void applyCurve(const QList<double> &values, const QString &name = {});
+
     // Backend plumbing. Both elements are created here and handed to Engine to
     // be added to the filter bin; ownership passes with them. Confined to
     // core/ per ARCHITECTURE.md invariant 2.
@@ -126,6 +169,7 @@ public slots:
 
 signals:
     void enabledChanged();
+    void userPresetsChanged();
     void preampChanged();
     void bandsChanged();
     void presetChanged();
@@ -135,6 +179,13 @@ signals:
 private:
     void applyGains();
     void configureBands();
+    void writeGains(const QList<double> &bandsDb, double preampDb);
+    void stepRamp();
+
+    // Target gains for the current settings: the band curve and the effective
+    // preamp, which carries the headroom attenuation folded in.
+    QList<double> targetBands() const;
+    double targetPreampDb() const;
 
     GstElement *m_preampElement = nullptr;
     GstElement *m_filterElement = nullptr;
@@ -144,6 +195,16 @@ private:
     QList<double> m_bands;
     QString m_preset = QStringLiteral("flat");
     double m_appliedAttenuation = 0.0;
+
+    // Ramp state. m_written is what the elements currently hold, which during a
+    // ramp is an interpolated value rather than either endpoint.
+    bool m_elementsPrimed = false;
+    QList<double> m_writtenBands;
+    double m_writtenPreampDb = 0.0;
+    QList<double> m_rampFromBands;
+    double m_rampFromPreampDb = 0.0;
+    QElapsedTimer m_rampClock;
+    QTimer m_rampTimer;
 };
 
 } // namespace ferrolux::core

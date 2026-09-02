@@ -4,6 +4,7 @@
 #include "core/Equaliser.h"
 
 #include <QFile>
+#include <QSettings>
 #include <QFileInfo>
 #include <QtGlobal>
 
@@ -87,6 +88,16 @@ Equaliser::Equaliser(QObject *parent)
     : QObject(parent)
 {
     m_bands = QList<double>(kBandCount, 0.0);
+    m_writtenBands = QList<double>(kBandCount, 0.0);
+    m_rampFromBands = QList<double>(kBandCount, 0.0);
+
+    // Five milliseconds is finer than the element can actually act on — it
+    // re-reads the gain once per buffer, which is nearer ten — but timing the
+    // ramp from the clock rather than from the tick count means jitter in the
+    // timer does not stretch or shorten it.
+    m_rampTimer.setInterval(5);
+    m_rampTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_rampTimer, &QTimer::timeout, this, &Equaliser::stepRamp);
 }
 
 double Equaliser::band(int index) const
@@ -217,33 +228,101 @@ void Equaliser::configureBands()
     }
 }
 
+QList<double> Equaliser::targetBands() const
+{
+    return m_enabled ? m_bands : QList<double>(kBandCount, 0.0);
+}
+
+// Folding the attenuation into the preamp is exact — gain commutes with a
+// linear filter — and keeps the cascade's internal levels lower, which is where
+// AV-003's instability would begin.
+double Equaliser::targetPreampDb() const
+{
+    if (!m_enabled)
+        return 0.0;
+    return m_preamp - headroomAttenuation(m_preamp, m_bands);
+}
+
+void Equaliser::writeGains(const QList<double> &bandsDb, double preampDb)
+{
+    if (!m_filterElement || !m_preampElement)
+        return;
+
+    g_object_set(m_preampElement, "volume", toAmplitude(preampDb), nullptr);
+
+    for (int i = 0; i < kBandCount && i < bandsDb.size(); ++i) {
+        GObject *child = gst_child_proxy_get_child_by_index(GST_CHILD_PROXY(m_filterElement),
+                                                            guint(i));
+        if (!child)
+            continue;
+        g_object_set(child, "gain", bandsDb.at(i), nullptr);
+        g_object_unref(child);
+    }
+
+    m_writtenBands = bandsDb;
+    m_writtenPreampDb = preampDb;
+}
+
+void Equaliser::stepRamp()
+{
+    const double elapsed = double(m_rampClock.elapsed());
+    const double fraction = qBound(0.0, elapsed / double(kRampMilliseconds), 1.0);
+
+    const QList<double> to = targetBands();
+    const double toPreamp = targetPreampDb();
+
+    QList<double> stepped;
+    stepped.reserve(kBandCount);
+    for (int i = 0; i < kBandCount; ++i) {
+        const double from = m_rampFromBands.value(i, 0.0);
+        stepped.append(from + (to.value(i, 0.0) - from) * fraction);
+    }
+    writeGains(stepped, m_rampFromPreampDb + (toPreamp - m_rampFromPreampDb) * fraction);
+
+    if (fraction >= 1.0) {
+        m_rampTimer.stop();
+        writeGains(to, toPreamp); // land exactly on the target, not near it
+    }
+}
+
 void Equaliser::applyGains()
 {
     if (!m_filterElement || !m_preampElement)
         return;
 
-    const bool on = m_enabled;
-    const double attenuation = on ? headroomAttenuation(m_preamp, m_bands) : 0.0;
-
-    // Folding the attenuation into the preamp is exact — gain commutes with a
-    // linear filter — and keeps the cascade's internal levels lower, which is
-    // where AV-003's instability would begin.
-    const double preampDb = on ? m_preamp - attenuation : 0.0;
-    g_object_set(m_preampElement, "volume", toAmplitude(preampDb), nullptr);
-
-    for (int i = 0; i < kBandCount; ++i) {
-        GObject *child = gst_child_proxy_get_child_by_index(GST_CHILD_PROXY(m_filterElement),
-                                                            guint(i));
-        if (!child)
-            continue;
-        g_object_set(child, "gain", on ? m_bands.at(i) : 0.0, nullptr);
-        g_object_unref(child);
-    }
-
+    const double attenuation = m_enabled ? headroomAttenuation(m_preamp, m_bands) : 0.0;
     if (!qFuzzyCompare(attenuation + 1.0, m_appliedAttenuation + 1.0)) {
         m_appliedAttenuation = attenuation;
         emit headroomChanged();
     }
+
+    // The first write after the elements are built is the initial state, not a
+    // change a listener could hear, so it is applied whole. Ramping it would
+    // also mean the first 30 ms of any capture disagreed with the settings,
+    // which would quietly weaken the tests that measure worst-case gain.
+    if (!m_elementsPrimed) {
+        m_elementsPrimed = true;
+        writeGains(targetBands(), targetPreampDb());
+        return;
+    }
+
+    // A change that changes nothing — enabling a flat curve, or re-applying the
+    // preset already loaded — has nothing to interpolate, and starting a timer
+    // for it would leave the equaliser reporting itself busy for 30 ms with no
+    // audible event to justify it.
+    const QList<double> to = targetBands();
+    const double toPreamp = targetPreampDb();
+    bool identical = qFuzzyCompare(toPreamp + 100.0, m_writtenPreampDb + 100.0);
+    for (int i = 0; identical && i < kBandCount; ++i)
+        identical = qFuzzyCompare(to.value(i) + 100.0, m_writtenBands.value(i) + 100.0);
+    if (identical)
+        return;
+
+    m_rampFromBands = m_writtenBands;
+    m_rampFromPreampDb = m_writtenPreampDb;
+    m_rampClock.restart();
+    if (!m_rampTimer.isActive())
+        m_rampTimer.start();
 }
 
 void Equaliser::setEnabled(bool enabled)
@@ -295,6 +374,20 @@ void Equaliser::setBands(const QList<double> &decibels)
 
 void Equaliser::applyPreset(const QString &name)
 {
+    // A user preset of the same name wins: it was saved deliberately, and
+    // shadowing a built-in is a reasonable thing to want.
+    QSettings settings;
+    const QVariant stored = settings.value(QStringLiteral("equaliser/user/") + name);
+    if (stored.isValid()) {
+        QList<double> values;
+        for (const QVariant &value : stored.toList())
+            values.append(value.toDouble());
+        if (values.size() == kBandCount + 1) {
+            applyCurve(values, name);
+            return;
+        }
+    }
+
     const QList<double> values = presetBands(name);
     if (values.size() != kBandCount)
         return;
@@ -324,6 +417,86 @@ QList<double> Equaliser::presetBands(const QString &name)
             return entry.second;
     }
     return {};
+}
+
+QList<double> Equaliser::curve() const
+{
+    QList<double> values = m_bands;
+    values.append(m_preamp);
+    return values;
+}
+
+void Equaliser::applyCurve(const QList<double> &values, const QString &name)
+{
+    if (values.size() != kBandCount + 1)
+        return;
+    setBands(values.mid(0, kBandCount));
+    setPreamp(values.at(kBandCount));
+    m_preset = name.isEmpty() ? QStringLiteral("custom") : name;
+    emit presetChanged();
+}
+
+QStringList Equaliser::bandLabels()
+{
+    QStringList labels;
+    for (double centre : kCentres) {
+        labels.append(centre >= 1000.0
+                          ? QStringLiteral("%1k").arg(centre / 1000.0, 0, 'g', 2)
+                          : QString::number(int(centre)));
+    }
+    return labels;
+}
+
+QStringList Equaliser::availablePresets() const
+{
+    QStringList names = presetNames();
+    for (const QString &user : userPresetNames()) {
+        if (!names.contains(user, Qt::CaseInsensitive))
+            names.append(user);
+    }
+    return names;
+}
+
+QStringList Equaliser::userPresetNames() const
+{
+    QSettings settings;
+    settings.beginGroup(QStringLiteral("equaliser/user"));
+    QStringList names = settings.childKeys();
+    settings.endGroup();
+    names.sort(Qt::CaseInsensitive);
+    return names;
+}
+
+bool Equaliser::saveUserPreset(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    // A slash would open a settings subgroup rather than name a preset, and an
+    // empty name would produce an unreachable entry.
+    if (trimmed.isEmpty() || trimmed.contains(QLatin1Char('/')))
+        return false;
+
+    QVariantList stored;
+    for (double value : curve())
+        stored.append(value);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("equaliser/user/") + trimmed, stored);
+
+    m_preset = trimmed;
+    emit presetChanged();
+    emit userPresetsChanged();
+    return true;
+}
+
+bool Equaliser::removeUserPreset(const QString &name)
+{
+    QSettings settings;
+    const QString key = QStringLiteral("equaliser/user/") + name;
+    if (!settings.contains(key))
+        return false;
+    settings.remove(key);
+    emit userPresetsChanged();
+    return true;
 }
 
 // SPEC.md §Equaliser: dB = (31 − value) × 12 / 31. Note the inversion — a

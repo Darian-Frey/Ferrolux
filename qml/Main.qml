@@ -17,9 +17,9 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: window
     width: 720
-    height: 620
+    height: 780
     visible: true
-    title: qsTr("Ferrolux RS-1 — Phase 2 harness")
+    title: qsTr("Ferrolux RS-1 — Phase 3 harness")
 
     // Invariant 4: the single position poll for the whole application.
     FrameAnimation {
@@ -314,6 +314,98 @@ ApplicationWindow {
             }
         }
 
+        // ---- equaliser ---------------------------------------------------
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Button {
+                text: (eqPanel.visible ? qsTr("Equaliser \u25B4") : qsTr("Equaliser \u25BE"))
+                onClicked: eqPanel.visible = !eqPanel.visible
+            }
+            CheckBox {
+                text: qsTr("On")
+                checked: Equaliser.enabled
+                onToggled: Equaliser.enabled = checked
+            }
+            ComboBox {
+                id: presetBox
+                Layout.preferredWidth: 150
+                model: Equaliser.availablePresets()
+                onActivated: Equaliser.applyPreset(currentText)
+                Connections {
+                    target: Equaliser
+                    function onUserPresetsChanged() { presetBox.model = Equaliser.availablePresets() }
+                    function onPresetChanged() {
+                        const at = presetBox.model.indexOf(Equaliser.preset)
+                        if (at >= 0)
+                            presetBox.currentIndex = at
+                    }
+                }
+            }
+            Label {
+                text: Equaliser.preset === "custom" ? qsTr("(edited)") : ""
+                opacity: 0.6
+            }
+            Item { Layout.fillWidth: true }
+            Button { text: qsTr("Save…");   onClicked: savePresetDialog.open() }
+            Button { text: qsTr("Import .eqf…"); onClicked: eqfDialog.open() }
+            Button { text: qsTr("Reset");   onClicked: Equaliser.reset() }
+        }
+
+        Frame {
+            id: eqPanel
+            visible: false
+            Layout.fillWidth: true
+
+            RowLayout {
+                anchors.fill: parent
+                spacing: 4
+
+                // Preamp sits apart from the bands: it is a different quantity,
+                // applied ahead of the filters rather than being one of them.
+                ColumnLayout {
+                    spacing: 2
+                    Label { Layout.alignment: Qt.AlignHCenter; text: Math.round(Equaliser.preamp) }
+                    Slider {
+                        Layout.alignment: Qt.AlignHCenter
+                        orientation: Qt.Vertical
+                        Layout.preferredHeight: 90
+                        from: -12; to: 12
+                        value: Equaliser.preamp
+                        onMoved: Equaliser.preamp = value
+                    }
+                    Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("pre"); font.bold: true }
+                }
+
+                ToolSeparator {}
+
+                Repeater {
+                    model: 10
+                    delegate: ColumnLayout {
+                        required property int index
+                        spacing: 2
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Math.round(Equaliser.bands[index])
+                        }
+                        Slider {
+                            Layout.alignment: Qt.AlignHCenter
+                            orientation: Qt.Vertical
+                            Layout.preferredHeight: 90
+                            from: -12; to: 12
+                            value: Equaliser.bands[index]
+                            onMoved: Equaliser.setBand(index, value)
+                        }
+                        Label {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: Equaliser.bandLabels()[index]
+                        }
+                    }
+                }
+            }
+        }
+
         // ---- play order and mixing --------------------------------------
         RowLayout {
             Layout.fillWidth: true
@@ -409,6 +501,57 @@ ApplicationWindow {
         background: Rectangle { color: "#a00"; radius: 4 }
         function show(message) { text = message; visible = true; hideTimer.restart() }
         Timer { id: hideTimer; interval: 4000; onTriggered: errorBanner.visible = false }
+    }
+
+    Dialog {
+        id: savePresetDialog
+        anchors.centerIn: parent
+        width: 320
+        modal: true
+        title: qsTr("Save preset")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: { presetName.text = ""; presetName.forceActiveFocus() }
+        onAccepted: {
+            if (!Equaliser.saveUserPreset(presetName.text))
+                errorBanner.show(qsTr("A preset needs a name without a slash in it."))
+        }
+        TextField {
+            id: presetName
+            anchors.fill: parent
+            placeholderText: qsTr("Preset name")
+            onAccepted: savePresetDialog.accept()
+        }
+    }
+
+    Dialog {
+        id: eqfDialog
+        anchors.centerIn: parent
+        width: 460
+        modal: true
+        title: qsTr("Import Winamp preset")
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        onOpened: eqfPath.forceActiveFocus()
+        onAccepted: Equaliser.importEqf(eqfPath.text)
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 6
+            Label {
+                text: qsTr("Path to a .eqf file")
+                font.pixelSize: 11
+                opacity: 0.7
+            }
+            TextField {
+                id: eqfPath
+                Layout.fillWidth: true
+                selectByMouse: true
+                onAccepted: eqfDialog.accept()
+            }
+        }
+    }
+
+    Connections {
+        target: Equaliser
+        function onImportFailed(message) { errorBanner.show(message) }
     }
 
     DropArea {

@@ -80,7 +80,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 |-------|-------|-------|
 | 1 | Transport core | **Complete** 2026-09-02 |
 | 2 | Playlist | Feature-complete 2026-09-02 |
-| 3 | Equaliser | In progress |
+| 3 | Equaliser | Feature-complete 2026-09-02 |
 | 4 | Meters | Not started |
 | 5 | The panel | Not started |
 | 6 | Desktop integration | Not started |

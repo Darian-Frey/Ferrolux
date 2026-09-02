@@ -63,17 +63,17 @@ they are:
 
 ## Phase 3 — Equaliser
 **Goal:** Ten bands that sound right and behave under abuse.
-**Status:** In progress, started 2026-09-02
+**Status:** Feature-complete 2026-09-02; the audible clauses unverified
 **Features delivered:** F-020, F-021, F-022
 **Deliverables:**
 - [x] `core/Equaliser` abstraction with a stock GStreamer backend behind it — `equalizer-nbands`, not `equalizer-10bands`; see BUG-004
 - [x] Band centres and gain range per SPEC.md §Equaliser
 - [x] Preamp with headroom management
 - [x] Bypass verified bit-identical
-- [~] Built-in preset bank and user preset storage — the bank exists and recalls by name; user-saved presets are not stored yet
-- [~] Winamp `.eqf` import — the decoder is complete and tested; there is no UI to invoke it
-- [ ] Gain ramp to prevent zipper noise on a slider drag
-- [ ] Equaliser controls in the harness
+- [x] Built-in preset bank and user preset storage
+- [x] Winamp `.eqf` import
+- [x] Gain ramp to prevent zipper noise on a slider drag
+- [x] Equaliser controls in the harness
 
 **Two defects found by building it.** BUG-004: SPEC.md named an element whose
 centre frequencies are fixed and cannot be Winamp's, so it could not satisfy
@@ -81,7 +81,21 @@ D-007. BUG-005 is the significant one — the headroom rule attenuated by the
 largest single band gain, which under-attenuated by 9 dB and clipped the output
 by 8 dB under the exact condition AV-003 describes. Both are fixed, and AV-003's
 detection is now implemented rather than aspirational: it is the check that
-found BUG-005 on its first run.
+found BUG-005 on its first run. BUG-006 records a third, upstream: the element
+advertises controllable band gains and never honours them, which makes the
+obvious way to implement the ramp fail silently.
+
+**Two clauses of the acceptance criterion remain unverified**, in the same sense
+as Phase 2's:
+
+- *"no denormal stalls"* — the worst-case capture asserts every sample is
+  finite, which catches instability, but a denormal stall shows up as CPU cost
+  rather than as a bad sample and needs timing instrumentation to see.
+- *"rapidly dragging a slider produces no zipper noise"* — the ramp is verified
+  to interpolate linearly, reach exactly its target and start no ramp for a
+  change that changes nothing, but *audible* absence of zipper noise is not
+  measured. Doing so needs a capture with a gain change mid-stream and a
+  discontinuity threshold nobody has yet had to defend.
 
 **Acceptance:** All ten bands at +12 dB simultaneously, on a loud master, produces no clipping and no denormal stalls. Rapidly dragging a slider produces no zipper noise. Bypass output matches the source byte for byte.
 

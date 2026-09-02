@@ -77,6 +77,17 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   count was incremented and never decremented, so the state read as if
   completion were tracked when it was not.
 
+- Phase 3 feature-complete: a 30 ms gain ramp, user preset storage, `.eqf`
+  import and a full equaliser panel in the harness. Equaliser state persists
+  under the SPEC.md §Settings keys.
+- SPEC.md §Settings gains `equaliser/user/<name>`, one key per user preset
+  holding eleven values — ten band gains then the preamp.
+- BUG-006 recorded against GStreamer: `equalizer-nbands` advertises its band
+  gains as controllable and accepts a control binding, but never calls
+  `gst_object_sync_values` on them while streaming, so the documented way to
+  ramp a gain attaches without error and does nothing. Worked around by driving
+  the interpolation from the application.
+
 ### Fixed
 - BUG-005: the headroom rule attenuated by preamp plus the largest single band
   gain, assuming the cascade could not exceed it. Ten peaking sections multiply

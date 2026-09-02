@@ -93,6 +93,8 @@ not of the implementation.
 
 **Gain ramp time:** 30 ms linear interpolation on any gain change, to prevent zipper noise during slider drags. **Provisional.**
 
+The interpolation is driven by the application rather than by a GStreamer control source. `equalizer-nbands` advertises its band gains as controllable and accepts a control binding without error, but never calls `gst_object_sync_values` on its bands while streaming, so a bound source is silently inert — see BUG-006. `Equaliser` therefore steps the property from a 5 ms timer and computes the fraction from a clock rather than a tick count, so timer jitter cannot stretch or shorten the ramp. The element re-reads the gain once per buffer regardless, which is the real granularity. A change that changes nothing starts no ramp.
+
 **Headroom rule.** The combined gain path may exceed available headroom, so the
 engine applies an automatic attenuation of
 
@@ -245,6 +247,7 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `equaliser/preamp` | double | 0.0 | dB |
 | `equaliser/bands` | list\<double\> | ten zeroes | dB, band order as above |
 | `equaliser/preset` | string | `flat` | Name only; values are authoritative |
+| `equaliser/user/<name>` | list\<double\> | — | One key per user preset, the name being the key. Eleven values: ten band gains in band order, then the preamp. A name containing `/` is rejected, since it would open a settings subgroup rather than name a preset. A user preset shadows a built-in of the same name. |
 | `meters/mode` | string | `spectrum` | Identifier from the display mode table |
 | `meters/reference-level` | double | −18.0 | dBFS for 0 VU |
 | `ui/theme` | string | `ferric` | Token set name |

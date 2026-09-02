@@ -28,11 +28,13 @@
 #include <gst/gst.h>
 
 #include "core/Engine.h"
+#include "core/Equaliser.h"
 #include "library/MetadataReader.h"
 #include "library/PlaylistFilter.h"
 #include "library/PlaylistModel.h"
 
 using ferrolux::core::Engine;
+using ferrolux::core::Equaliser;
 using ferrolux::library::MetadataReader;
 using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
@@ -142,6 +144,21 @@ int main(int argc, char *argv[])
                        : repeat == QLatin1String("one") ? PlaylistModel::RepeatOne
                                                         : PlaylistModel::RepeatOff);
 
+    Equaliser *equaliser = engine.equaliser();
+    {
+        // Band gains are restored before the enabled flag, so that switching on
+        // applies the stored curve in one step rather than ramping to flat and
+        // then to the real values.
+        QList<double> storedBands;
+        for (const QVariant &value : settings.value(QStringLiteral("equaliser/bands")).toList())
+            storedBands.append(value.toDouble());
+        if (storedBands.size() == Equaliser::kBandCount)
+            equaliser->setBands(storedBands);
+
+        equaliser->setPreamp(settings.value(QStringLiteral("equaliser/preamp"), 0.0).toDouble());
+        equaliser->setEnabled(settings.value(QStringLiteral("equaliser/enabled"), false).toBool());
+    }
+
     QObject::connect(&app, &QGuiApplication::aboutToQuit, &engine, [&engine, &playlist] {
         QSettings out;
         out.setValue(QStringLiteral("playback/volume"), engine.volume());
@@ -151,12 +168,25 @@ int main(int argc, char *argv[])
                      playlist.repeat() == PlaylistModel::RepeatAll   ? QStringLiteral("all")
                      : playlist.repeat() == PlaylistModel::RepeatOne ? QStringLiteral("one")
                                                                      : QStringLiteral("off"));
+
+        // SPEC.md §Settings: the preset name is recorded, but the band values
+        // are what is authoritative on restore — a preset may have been edited,
+        // or its definition may have changed since it was chosen.
+        Equaliser *eq = engine.equaliser();
+        QVariantList bands;
+        for (double gain : eq->bands())
+            bands.append(gain);
+        out.setValue(QStringLiteral("equaliser/enabled"), eq->isEnabled());
+        out.setValue(QStringLiteral("equaliser/preamp"), eq->preamp());
+        out.setValue(QStringLiteral("equaliser/bands"), bands);
+        out.setValue(QStringLiteral("equaliser/preset"), eq->preset());
     });
 
     QQmlApplicationEngine qml;
     qml.rootContext()->setContextProperty(QStringLiteral("Engine"), &engine);
     qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), &playlist);
     qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), &view);
+    qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
 
     // Phase 2 command line stays minimal; the --enqueue / --play / --replace
     // forms in F-052 arrive with single-instance handling in Phase 6.
