@@ -3,6 +3,7 @@
 
 #include "library/PlaylistModel.h"
 
+#include <QBitArray>
 #include <QRandomGenerator>
 
 #include "library/PlaylistIO.h"
@@ -271,11 +272,19 @@ int PlaylistModel::moveSelection(QList<int> rows, int destination)
     if (destination < 0 || destination > m_entries.size())
         return -1;
 
+    // Membership is tested once per row across two passes, so asking the sorted
+    // list each time makes the whole move quadratic in the selection size. A
+    // bitmask makes both passes linear: measured on 20,000 entries moving a
+    // 10,000-row selection, 790 ms became a few. See IMP-003.
+    QBitArray selected(int(m_entries.size()), false);
+    for (int row : std::as_const(rows))
+        selected.setBit(row);
+
     // Where the block lands once the selected rows have been lifted out: the
     // number of unselected rows that sit above the destination.
     int insertAt = 0;
     for (int row = 0; row < destination; ++row) {
-        if (!rows.contains(row))
+        if (!selected.testBit(row))
             ++insertAt;
     }
 
@@ -293,7 +302,7 @@ int PlaylistModel::moveSelection(QList<int> rows, int destination)
     remaining.reserve(m_entries.size() - rows.size());
 
     for (int row = 0; row < m_entries.size(); ++row) {
-        if (rows.contains(row)) {
+        if (selected.testBit(row)) {
             moved.append(m_entries.at(row));
             movedFrom.append(row);
         } else {

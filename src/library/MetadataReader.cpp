@@ -62,11 +62,16 @@ PlaylistEntry readOne(const QUrl &url)
     return entry;
 }
 
-class Batch : public QRunnable
+} // namespace
+
+// Outside the anonymous namespace so that MetadataReader can befriend it: the
+// completion bookkeeping it performs runs on the owner thread and touches
+// private state that nothing else should reach.
+class MetadataBatch : public QRunnable
 {
 public:
-    Batch(MetadataReader *reader, QList<QUrl> urls,
-          std::shared_ptr<QAtomicInt> generation, int stamp)
+    MetadataBatch(MetadataReader *reader, QList<QUrl> urls,
+                  std::shared_ptr<QAtomicInt> generation, int stamp)
         : m_reader(reader)
         , m_urls(std::move(urls))
         , m_generation(std::move(generation))
@@ -89,9 +94,19 @@ public:
             return;
 
         // Queued, so the model is only ever touched on the thread that owns it.
+        // The completion note rides along rather than being posted separately,
+        // so a delivered batch and its bookkeeping cannot be seen out of order.
         MetadataReader *reader = m_reader;
+        auto generation = m_generation;
+        const int stamp = m_stamp;
         QMetaObject::invokeMethod(
-            reader, [reader, results] { emit reader->batchReady(results); },
+            reader,
+            [reader, results, generation, stamp] {
+                if (generation->loadAcquire() != stamp)
+                    return; // cancelled after the work was done; drop it
+                emit reader->batchReady(results);
+                reader->noteBatchFinished();
+            },
             Qt::QueuedConnection);
     }
 
@@ -101,8 +116,6 @@ private:
     std::shared_ptr<QAtomicInt> m_generation;
     int m_stamp;
 };
-
-} // namespace
 
 MetadataReader::MetadataReader(QObject *parent)
     : QObject(parent)
@@ -130,16 +143,34 @@ void MetadataReader::enqueue(const QList<QUrl> &urls)
     const int stamp = m_generation->loadAcquire();
     for (int offset = 0; offset < urls.size(); offset += kBatchSize) {
         const QList<QUrl> slice = urls.mid(offset, kBatchSize);
-        m_pool.start(new Batch(this, slice, m_generation, stamp));
+        m_pool.start(new MetadataBatch(this, slice, m_generation, stamp));
         ++m_outstanding;
+    }
+    emit progressChanged(m_completed, m_outstanding);
+}
+
+void MetadataReader::noteBatchFinished()
+{
+    ++m_completed;
+    emit progressChanged(m_completed, m_outstanding);
+
+    if (m_completed >= m_outstanding) {
+        m_completed = 0;
+        m_outstanding = 0;
+        emit idle();
     }
 }
 
 void MetadataReader::cancel()
 {
+    // Bumping the generation makes every batch in flight drop its results and
+    // skip its completion note, so the counters are reset here rather than
+    // being decremented to zero by work that will never report.
     m_generation->fetchAndAddOrdered(1);
     m_pool.clear();
     m_outstanding = 0;
+    m_completed = 0;
+    emit progressChanged(0, 0);
     emit idle();
 }
 

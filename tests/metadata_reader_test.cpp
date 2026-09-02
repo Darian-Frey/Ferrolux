@@ -123,6 +123,61 @@ int main(int argc, char *argv[])
           "an untagged row falls back to the file's base name",
           pending.displayTitle());
 
+    // IMP-001: completion is reported, not merely implied. Enough URLs to span
+    // several batches, so the count has to be right rather than accidentally so.
+    std::printf("\ncompletion reporting (IMP-001)\n");
+    {
+        MetadataReader tracked;
+        int idleCount = 0;
+        int lastCompleted = -1;
+        int lastTotal = -1;
+        QObject::connect(&tracked, &MetadataReader::idle, [&] { ++idleCount; });
+        QObject::connect(&tracked, &MetadataReader::progressChanged,
+                         [&](int completed, int total) {
+                             lastCompleted = completed;
+                             lastTotal = total;
+                         });
+
+        QList<QUrl> many;
+        for (int i = 0; i < MetadataReader::kBatchSize * 3 + 5; ++i)
+            many.append(flac);
+        tracked.enqueue(many);
+
+        QElapsedTimer clock;
+        clock.start();
+        while (idleCount == 0 && clock.elapsed() < 15000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+
+        check(idleCount == 1, "idle fires exactly once when all batches finish",
+              QStringLiteral("%1 times").arg(idleCount));
+        check(lastTotal == 0 || lastCompleted == lastTotal,
+              "progress ends with every batch accounted for",
+              QStringLiteral("%1 of %2").arg(lastCompleted).arg(lastTotal));
+
+        // A second run must start clean rather than firing immediately.
+        idleCount = 0;
+        tracked.enqueue({ flac, mp3 });
+        clock.restart();
+        while (idleCount == 0 && clock.elapsed() < 10000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        check(idleCount == 1, "the counters reset, so a second run reports once too",
+              QStringLiteral("%1 times").arg(idleCount));
+    }
+
+    // Cancelling must settle rather than leave the reader believing work is
+    // still outstanding for ever.
+    {
+        MetadataReader cancelled;
+        int idleCount = 0;
+        QObject::connect(&cancelled, &MetadataReader::idle, [&] { ++idleCount; });
+        QList<QUrl> many;
+        for (int i = 0; i < MetadataReader::kBatchSize * 4; ++i)
+            many.append(flac);
+        cancelled.enqueue(many);
+        cancelled.cancel();
+        check(idleCount >= 1, "cancelling reports idle rather than hanging");
+    }
+
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");
     return failures ? 1 : 0;

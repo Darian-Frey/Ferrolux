@@ -65,6 +65,18 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 - AV-003 detection implemented — the first Critical attack vector to move from
   `not implemented` to a real check, and it found BUG-005 on its first run.
 
+- IMP-003 applied: `PlaylistModel::moveSelection` tested selection membership
+  against a sorted list once per row, making a large multi-row move quadratic.
+  A `QBitArray` mask makes both passes linear — 790 ms to 8 ms in Debug, 66 ms
+  to 1 ms in Release, for a 10,000-row selection on 20,000 entries.
+- IMP-002 declined, IMP-004 and IMP-005 deferred with recorded triggers: a
+  fifth test suite for IMP-004, and Phase 6's four consumers for IMP-005.
+- IMP-001 applied: `MetadataReader` now reports completion. `idle()` fires when
+  every enqueued batch has delivered, rather than only when work is cancelled,
+  and `progressChanged(completed, total)` is added. Previously the outstanding
+  count was incremented and never decremented, so the state read as if
+  completion were tracked when it was not.
+
 ### Fixed
 - BUG-005: the headroom rule attenuated by preamp plus the largest single band
   gain, assuming the cascade could not exceed it. Ten peaking sections multiply

@@ -8,6 +8,7 @@
 // describes.
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QByteArray>
 #include <QList>
 
@@ -185,6 +186,22 @@ void testHeadroom()
           "a preamp cut exactly offsetting a boost needs none");
     check(Equaliser::headroomAttenuation(0.0, { 0, 0, 0, 3, 0, 0, 0, 0, 0, 0 }) > 0.0,
           "a single boosted band still asks for attenuation");
+
+    // The response is evaluated on every gain change, so a slider drag runs it
+    // at frame rate. It has to be cheap enough that dragging is free.
+    QElapsedTimer timer;
+    timer.start();
+    volatile double sink = 0.0;
+    constexpr int kRuns = 1000;
+    for (int i = 0; i < kRuns; ++i)
+        sink += Equaliser::cascadePeakGain(maxed);
+    const double microseconds = double(timer.nsecsElapsed()) / 1000.0 / kRuns;
+    // Generous, because a Debug build runs this about six times slower than a
+    // Release one (roughly 950 us against 145). The bound is set to catch an
+    // order-of-magnitude regression, not to police the constant factor.
+    check(microseconds < 2000.0,
+          "the worst-case response evaluation is cheap enough to run per gain change",
+          QStringLiteral("%1 us per call").arg(microseconds, 0, 'f', 1));
 }
 
 void testEqf()

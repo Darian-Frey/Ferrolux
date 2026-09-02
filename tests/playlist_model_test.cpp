@@ -440,6 +440,18 @@ void testScale()
     check(removeMs < 1000, "removal from a large list is not quadratic",
           QStringLiteral("%1 ms").arg(removeMs));
 
+    // moveSelection tests membership of the selection once per row, so a large
+    // selection over a large list is the case where a quadratic shape would show.
+    QList<int> half;
+    half.reserve(kEntries / 2);
+    for (int row = 0; row < kEntries / 2; ++row)
+        half.append(row);
+    timer.restart();
+    model.moveSelection(half, model.rowCount());
+    const qint64 moveMs = timer.elapsed();
+    check(moveMs < 1000, "moving a 10,000-row selection stays inside a second",
+          QStringLiteral("%1 ms").arg(moveMs));
+
     // A filter runs on every keystroke, so its cost is felt directly.
     PlaylistFilter filter;
     filter.setSourceModel(&model);

@@ -35,9 +35,13 @@
 
 namespace ferrolux::library {
 
+class MetadataBatch;
+
 class MetadataReader : public QObject
 {
     Q_OBJECT
+
+    friend class MetadataBatch;
 
 public:
     explicit MetadataReader(QObject *parent = nullptr);
@@ -56,12 +60,23 @@ public slots:
 
 signals:
     void batchReady(const QList<ferrolux::library::PlaylistEntry> &results);
+
+    // Every batch enqueued has now either delivered its results or been
+    // abandoned. Emitted on the owner thread. Session restore (F-015) needs it
+    // so that a playlist is not saved mid-read, and sorting by duration is
+    // meaningless before it: until this fires, some rows still hold -1.
     void idle();
 
+    // Batches delivered against batches enqueued, for progress reporting.
+    void progressChanged(int completed, int total);
+
 private:
+    void noteBatchFinished();
+
     QThreadPool m_pool;
     std::shared_ptr<QAtomicInt> m_generation;
     int m_outstanding = 0;
+    int m_completed = 0;
 };
 
 } // namespace ferrolux::library
