@@ -26,11 +26,14 @@ qt_standard_project_setup()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GStreamer REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.20)
 pkg_check_modules(TagLib REQUIRED IMPORTED_TARGET taglib>=1.12)
+pkg_check_modules(GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.20)
 
 qt_add_executable(ferrolux
     src/main.cpp
     src/core/Engine.cpp
     src/core/Engine.h
+    src/core/Equaliser.cpp
+    src/core/Equaliser.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
@@ -70,6 +73,8 @@ qt_add_executable(acceptance_transport
     tests/acceptance_transport.cpp
     src/core/Engine.cpp
     src/core/Engine.h
+    src/core/Equaliser.cpp
+    src/core/Equaliser.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
     src/library/PlaylistIO.cpp
@@ -99,6 +104,15 @@ qt_add_executable(metadata_reader_test
 )
 target_include_directories(metadata_reader_test PRIVATE src)
 target_link_libraries(metadata_reader_test PRIVATE Qt6::Core PkgConfig::TagLib)
+
+qt_add_executable(equaliser_test
+    tests/equaliser_test.cpp
+    src/core/Equaliser.cpp
+    src/core/Equaliser.h
+)
+target_include_directories(equaliser_test PRIVATE src)
+target_link_libraries(equaliser_test PRIVATE Qt6::Core PkgConfig::GStreamer PkgConfig::GStreamerApp)
+add_test(NAME equaliser COMMAND equaliser_test)
 
 if(FERROLUX_TEST_FLAC AND FERROLUX_TEST_MP3)
     add_test(NAME transport

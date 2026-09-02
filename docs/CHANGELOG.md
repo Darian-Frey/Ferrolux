@@ -58,7 +58,23 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   shuffle permutation. Ten checks cover the permutation independently of the
   drag interaction that drives it.
 
+- `core/Equaliser`: ten bands at Winamp's centres behind a decibel-only
+  abstraction per D-006, ±12 dB preamp with headroom management, bypass, a
+  nine-curve preset bank, and a Winamp `.eqf` decoder. 30 checks in
+  `tests/equaliser_test`.
+- AV-003 detection implemented — the first Critical attack vector to move from
+  `not implemented` to a real check, and it found BUG-005 on its first run.
+
 ### Fixed
+- BUG-005: the headroom rule attenuated by preamp plus the largest single band
+  gain, assuming the cascade could not exceed it. Ten peaking sections multiply
+  where they overlap: all ten at +12 dB peak at +21.4 dB near 607 Hz, and the
+  measured output clipped at +8.04 dBFS. The rule now attenuates by the
+  cascade's computed peak magnitude response; the same curve now peaks at
+  −3.65 dBFS.
+- BUG-004: SPEC.md named `equalizer-10bands`, whose centre frequencies are
+  fixed at 29 Hz–15 kHz and cannot be Winamp's, so it could not satisfy D-007.
+  Replaced with `equalizer-nbands` and ten child bands.
 - BUG-003: the balance control used a constant-power law intended for panning
   a mono source, which attenuated centred playback by 3.01 dB on both channels
   and made a channel louder when the control moved off centre. Replaced with

@@ -48,6 +48,8 @@
 #include <QUrl>
 #include <QLoggingCategory>
 
+#include "core/Equaliser.h"
+
 // Forward declarations, so that gst/gst.h stays inside core/.
 typedef struct _GstElement GstElement;
 typedef struct _GstBus GstBus;
@@ -76,6 +78,12 @@ public:
 
     explicit Engine(QObject *parent = nullptr);
     ~Engine() override;
+
+    // The equaliser is owned here because it owns GStreamer objects, which
+    // ARCHITECTURE.md invariant 2 confines to core/. It is exposed by pointer
+    // so that QML and the settings code can reach it without either learning
+    // anything about the backend.
+    Equaliser *equaliser() { return &m_equaliser; }
 
     State state() const { return m_state; }
     QUrl source() const { return m_source; }
@@ -170,6 +178,8 @@ private:
     void fail(const QString &text);
     void handleMessage(GstMessage *message);
     void refreshSeekable();
+
+    Equaliser m_equaliser;
 
     GstElement *m_pipeline = nullptr;   // playbin3
     GstElement *m_balanceElement = nullptr; // audiomixmatrix inside the filter bin

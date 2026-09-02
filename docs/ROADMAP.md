@@ -63,15 +63,25 @@ they are:
 
 ## Phase 3 — Equaliser
 **Goal:** Ten bands that sound right and behave under abuse.
-**Status:** Not started
+**Status:** In progress, started 2026-09-02
 **Features delivered:** F-020, F-021, F-022
 **Deliverables:**
-- [ ] `core/Equaliser` abstraction with the GStreamer `equalizer-10bands` backend behind it
-- [ ] Band centres and gain range per SPEC.md §Equaliser
-- [ ] Preamp with headroom management
-- [ ] Bypass verified bit-identical
-- [ ] Built-in preset bank and user preset storage
-- [ ] Winamp `.eqf` import
+- [x] `core/Equaliser` abstraction with a stock GStreamer backend behind it — `equalizer-nbands`, not `equalizer-10bands`; see BUG-004
+- [x] Band centres and gain range per SPEC.md §Equaliser
+- [x] Preamp with headroom management
+- [x] Bypass verified bit-identical
+- [~] Built-in preset bank and user preset storage — the bank exists and recalls by name; user-saved presets are not stored yet
+- [~] Winamp `.eqf` import — the decoder is complete and tested; there is no UI to invoke it
+- [ ] Gain ramp to prevent zipper noise on a slider drag
+- [ ] Equaliser controls in the harness
+
+**Two defects found by building it.** BUG-004: SPEC.md named an element whose
+centre frequencies are fixed and cannot be Winamp's, so it could not satisfy
+D-007. BUG-005 is the significant one — the headroom rule attenuated by the
+largest single band gain, which under-attenuated by 9 dB and clipped the output
+by 8 dB under the exact condition AV-003 describes. Both are fixed, and AV-003's
+detection is now implemented rather than aspirational: it is the check that
+found BUG-005 on its first run.
 
 **Acceptance:** All ten bands at +12 dB simultaneously, on a loud master, produces no clipping and no denormal stalls. Rapidly dragging a slider produces no zipper noise. Bypass output matches the source byte for byte.
 

@@ -45,8 +45,9 @@ The UI is a consumer. It reads state and pushes commands; it holds no playback l
 ### Audio path
 
 ```
-file → playbin3 → audioconvert → equalizer-10bands → capsfilter
-     → audiomixmatrix → level → spectrum → audioconvert → autoaudiosink
+file → playbin3 → audioconvert → volume (preamp) → equalizer-nbands
+     → capsfilter → audiomixmatrix → level → spectrum → audioconvert
+     → autoaudiosink
 ```
 
 `level` and `spectrum` are both pass-through elements, so they sit in series in the main chain rather than behind a `tee`. Neither modifies the signal. They post messages on the pipeline bus, which is where meter data enters the application.

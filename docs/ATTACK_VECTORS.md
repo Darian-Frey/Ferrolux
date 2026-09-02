@@ -27,7 +27,16 @@ Ferrolux is pre-implementation, so most detection entries are currently `not imp
 ### AV-003 Clipping and instability from combined equaliser gain
 **Severity:** Critical
 **Description.** Ten bands at +12 dB with a +12 dB preamp on an already-loud master will clip hard, and clipping in a filter chain can also drive the filters into instability rather than merely distorting. A user who does this has not misused the application; the interface allows it, so the engine must survive it.
-**Detection.** Not implemented (would require an offline harness feeding a full-scale test signal through every extreme gain combination and asserting no sample exceeds full scale and no output is non-finite). The headroom rule in SPEC.md §Equaliser is the intended mitigation and needs its own test.
+**Detection.** **Implemented**, `tests/equaliser_test`. An offline capture feeds
+a near-full-scale sawtooth through the real filter chain with all ten bands at
++12 dB and the preamp at +12 dB, and asserts that no sample exceeds full scale
+and that none is infinite or NaN. A companion check asserts the pure headroom
+arithmetic without a pipeline.
+
+The detection found a real defect on its first run: the original headroom rule
+attenuated by preamp plus the largest band gain, which under-attenuated by 9 dB
+and clipped the output by 8 dB. See BUG-005. The rule now attenuates by the
+cascade's measured peak magnitude response.
 **Related decisions.** D-006 (equaliser backend), D-007 (band layout and range).
 **Related features.** F-020, F-021.
 

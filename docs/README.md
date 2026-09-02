@@ -3,7 +3,7 @@
 > **Status:** Active
 > **Provenance:** Shane Hartley (author, primary developer); Claude (documentation scaffolding, design review)
 > **Last reviewed:** 2026-09-02
-> **Why this status:** Project initialised 2026-09-02. Documentation set complete; Phase 1 (transport core) complete and verified on the same date. Phase 2 (playlist) feature-complete: model, play order, metadata, file I/O, filtering and gapless all implemented and tested. Two acceptance clauses — scroll frame time and an audible gapless join — remain unverified; see ROADMAP.md Phase 2.
+> **Why this status:** Project initialised 2026-09-02. Documentation set complete; Phase 1 (transport core) complete and verified on the same date. Phase 2 (playlist) feature-complete: model, play order, metadata, file I/O, filtering and gapless all implemented and tested. Two acceptance clauses — scroll frame time and an audible gapless join — remain unverified; see ROADMAP.md Phase 2. Phase 3 (equaliser) in progress: bands, preamp, headroom and bypass done and verified; gain ramping, preset storage and UI outstanding.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.
 

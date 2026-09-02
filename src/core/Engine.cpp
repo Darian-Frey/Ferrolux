@@ -133,6 +133,10 @@ GstElement *Engine::buildAudioFilter()
     GstElement *matrix = gst_element_factory_make("audiomixmatrix", "fx-balance");
     GstElement *convertOut = gst_element_factory_make("audioconvert", "fx-convert-out");
 
+    const bool haveEqualiser = m_equaliser.createElements();
+    if (!haveEqualiser)
+        qCWarning(lcCore) << "equaliser unavailable; the filter chain will be flat";
+
     if (!bin || !convertIn || !stereo || !matrix || !convertOut) {
         qCWarning(lcCore) << "audio filter unavailable; balance will be inoperative";
         if (bin) gst_object_unref(bin);
@@ -159,8 +163,23 @@ GstElement *Engine::buildAudioFilter()
     m_balanceElement = matrix;
     applyBalance();
 
-    gst_bin_add_many(GST_BIN(bin), convertIn, stereo, matrix, convertOut, nullptr);
-    if (!gst_element_link_many(convertIn, stereo, matrix, convertOut, nullptr)) {
+    // SPEC.md §Pipeline order: preamp, then the band filters, then balance,
+    // then (from Phase 4) the analysis elements. Everything that changes what
+    // is heard sits upstream of everything that measures it.
+    bool linked = false;
+    if (haveEqualiser) {
+        GstElement *preamp = m_equaliser.preampElement();
+        GstElement *bands = m_equaliser.filterElement();
+        gst_bin_add_many(GST_BIN(bin), convertIn, preamp, bands, stereo, matrix,
+                         convertOut, nullptr);
+        linked = gst_element_link_many(convertIn, preamp, bands, stereo, matrix,
+                                       convertOut, nullptr);
+    } else {
+        gst_bin_add_many(GST_BIN(bin), convertIn, stereo, matrix, convertOut, nullptr);
+        linked = gst_element_link_many(convertIn, stereo, matrix, convertOut, nullptr);
+    }
+
+    if (!linked) {
         qCWarning(lcCore) << "could not link the audio filter chain";
         m_balanceElement = nullptr;
         gst_object_unref(bin);

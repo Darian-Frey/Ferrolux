@@ -23,6 +23,84 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+*None.*
+
+### BUG-004 SPEC.md names an equaliser element that cannot meet D-007
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-02, starting Phase 3
+**Related:** F-020, D-006, D-007, SPEC.md §Pipeline, SPEC.md §Equaliser
+
+SPEC.md §Pipeline and ARCHITECTURE.md §Data flow both name
+`equalizer-10bands`. That element's band centre frequencies are fixed at 29,
+59, 119, 237, 474, 947, 1889, 3770, 7523 and 15011 Hz and are not settable —
+`band0` through `band9` are gain-only properties. D-007 fixes the centres at
+Winamp's 60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000 and 16000 Hz, and
+is Accepted specifically so that existing `.eqf` presets map one to one. The
+named element cannot satisfy the accepted decision.
+
+`equalizer-nbands` with `num-bands=10` is the same filter implementation
+exposed through `GstChildProxy`, giving ten child bands each with settable
+`freq`, `bandwidth`, `gain` and `type`. Verified against the installed
+GStreamer 1.24.2. It is still a stock element, so D-006 is unaffected — only
+SPEC.md's naming is wrong.
+
+Phase 3 is implemented against `equalizer-nbands`. SPEC.md §Pipeline,
+SPEC.md §Equaliser and ARCHITECTURE.md §Data flow need amending to match, and
+the per-band bandwidths D-007's uneven layout implies need specifying, since
+the ten Winamp centres are not octave-spaced and the top three sit close
+together.
+
+**Resolved 2026-09-02.** Phase 3 is implemented against `equalizer-nbands` with ten child bands. SPEC.md §Pipeline, its element configuration table and ARCHITECTURE.md §Data flow now name it, and SPEC.md §Equaliser gains the per-band bandwidth table that the uneven Winamp layout requires. D-006 is unaffected: this is still a stock element behind the same abstraction.
+
+### BUG-005 The headroom rule is insufficient and does not prevent clipping
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-02, first run of the AV-003 detection in `tests/equaliser_test`
+**Related:** F-020, F-021, AV-003, D-007, SPEC.md §Equaliser
+
+SPEC.md §Equaliser specifies an automatic attenuation of
+`max(0, preamp_dB + max_band_dB − 0 dBFS_margin)`. It does not hold. The rule
+assumes the cascade's worst-case gain equals its largest single band gain, but
+ten peaking filters in series multiply where their skirts overlap, and the
+Winamp centres overlap substantially.
+
+**Measured.** A near-full-scale sawtooth through the implemented chain with all
+ten bands at +12 dB and the preamp at +12 dB. The rule removed 24 dB. Output
+peaked at **2.5233, or +8.04 dBFS** — clipped by more than 8 dB. Nothing was
+infinite or NaN, so the filters stayed stable, but the signal did not.
+
+Modelling the cascade independently, as RBJ peaking sections at the centres and
+bandwidths in use, puts its peak at **+21.37 dB at 607 Hz** for that curve, not
++12 dB. Combined with a +12 dB preamp the true requirement is 33.4 dB of
+attenuation, against the 24 dB the rule asks for — a 9.4 dB shortfall, which
+matches the measured 8.04 dB overshoot once the sawtooth's own spectrum is
+accounted for.
+
+This is exactly the failure AV-003 was written to anticipate, found by the
+detection AV-003 said was needed. The vector's severity of Critical is
+justified.
+
+**Candidate resolutions**, for the author to choose:
+1. Compute the cascade's actual peak magnitude response and attenuate by that:
+   `max(0, preamp_dB + 20·log₁₀(max|H(f)|))`, evaluated over log-spaced
+   frequencies whenever a gain changes. Exact, cheap — a few hundred complex
+   evaluations, once per slider move, not per sample. The cost is that the
+   headroom model must know the filter topology, so it becomes something that
+   travels with the backend rather than being backend-agnostic.
+2. Attenuate by the sum of the positive band gains. Trivially safe and needs no
+   model, but the worst case removes 120 dB for a curve that only asks for a
+   fraction of it, which would make the equaliser unusable.
+3. Leave the rule and add a limiter before the sink. Changes the sound under
+   load rather than preventing the condition, and SPEC.md is explicit that the
+   attenuation is not user-visible — a limiter audibly is.
+
+Resolution 1 is recommended. Whichever is chosen, SPEC.md §Equaliser's formula
+needs replacing, and the AV-003 detection entry should be updated from
+`not implemented` to reference `tests/equaliser_test`.
+**Resolved 2026-09-02.** Candidate 1 adopted. `Equaliser::cascadePeakGain` models the curve as RBJ peaking sections and evaluates the cascade's magnitude over 1024 log-spaced frequencies, and the headroom rule now attenuates by `max(0, preamp + cascade_peak)`. Modelled at 192 kHz, which is conservative at every lower rate and avoids depending on the negotiated one. Re-measured: the same worst-case curve now peaks at 0.657, or −3.65 dBFS, against 2.523 before. SPEC.md §Equaliser carries the corrected formula and the reasoning, and AV-003's detection entry now reads implemented.
+
+
 ### BUG-001 Documented Qt minimum is unattainable, and SPEC.md's Handjet axes need Qt 6.7
 **Status:** fixed
 **Severity:** medium

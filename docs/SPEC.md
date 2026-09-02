@@ -14,7 +14,8 @@ The audio chain, in order:
 playbin3
   audio-filter = bin(
       audioconvert
-    → equalizer-10bands
+    → volume          preamp, with the headroom attenuation folded in
+    → equalizer-nbands  num-bands=10
     → capsfilter      audio/x-raw,channels=2
     → audiomixmatrix  balance
     → level
@@ -41,6 +42,9 @@ The `capsfilter` is not decoration. `audiomixmatrix` declares `channels: [1, MAX
 | `spectrum` | `interval` | 16000000 ns (16 ms) | Matched to `level` |
 | `spectrum` | `threshold` | −80 dB | Floor of the reported magnitude range |
 | `spectrum` | `multi-channel` | false | Channels summed for display |
+| `equalizer-nbands` | `num-bands` | 10 | Not `equalizer-10bands`, whose centres are fixed and cannot be Winamp's — see BUG-004 |
+| `equalizer-nbands` | band `freq` / `bandwidth` / `gain` | per §Equaliser | Set on the ten child bands through `GstChildProxy` |
+| `volume` (preamp) | `volume` | 10^((preamp − attenuation)/20) | Carries both the preamp and the headroom attenuation |
 | `audiomixmatrix` | `in-channels` / `out-channels` | 2 / 2 | Stereo, pinned by the preceding capsfilter |
 | `audiomixmatrix` | `matrix` | diagonal | Per-channel gain from §Volume taper; must be set before linking |
 
@@ -65,11 +69,61 @@ Ten bands, matching the classic Winamp layout per D-007.
 | 9 | 8 | 14 kHz | −12 to +12 dB |
 | 10 | 9 | 16 kHz | −12 to +12 dB |
 
+**Bandwidths.** Each band's bandwidth is the distance between the geometric
+midpoints to its neighbours, mirrored at the two ends, so the bands are
+contiguous without overlapping at their −3 dB points. The Winamp centres are not
+octave-spaced and crowd at the top, so the upper three bands are necessarily
+narrow and high-Q; that is a property of the layout D-007 inherits deliberately,
+not of the implementation.
+
+| Band | Centre | Bandwidth | Q |
+|------|--------|-----------|---|
+| 1 | 60 Hz | 65.3 Hz | 0.92 |
+| 2 | 170 Hz | 128.6 Hz | 1.32 |
+| 3 | 310 Hz | 201.7 Hz | 1.54 |
+| 4 | 600 Hz | 343.3 Hz | 1.75 |
+| 5 | 1 kHz | 957.5 Hz | 1.04 |
+| 6 | 3 kHz | 2510.6 Hz | 1.19 |
+| 7 | 6 kHz | 4242.6 Hz | 1.41 |
+| 8 | 12 kHz | 4476.2 Hz | 2.68 |
+| 9 | 14 kHz | 2005.1 Hz | 6.98 |
+| 10 | 16 kHz | 2138.1 Hz | 7.48 |
+
 **Preamp:** −12 to +12 dB, applied ahead of the band filters.
 
 **Gain ramp time:** 30 ms linear interpolation on any gain change, to prevent zipper noise during slider drags. **Provisional.**
 
-**Headroom rule.** The sum of preamp and the maximum band gain may exceed available headroom. The engine applies an automatic attenuation of `max(0, preamp_dB + max_band_dB − 0 dBFS_margin)` where `0 dBFS_margin` is 0 dB, before the sink. This attenuation is not user-visible and is not part of the displayed gain values. See AV-003.
+**Headroom rule.** The combined gain path may exceed available headroom, so the
+engine applies an automatic attenuation of
+
+```
+attenuation_dB = max(0, preamp_dB + cascade_peak_dB)
+```
+
+where `cascade_peak_dB` is `20·log₁₀(max|H(f)|)` for the whole band cascade at
+the current curve, evaluated over log-spaced frequencies from 20 Hz to 20 kHz.
+
+**It is not the largest single band gain.** Ten peaking sections in series
+multiply where their skirts overlap, and the Winamp centres overlap heavily: all
+ten bands at +12 dB peak at **+21.4 dB near 607 Hz**, not +12 dB. The earlier
+rule assumed otherwise and clipped by 8 dB under exactly the condition AV-003
+describes — see BUG-005, and `tests/equaliser_test` for the detection.
+
+The response is modelled at 192 kHz. It grows slightly with sample rate (21.4 dB
+at 44.1 kHz against 23.7 dB at 192 kHz for the worst curve), so modelling the
+highest supported rate is conservative at every lower one and removes any need
+to know what the pipeline negotiated. The cost is up to about 2 dB of
+unnecessary attenuation at extreme settings, and none at realistic ones.
+
+The attenuation is folded into the preamp stage rather than applied after the
+filters. Gain commutes with a linear filter, so `(preamp − attenuation)` ahead
+of the cascade is mathematically identical to `preamp` ahead and `attenuation`
+behind, and it is better in two ways: the cascade's internal state stays
+smaller, which is where instability would begin, and `level` and `spectrum`
+downstream see the signal as it is actually heard.
+
+This attenuation is not user-visible and is not part of the displayed gain
+values. See AV-003.
 
 **Bypass.** When the equaliser is off, the element is set to unity on all bands and zero preamp rather than being removed from the pipeline, so that bypass does not cause a graph rebuild. Output must be bit-identical to the unprocessed signal in this state; this is the acceptance criterion for F-020.
 
