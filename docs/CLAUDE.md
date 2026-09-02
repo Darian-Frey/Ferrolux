@@ -36,10 +36,18 @@ triggers. Read BUGS.md before changing the equaliser or the meters — several
 entries record specification faults that looked entirely reasonable until
 measured.
 
-Four acceptance clauses across Phases 2 and 3 remain unverified, and three of
-them need the frame-time and capture instrumentation AV-002 describes, which
-Phase 4 has to build anyway: playlist scroll frame time, the audible gapless
-join, denormal stalls, and the audible absence of zipper noise.
+Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
+**not** all need the same instrument, which is easy to assume and wrong.
+
+- *Playlist scroll frame time* is the one AV-002's frame timing can answer, and
+  the timing now exists. What is still missing is a way to drive a 20,000-entry
+  scroll under it — a test harness, not another instrument.
+- *Denormal stalls* are an audio-thread cost, not a rendering one. A stall
+  shows as a dropout, not a dropped frame, and needs the processing time of the
+  pipeline measured against its buffer deadline.
+- *The audible gapless join* and *the audible absence of zipper noise* both need
+  a capture of the sink and an analysis of the samples, which AV-006 describes
+  and nothing has yet built.
 
 ## Active task
 

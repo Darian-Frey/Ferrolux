@@ -20,7 +20,34 @@ Ferrolux is pre-implementation, so most detection entries are currently `not imp
 ### AV-002 Frame budget overrun from meter rendering
 **Severity:** Major
 **Description.** The meters redraw every frame at whatever resolution the panel occupies. A shader that is cheap at 1080p may not be at 4K, and the failure mode is a dropped frame rather than an error. Compounding risk: multiple independent position pollers, per-frame QML bindings that allocate, and texture uploads scheduled outside the render pass.
-**Detection.** Not implemented (would require frame-time instrumentation with a per-mode budget assertion in a test build, measured at 1080p, 1440p and 2160p). Phase 4 acceptance sets the target at 60 fps with 30% headroom on the reference hardware.
+**Detection.** **Partly implemented**, `src/meters/FrameTimer.{h,cpp}` driven by
+`tools/measure-frames.sh`. `FrameTimer` hooks `QQuickWindow::beforeRendering` and
+`afterRendering` on the render thread and accumulates frame intervals, CPU render
+times and a count of late frames into atomics; setting `FERROLUX_FRAME_MEASURE`
+to a number of seconds runs the application self-timed, discards the first second
+so shader compilation and initial layout do not distort the mean, and prints one
+`FRAMES` line to stderr. The script sweeps all five modes at three sizes.
+
+Measured 2026-09-02, 4 s per run, 15 combinations: every mode holds, worst frame
+interval 16.014 ms against a 16.667 ms budget, zero late frames, worst CPU render
+pass 0.830 ms (flame at 1600×900).
+
+**Two limits, both material.** *Headroom* is reported from the CPU render pass
+only and is a **lower bound** — GPU execution is submitted asynchronously and is
+not in it. Disabling the swap interval does not recover the true frame cost; the
+compositor paces frames regardless, and the run becomes erratic rather than
+faster. Read a high figure as "the CPU is not the problem", never as "there is
+room to spare", so the 30% headroom clause is **not** verified by this.
+
+*Resolution* is capped by the display. The window manager clamps a managed window
+to the screen, so a 3840×2160 request on this 1920-wide display rendered 1920×1008
+— an earlier run reported a 4K pass it never performed, which is why the report
+now carries the size actually rendered rather than the size asked for. Neither
+way round it works: bypassing the window manager puts the surface off-screen,
+where it receives no frame callbacks and renders nothing, and the offscreen
+platform plugin loads the software backend, which does not execute the shaders at
+all. **The 4K clause is therefore unverified**, and needs either a 4K display or
+a `QQuickRenderControl` harness rendering to a texture on the OpenGL RHI.
 **Related decisions.** D-004 (texture-fed shaders), D-005.
 **Related features.** F-031, F-032, F-033.
 

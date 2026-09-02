@@ -38,6 +38,8 @@ qt_add_executable(ferrolux
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
     src/meters/MeterTexture.h
+    src/meters/FrameTimer.cpp
+    src/meters/FrameTimer.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h

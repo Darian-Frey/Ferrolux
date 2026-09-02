@@ -21,7 +21,12 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickWindow>
+#include <QSurfaceFormat>
 #include <QSettings>
+#include <QTimer>
+
+#include <cstdio>
 #include <QUrl>
 
 #include <algorithm>
@@ -34,6 +39,7 @@
 #include "library/PlaylistFilter.h"
 #include "library/PlaylistModel.h"
 #include "meters/MeterSource.h"
+#include "meters/FrameTimer.h"
 #include "meters/MeterTexture.h"
 
 using ferrolux::core::Engine;
@@ -41,12 +47,30 @@ using ferrolux::core::Equaliser;
 using ferrolux::library::MetadataReader;
 using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
+using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
 
 int main(int argc, char *argv[])
 {
     gst_init(&argc, &argv);
+
+    // Measurement mode for AV-002. With the swap interval left alone, frames
+    // arrive at the refresh rate whether they cost a millisecond or fifteen,
+    // so the interval says nothing about headroom. Disabling it lets frames run
+    // as fast as they can be produced, and the interval becomes the true cost
+    // of one. Only ever set by tools/measure-frames.sh.
+    //
+    // The variable holds the number of seconds to measure for, and the run ends
+    // itself. Killing it from outside would be simpler but SIGTERM does not
+    // reach aboutToQuit, so the report would never be written.
+    const int measureSeconds = qEnvironmentVariableIntValue("FERROLUX_FRAME_MEASURE");
+    const bool measuring = measureSeconds > 0;
+    if (measuring) {
+        QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+        format.setSwapInterval(0);
+        QSurfaceFormat::setDefaultFormat(format);
+    }
 
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("ferrolux"));
@@ -224,6 +248,52 @@ int main(int argc, char *argv[])
         qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));
         if (qml.rootObjects().isEmpty())
             return 1;
+
+        // AV-002. Attached to the window rather than to the meters, because the
+        // meters share their frame with everything else drawn in it.
+        FrameTimer frameTimer;
+        if (auto *window = qobject_cast<QQuickWindow *>(qml.rootObjects().first())) {
+            frameTimer.attach(window);
+
+            if (measuring) {
+                const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");
+                const QStringList parts = geometry.split(QLatin1Char('x'));
+                if (parts.size() == 2)
+                    window->resize(parts.at(0).toInt(), parts.at(1).toInt());
+
+                // The window manager clamps this to the screen, so a request
+                // larger than the display is silently reduced. That is why the
+                // report carries the size actually rendered rather than the one
+                // asked for: a measurement that cannot say what it measured is
+                // worse than none, because it will be believed.
+                //
+                // Neither obvious way round it works. Bypassing the window
+                // manager for a larger surface leaves the window entirely
+                // off-screen, where it receives no frame callbacks and renders
+                // nothing. Rendering offscreen sidesteps the manager, but the
+                // offscreen platform loads the software backend, which does not
+                // execute the shaders at all. Measuring beyond the display needs
+                // a QQuickRenderControl harness on the OpenGL RHI, which does
+                // not exist yet.
+
+                // Discard the first second: the opening frames include shader
+                // compilation, texture creation and the initial layout, none of
+                // which happens again and all of which would distort the average.
+                QTimer::singleShot(1000, &frameTimer, [&frameTimer] { frameTimer.reset(); });
+
+                QTimer::singleShot((measureSeconds + 1) * 1000, &frameTimer,
+                                   [&frameTimer, &app, window] {
+                                       // The size actually rendered, not the one
+                                       // requested. A measurement that cannot say
+                                       // what it measured is not a measurement.
+                                       std::fprintf(stderr, "FRAMES size=%dx%d %s\n",
+                                                    window->width(), window->height(),
+                                                    qPrintable(frameTimer.summary()));
+                                       std::fflush(stderr);
+                                       app.quit();
+                                   });
+            }
+        }
 
         status = app.exec();
     }

@@ -50,8 +50,10 @@ handover in `acceptance_transport`.
 they are:
 
 - *"scrolls at 60 fps"* — the list is virtualised and the data is resident, but
-  no frame-time measurement has been taken. This needs the instrumentation
-  AV-002 describes, which Phase 4 has to build anyway.
+  no frame-time measurement has been taken. The instrumentation AV-002 needed
+  now exists (`FrameTimer`, built in Phase 4) and applies to the whole window,
+  so it can measure this; what is missing is a way to drive a 20,000-entry
+  scroll under it, which is a test harness rather than a new measurement.
 - *"a known-gapless album plays through with no audible join"* — the handover
   mechanism is verified (the pipeline never returns to Stopped, the playlist
   follows without re-loading), but the audible half needs a real gapless
@@ -115,7 +117,7 @@ as Phase 2's:
 - [x] Mode cycling on click, persisted
 - [x] Flame mode (F-035), added during the phase at the author's request
 - [x] Rest on stop, hold on pause
-- [ ] Frame-time instrumentation for AV-002
+- [x] Frame-time instrumentation for AV-002 — `FrameTimer` plus `tools/measure-frames.sh`; see the acceptance note below for what it does not cover
 
 **Four defects found by building it.** BUG-010: SPEC.md specified a first-order
 VU with a 1% to 1.5% overshoot, and a first-order system cannot overshoot at all
@@ -133,7 +135,15 @@ nearest and the lowest bars move in lockstep. That is recorded in SPEC.md as an
 accepted consequence — bars moving together are honest about the analysis
 resolution, whereas a bar stuck at silence would read as missing bass.
 
-**Acceptance:** All four modes hold 60 fps at 3840×2160 on the reference hardware with a headroom margin of at least 30% of the frame budget. The VU needle is visually indistinguishable from a reference deck when both are fed the same programme material.
+**Acceptance:** All four modes hold 60 fps at 3840×2160 on the reference hardware with a headroom margin of at least 30% of the frame budget.
+
+> **Partly met, 2026-09-02.** All five modes hold 60 fps with zero late frames at
+> every size the development display can render, up to 1920×1008 — measured, not
+> assumed, by `tools/measure-frames.sh`. The 3840×2160 clause and the 30% headroom
+> clause are both **unverified**: the window manager clamps the window to the
+> screen, and the reported headroom covers the CPU render pass only. AV-002
+> records why neither has a workaround short of a 4K display or a
+> `QQuickRenderControl` harness. The VU needle is visually indistinguishable from a reference deck when both are fed the same programme material.
 
 ---
 

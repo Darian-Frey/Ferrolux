@@ -108,6 +108,13 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 - A plain spectrum and VU readout in the harness — rectangles, not the
   shader-rendered display F-031 and F-032 call for, to prove the data is right
   and correctly timed before any GPU work.
+- AV-002 detection: `FrameTimer` measures frame interval and CPU render time
+  from the render thread, and `tools/measure-frames.sh` sweeps every display
+  mode at three resolutions. All five modes hold 60 fps with zero late frames
+  up to 1920x1008, worst interval 16.014 ms against a 16.667 ms budget. The
+  4K clause and the 30% headroom clause remain unverified — the window manager
+  clamps the window to the display, and the reported headroom covers only the
+  CPU pass. AV-002 records both limits and what would lift them.
 
 ### Fixed
 - BUG-012: closing the window left the process running and the audio playing.
