@@ -1,0 +1,275 @@
+# Features
+
+Capability list for Ferrolux RS-1. Stable IDs are append-only; withdrawn features keep their ID and gain `Status: Withdrawn`.
+
+Priorities follow MoSCoW: Must / Should / Could / Won't.
+
+## Target users
+
+People who keep a local music library on Linux and want a player with the character of physical hardware rather than a flat modern interface. Secondarily, anyone who has tried to run a classic Winamp-style skinned player on a high-DPI display and found the result unusable.
+
+---
+
+## Playback
+
+### F-001 Local file playback
+**Priority:** Must
+**Acceptance:**
+- Plays FLAC, MP3, Ogg Vorbis, Opus, AAC/M4A, WAV, AIFF, WavPack, Musepack and ALAC from local paths
+- Unsupported or corrupt files produce a visible error and advance the playlist rather than stalling
+**Status:** Not started (Phase 1)
+**Notes:** Format coverage is delegated to GStreamer plugin sets — see D-002.
+
+### F-002 Transport controls
+**Priority:** Must
+**Acceptance:**
+- Play, pause, stop, previous, next respond within 100 ms of input
+- Stop resets position to zero; pause preserves it
+- Previous within the first 3 seconds of a track goes to the previous track, otherwise restarts the current one
+**Status:** Not started (Phase 1)
+
+### F-003 Seeking
+**Priority:** Must
+**Acceptance:**
+- Dragging the position bar seeks with audible scrub feedback suppressed
+- Seeking in a VBR MP3 lands within 500 ms of the target
+- Position display updates at most once per rendered frame — see AV-002
+**Status:** Not started (Phase 1)
+
+### F-004 Volume and balance
+**Priority:** Must
+**Acceptance:**
+- Volume follows a cubic taper, not linear amplitude
+- Balance is a constant-power pan across the stereo field
+- Both persist across restart
+**Status:** Not started (Phase 1)
+
+### F-005 Gapless playback
+**Priority:** Should
+**Acceptance:**
+- Consecutive tracks from a gapless album play with no audible discontinuity at the join
+- Verified against a known-gapless reference recording
+**Status:** Not started (Phase 2)
+**Notes:** Depends on `playbin3`'s about-to-finish handling; see AV-006.
+
+### F-006 ReplayGain
+**Priority:** Could
+**Acceptance:**
+- Track and album gain tags applied when present, selectable between the two modes
+- Configurable pre-amp and clipping prevention
+**Status:** Not started (candidate)
+
+---
+
+## Playlist
+
+### F-010 Playlist model
+**Priority:** Must
+**Acceptance:**
+- Add individual files, whole folders (recursively), or a drag-and-drop selection from a file manager
+- Holds 20,000 entries without the UI dropping below 60 fps during scroll — see AV-008
+- Metadata read asynchronously; rows populate progressively rather than blocking the add
+**Status:** Not started (Phase 2)
+
+### F-011 Playlist editing
+**Priority:** Must
+**Acceptance:**
+- Multi-select with modifier keys, remove selection, clear all
+- Drag to reorder, including multi-row drags
+- Undo for the last destructive operation
+**Status:** Not started (Phase 2)
+
+### F-012 Play order
+**Priority:** Must
+**Acceptance:**
+- Shuffle produces a permutation without repeats until the list is exhausted, not independent random picks
+- Repeat modes: off, repeat-all, repeat-one
+- Shuffle state survives track changes and is not recomputed on each advance
+**Status:** Not started (Phase 2)
+
+### F-013 Playlist file I/O
+**Priority:** Should
+**Acceptance:**
+- Load and save M3U, M3U8 and PLS
+- Relative paths preserved on save when the playlist file sits above the media
+**Status:** Not started (Phase 2)
+
+### F-014 Sort and filter
+**Priority:** Should
+**Acceptance:**
+- Sort by title, artist, album, duration, path or file date
+- Live text filter narrows the visible rows without altering play order
+**Status:** Not started (Phase 2)
+
+### F-015 Session restore
+**Priority:** Should
+**Acceptance:**
+- Playlist contents, current track, playback position and play order restored on next launch
+**Status:** Not started (Phase 6)
+
+---
+
+## Equaliser
+
+### F-020 Ten-band graphic equaliser
+**Priority:** Must
+**Acceptance:**
+- Ten bands at the centre frequencies in SPEC.md §Equaliser, each adjustable ±12 dB
+- Adjusting a band takes effect without a pipeline restart and without an audible click
+- Bypass toggle returns bit-identical output to the unprocessed signal
+**Status:** Not started (Phase 3)
+
+### F-021 Preamp
+**Priority:** Must
+**Acceptance:**
+- ±12 dB preamp applied ahead of the band filters
+- Combined preamp and band gain cannot drive the output into hard clipping — see AV-003
+**Status:** Not started (Phase 3)
+
+### F-022 Presets
+**Priority:** Should
+**Acceptance:**
+- Built-in preset bank matching the classic named curves
+- User presets saved and recalled by name
+- Import of Winamp `.eqf` preset files
+**Status:** Not started (Phase 3)
+
+### F-023 Per-track equaliser settings
+**Priority:** Could
+**Acceptance:**
+- A curve can be bound to a specific file or album and applied automatically on load
+**Status:** Not started (candidate)
+
+---
+
+## Displays
+
+### F-030 Meter data acquisition
+**Priority:** Must
+**Acceptance:**
+- Per-channel RMS and peak, and banded spectrum magnitudes, delivered at the interval in SPEC.md §Meters
+- Acquisition never blocks the GStreamer streaming thread — see AV-001
+**Status:** Not started (Phase 4)
+
+### F-031 Shader-rendered spectrum display
+**Priority:** Must
+**Acceptance:**
+- Logarithmic frequency mapping with no visible bin collapse below 200 Hz — see AV-011
+- Peak-hold caps with configurable decay
+- Holds 60 fps at 4K on the reference hardware in BUILD.md
+**Status:** Not started (Phase 4)
+
+### F-032 Shader-rendered VU display
+**Priority:** Must
+**Acceptance:**
+- Needle ballistics match the integration time in SPEC.md §Meters, not instantaneous RMS
+- Separate faster peak indicator alongside the needle
+- Face, scale marks and needle share one antialiasing model
+**Status:** Not started (Phase 4)
+
+### F-033 Switchable display modes
+**Priority:** Must
+**Acceptance:**
+- Cycle between spectrum bars, mirrored spectrum, stereo VU needles and LED peak ladder by clicking the display
+- Selection persists across restart
+- Switching does not interrupt audio or drop a frame
+**Status:** Not started (Phase 4)
+
+### F-034 Oscilloscope mode
+**Priority:** Could
+**Acceptance:**
+- Time-domain waveform display fed from a raw PCM tap
+**Status:** Not started (candidate)
+**Notes:** Needs a `tee` into an `appsink`; the level/spectrum path does not carry PCM. See ARCHITECTURE.md §Data flow.
+
+---
+
+## Interface
+
+### F-040 Cassette futurism panel
+**Priority:** Must
+**Acceptance:**
+- Transport, display, playlist and equaliser sections present in one window
+- Warm off-white shell, amber readouts, chunky moulded controls with visible travel state
+- All chrome drawn as vectors or shaders; no fixed-size bitmap assets in the control surface
+**Status:** Not started (Phase 5)
+
+### F-041 Resolution independence
+**Priority:** Must
+**Acceptance:**
+- Correct at 1× through 3× device pixel ratio with no resampling artefacts
+- Window resizes continuously rather than snapping to fixed multiples — see AV-005
+**Status:** Not started (Phase 5)
+
+### F-042 Compact mode
+**Priority:** Should
+**Acceptance:**
+- Collapses to a single transport-and-display strip, equivalent to Winamp's window shade
+- Toggling preserves playback state and window position
+**Status:** Not started (Phase 5)
+
+### F-043 Keyboard control
+**Priority:** Should
+**Acceptance:**
+- Full transport, playlist navigation and equaliser reachable from the keyboard
+- Shortcuts discoverable from an in-app reference
+**Status:** Not started (Phase 6)
+
+### F-044 Theme variants
+**Priority:** Could
+**Acceptance:**
+- Alternative panel finishes (brushed aluminium, black anodised, VFD-green readout) selected from settings
+- Variants are token sets over the same geometry, not separate asset packs
+**Status:** Not started (candidate)
+
+---
+
+## Desktop integration
+
+### F-050 MPRIS2
+**Priority:** Should
+**Acceptance:**
+- Exposes playback state, metadata and transport actions over D-Bus
+- Desktop media controls and lock-screen widgets operate the player correctly
+**Status:** Not started (Phase 6)
+
+### F-051 Media key handling
+**Priority:** Should
+**Acceptance:**
+- Hardware media keys work under both X11 and Wayland
+**Status:** Not started (Phase 6)
+**Notes:** Under Wayland this is delegated to MPRIS rather than a global grab.
+
+### F-052 Single instance and CLI
+**Priority:** Should
+**Acceptance:**
+- A second launch with file arguments enqueues into the running instance
+- `--enqueue`, `--play`, `--replace` argument forms supported
+**Status:** Not started (Phase 6)
+
+---
+
+## Out of scope
+
+Ferrolux RS-1 will not do these things. Each is a deliberate exclusion, not an oversight.
+
+- **Winamp classic skin compatibility.** The whole reason the project exists is that fixed-size bitmap skins cannot scale. Supporting them would reintroduce the defect. See D-003.
+- **Streaming service integration.** No Spotify, Tidal, Subsonic or equivalent. Local files and local network shares only.
+- **Video playback.** Audio only, regardless of what the underlying pipeline could do.
+- **A media library database.** Ferrolux manages a playlist, not a catalogued collection. No scanning daemon, no library schema, no artist/album browser.
+- **Tag editing.** Metadata is read, never written.
+- **Internet radio.** Deferred rather than refused — see candidates below.
+- **A visualisation plugin API.** Display modes ship with the application; there is no third-party extension surface in RS-1.
+
+## Future / candidate features
+
+Not committed to, recorded so the ideas are not lost.
+
+- Internet radio stream URLs with ICY metadata
+- CD playback and ripping
+- Crossfade between tracks with configurable curve
+- A second window mode for a wide, rack-unit-shaped layout
+- Output device selection with per-device EQ profiles
+- Parametric equaliser as an alternative to the ten-band graphic
+- Spectrogram (waterfall) display mode
+- A hardware companion build, reusing the panel design on a physical device
