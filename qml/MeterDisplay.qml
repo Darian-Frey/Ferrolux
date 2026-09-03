@@ -144,8 +144,9 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 6
-        color: "#BA7517"
-        font.pixelSize: 10
+        color: Tokens.readoutDim
+        font.family: Tokens.readoutText
+        font.pixelSize: Tokens.sizeLegendSmall
         text: Meters.mode
         opacity: 0
         Connections {

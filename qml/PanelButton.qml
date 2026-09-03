@@ -37,14 +37,23 @@ Item {
     // the lamp behind the button rather than the finger on it.
     property bool activated: false
 
-    // What the button is marked with: a drawn glyph, or a legend. Held on the
-    // face so it travels with it — a mark that stayed still while its button
-    // moved would separate the two.
+    // What the button is marked with, when the mark is a word rather than a
+    // drawn symbol. Silkscreened: it names the control and never changes, which
+    // is SPEC.md's rule for `ink` and `type-legend`. On an activated face it
+    // switches to the deepest of the readout ambers — black on a lit amber
+    // surface reads as a hole punched in the lamp, where the deeper amber reads
+    // as ink printed on something lit.
+    property string text: ""
+
+    // What the button is marked with when the mark is drawn. Held on the face
+    // so it travels with it — a mark that stayed still while its button moved
+    // would separate the two.
     default property alias mark: holder.data
 
     signal clicked()
 
-    implicitWidth: Tokens.controlHeight * 2
+    implicitWidth: Math.max(Tokens.controlHeight * 2,
+                            legend.implicitWidth + Tokens.gapControl * 3)
     implicitHeight: Tokens.controlHeight
 
     // 0 at rest, 1 fully depressed. A real number rather than the boolean, so
@@ -111,6 +120,14 @@ Item {
             color: Qt.lighter(face.base, Tokens.bevelLight * 1.08)
             opacity: 1.0 - control.depress
             visible: control.enabled
+        }
+
+        Legend {
+            id: legend
+            anchors.centerIn: parent
+            visible: control.text !== ""
+            text: control.text
+            color: control.activated ? Tokens.readoutFloor : Tokens.ink
         }
 
         Item {

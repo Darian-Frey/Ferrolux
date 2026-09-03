@@ -60,48 +60,110 @@ Rectangle {
         return text.replace(/[0-9]/g, "8")
     }
 
-    implicitHeight: Math.max(titleReadout.implicitHeight, timeReadout.implicitHeight)
-                    + Tokens.padSection * 2
+    // What the transport is doing, and where in the list it is. Both are values
+    // the instrument reports, so both are lit and both belong here rather than
+    // on the chassis beside it — which is where they were, in the system font,
+    // because the harness put them there before there was a display to put them
+    // in.
+    property string status: ""
+    property string counter: ""
+    property string error: ""
 
-    // The time is laid out first and the title takes what is left. A title is
-    // elidable and a clock is not: giving the title the remainder means a long
-    // title shortens, whereas sharing the width evenly would eventually clip a
-    // digit off the time, and a clock missing a digit is wrong rather than
-    // abbreviated.
-    Readout {
-        id: timeReadout
+    implicitHeight: titleRow.implicitHeight + statusRow.implicitHeight
+                    + Tokens.padSection * 2 + Tokens.padRow
+
+    Item {
+        id: titleRow
+        anchors.left: parent.left
         anchors.right: parent.right
-        anchors.rightMargin: Tokens.padSection
-        anchors.verticalCenter: parent.verticalCenter
-        width: implicitWidth
+        anchors.top: parent.top
+        anchors.margins: Tokens.padSection
+        implicitHeight: Math.max(titleReadout.implicitHeight, timeReadout.implicitHeight)
         height: implicitHeight
 
-        face: Tokens.readoutNumeric
-        size: Tokens.sizeReadoutLarge
-        colour: Tokens.readout
-        ghostColour: Tokens.readoutFloor
-        alignment: Text.AlignRight
+        // The time is laid out first and the title takes what is left. A title
+        // is elidable and a clock is not: giving the title the remainder means
+        // a long title shortens, whereas sharing the width evenly would
+        // eventually clip a digit off the time, and a clock missing a digit is
+        // wrong rather than abbreviated.
+        Readout {
+            id: timeReadout
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: implicitWidth
+            height: implicitHeight
 
-        // Elapsed, against a ghost built from the *duration* — the field is
-        // then exactly as wide as this recording can make it and no wider, and
-        // a track that crosses an hour does not grow a cell mid-play.
-        text: display.clock(display.position)
-        ghost: display.ghostFor(display.clock(display.duration))
+            face: Tokens.readoutNumeric
+            size: Tokens.sizeReadoutLarge
+            colour: Tokens.readout
+            ghostColour: Tokens.readoutFloor
+            alignment: Text.AlignRight
+
+            // Elapsed, against a ghost built from the *duration* — the field is
+            // then exactly as wide as this recording can make it and no wider,
+            // and a track that crosses an hour does not grow a cell mid-play.
+            text: display.clock(display.position)
+            ghost: display.ghostFor(display.clock(display.duration))
+        }
+
+        Readout {
+            id: titleReadout
+            anchors.left: parent.left
+            anchors.right: timeReadout.left
+            anchors.rightMargin: Tokens.gapControl
+            anchors.verticalCenter: parent.verticalCenter
+            height: implicitHeight
+
+            face: Tokens.readoutText
+            size: Tokens.sizeReadoutLarge
+            colour: Tokens.readout
+            ghost: ""   // no all-lit glyph in the dot-matrix face; see above
+            text: display.title
+        }
     }
 
-    Readout {
-        id: titleReadout
+    // The second line, dimmer than the first. One lamp at two brightnesses:
+    // what is playing is the headline and what the transport is doing is the
+    // annotation, and a display that lit both equally would make the reader
+    // decide which mattered.
+    Item {
+        id: statusRow
         anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: titleRow.bottom
+        anchors.topMargin: Tokens.padRow
         anchors.leftMargin: Tokens.padSection
-        anchors.right: timeReadout.left
-        anchors.rightMargin: Tokens.gapControl
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: Tokens.padSection
+        implicitHeight: statusReadout.implicitHeight
         height: implicitHeight
 
-        face: Tokens.readoutText
-        size: Tokens.sizeReadoutLarge
-        colour: Tokens.readout
-        ghost: ""   // no all-lit glyph in the dot-matrix face; see above
-        text: display.title
+        Readout {
+            id: statusReadout
+            anchors.left: parent.left
+            anchors.right: counterReadout.left
+            anchors.rightMargin: Tokens.gapControl
+            height: implicitHeight
+            face: Tokens.readoutText
+            size: Tokens.sizeReadout
+
+            // An error takes this line rather than getting one of its own. It
+            // is brighter than the state it replaces because it is the more
+            // urgent report, and there is no red on this display to make it
+            // with — brightness is the only emphasis a single-colour lamp has.
+            colour: display.error !== "" ? Tokens.readout : Tokens.readoutDim
+            text: display.error !== "" ? display.error : display.status
+        }
+
+        Readout {
+            id: counterReadout
+            anchors.right: parent.right
+            width: implicitWidth
+            height: implicitHeight
+            face: Tokens.readoutText
+            size: Tokens.sizeReadout
+            colour: Tokens.readoutDim
+            alignment: Text.AlignRight
+            text: display.counter
+        }
     }
 }

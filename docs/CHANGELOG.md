@@ -181,6 +181,22 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   its detent at centre (F-040). Centre is also its origin, so a centred control
   shows no lit run at all, which is what centred should look like.
 
+- Both toolbars are panel chrome. `qml/PanelMenu.qml` draws the sort and preset
+  lists as lit wells — the preset list reports which is in effect by lighting
+  it, the sort list has no state to report and so lights nothing —
+  `qml/EntryField.qml` gives the filter a lit field with an unlit prompt rather
+  than grey placeholder text, and the equaliser bypass is a switch for the same
+  reason shuffle and repeat are.
+- The transport state and the track counter moved into the display well. They
+  are values the instrument reports, and they had been sitting on the chassis
+  in the system font since before there was a display to put them in.
+- Nothing in the window is drawn from a Qt Quick Controls style any longer.
+  What remains of Controls is behaviour rather than appearance: the window, the
+  native file choosers, a dialog, a scrollbar, and `Popup` under `PanelMenu` —
+  kept because what a popup must get right is dismissal, focus and staying
+  inside the window, and a hand-rolled one fails in exactly the ways nobody
+  tests.
+
 ### Fixed
 - The equaliser, preamp, volume and balance figures were hard to read, reported
   from use. They were lit readouts standing on the chassis, and a readout needs

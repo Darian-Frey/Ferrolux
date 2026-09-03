@@ -109,23 +109,11 @@ ApplicationWindow {
                                        : Engine.source.toString().split("/").pop()
             position: Engine.position
             duration: Engine.duration
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: window.stateNames[Engine.state] }
-            Label {
-                text: qsTr("· %1 of %2").arg(Playlist.currentRow + 1).arg(Playlist.count)
-                visible: Playlist.count > 0
-            }
-            Item { Layout.fillWidth: true }
-            Label {
-                color: "#a00"
-                visible: Engine.errorText !== ""
-                text: Engine.errorText
-                elide: Text.ElideRight
-                Layout.maximumWidth: 300
-            }
+            status: window.stateNames[Engine.state].toLowerCase()
+            counter: Playlist.count > 0
+                     ? qsTr("%1 of %2").arg(Playlist.currentRow + 1).arg(Playlist.count)
+                     : ""
+            error: Engine.errorText
         }
 
         Slot {
@@ -213,53 +201,75 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: 6
 
-            TextField {
+            Legend { text: qsTr("filter") }
+            EntryField {
                 Layout.fillWidth: true
-                placeholderText: qsTr("Filter…")
+                Layout.preferredHeight: Tokens.controlHeight
+                placeholder: qsTr("all entries")
                 onTextChanged: PlaylistView.filterText = text
             }
-            Label {
-                text: qsTr("%1/%2").arg(PlaylistView.count).arg(Playlist.count)
+            Readout {
+                // How many of the list the filter leaves, which is a value and
+                // so is lit. Shown only while a filter is in force: an unlit
+                // window sitting there permanently would be a lamp that never
+                // comes on.
                 visible: PlaylistView.filterText !== ""
+                Layout.preferredHeight: Tokens.controlHeight
+                face: Tokens.readoutNumeric
+                size: Tokens.sizeLegend
+                ground: Tokens.displayBg
+                inset: Tokens.gapControl
+                alignment: Text.AlignRight
+                text: qsTr("%1:%2").arg(PlaylistView.count).arg(Playlist.count)
             }
-            Button { text: qsTr("Add files…"); onClicked: addFilesDialog.open() }
-            Button { text: qsTr("Add folder…"); onClicked: addFolderDialog.open() }
-            Button {
-                text: qsTr("Remove")
+            PanelButton { text: qsTr("add files"); onClicked: addFilesDialog.open() }
+            PanelButton { text: qsTr("add folder"); onClicked: addFolderDialog.open() }
+            PanelButton {
+                text: qsTr("remove")
                 enabled: window.selection.length > 0
                 onClicked: { Playlist.removeRows(window.selection); window.selection = [] }
             }
-            Button {
-                text: qsTr("Clear")
+            PanelButton {
+                text: qsTr("clear")
                 enabled: Playlist.count > 0
                 onClicked: { Playlist.clear(); window.selection = [] }
             }
-            Button {
-                text: qsTr("Undo")
+            PanelButton {
+                text: qsTr("undo")
                 enabled: Playlist.canUndo
                 onClicked: Playlist.undo()
             }
-            Button {
-                text: qsTr("Sort ▾")
+            PanelButton {
+                id: sortButton
+                text: qsTr("sort")
                 enabled: Playlist.count > 1
                 onClicked: sortMenu.open()
 
-                Menu {
+                // A list of commands rather than of states, so `current` is
+                // left at -1 and nothing in it is lit brighter than the rest:
+                // there is no "the sort order in effect" to report, only
+                // orderings that can be applied. Indices match
+                // PlaylistModel::SortKey, with the last entry reusing the first
+                // key in the other direction.
+                PanelMenu {
                     id: sortMenu
-                    y: parent.height
-                    // Values match PlaylistModel::SortKey.
-                    MenuItem { text: qsTr("Title");    onTriggered: Playlist.sortBy(0, Qt.AscendingOrder) }
-                    MenuItem { text: qsTr("Artist");   onTriggered: Playlist.sortBy(1, Qt.AscendingOrder) }
-                    MenuItem { text: qsTr("Album");    onTriggered: Playlist.sortBy(2, Qt.AscendingOrder) }
-                    MenuItem { text: qsTr("Duration"); onTriggered: Playlist.sortBy(3, Qt.AscendingOrder) }
-                    MenuItem { text: qsTr("Path");     onTriggered: Playlist.sortBy(4, Qt.AscendingOrder) }
-                    MenuItem { text: qsTr("File date");onTriggered: Playlist.sortBy(5, Qt.AscendingOrder) }
-                    MenuSeparator {}
-                    MenuItem { text: qsTr("Reverse by title"); onTriggered: Playlist.sortBy(0, Qt.DescendingOrder) }
+                    options: [qsTr("title"), qsTr("artist"), qsTr("album"),
+                              qsTr("duration"), qsTr("path"), qsTr("file date"),
+                              qsTr("title, reversed")]
+                    onChosen: function(index) {
+                        if (index === 6)
+                            Playlist.sortBy(0, Qt.DescendingOrder)
+                        else
+                            Playlist.sortBy(index, Qt.AscendingOrder)
+                    }
                 }
             }
-            Button { text: qsTr("Open…"); onClicked: openPlaylistDialog.open() }
-            Button { text: qsTr("Save…"); enabled: Playlist.count > 0; onClicked: savePlaylistDialog.open() }
+            PanelButton { text: qsTr("open"); onClicked: openPlaylistDialog.open() }
+            PanelButton {
+                text: qsTr("save")
+                enabled: Playlist.count > 0
+                onClicked: savePlaylistDialog.open()
+            }
         }
 
         // The playlist is a lit surface, not a chassis one: every row on it is
@@ -439,42 +449,68 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: 8
 
-            Button {
-                text: (eqPanel.visible ? qsTr("Equaliser \u25B4") : qsTr("Equaliser \u25BE"))
+            PanelButton {
+                text: qsTr("equaliser")
+                // Latched while the panel is open, so the control reports the
+                // state of the drawer rather than only being the way to it.
+                activated: eqPanel.visible
                 onClicked: eqPanel.visible = !eqPanel.visible
             }
-            CheckBox {
-                text: qsTr("On")
-                checked: Equaliser.enabled
-                onToggled: Equaliser.enabled = checked
+
+            // Bypass is a setting the machine is left in, not an action taken,
+            // so it is a switch for the same reason shuffle and repeat are.
+            ColumnLayout {
+                spacing: 0
+                Legend { text: qsTr("eq"); font.pixelSize: Tokens.sizeLegendSmall }
+                SlideSwitch {
+                    Layout.preferredHeight: Tokens.controlHeight
+                    positions: [qsTr("out"), qsTr("in")]
+                    current: Equaliser.enabled ? 1 : 0
+                    onThrown: function(position) { Equaliser.enabled = position === 1 }
+                }
             }
-            ComboBox {
-                id: presetBox
-                Layout.preferredWidth: 150
-                model: Equaliser.availablePresets()
-                onActivated: Equaliser.applyPreset(currentText)
-                Connections {
-                    target: Equaliser
-                    function onUserPresetsChanged() { presetBox.model = Equaliser.availablePresets() }
-                    function onPresetChanged() {
-                        const at = presetBox.model.indexOf(Equaliser.preset)
-                        if (at >= 0)
-                            presetBox.currentIndex = at
+
+            // The preset in effect is a value the instrument reports, so it is
+            // lit in a window rather than printed on a button. Clicking the
+            // window opens the list — the field is both the report and the way
+            // to change it, which is what a combo box is when it is drawn as
+            // hardware.
+            Readout {
+                id: presetField
+                Layout.preferredWidth: Tokens.controlHeight * 4
+                Layout.preferredHeight: Tokens.controlHeight
+                face: Tokens.readoutText
+                size: Tokens.sizeReadout
+                ground: Tokens.displayBg
+                inset: Tokens.gapControl
+
+                // Dimmed while the equaliser is out of circuit: the preset is
+                // still what would be applied, but it is not what is being
+                // heard, and a readout at full brightness would claim it was.
+                colour: Equaliser.enabled ? Tokens.readout : Tokens.readoutDim
+                text: Equaliser.preset === "custom" ? qsTr("edited") : Equaliser.preset
+
+                TapHandler { onTapped: presetMenu.open() }
+
+                PanelMenu {
+                    id: presetMenu
+                    options: Equaliser.availablePresets()
+                    current: options.indexOf(Equaliser.preset)
+                    onChosen: function(index) { Equaliser.applyPreset(options[index]) }
+
+                    Connections {
+                        target: Equaliser
+                        function onUserPresetsChanged() {
+                            presetMenu.options = Equaliser.availablePresets()
+                        }
                     }
                 }
             }
-            Label {
-                // An equaliser that is off still shows its curve and still
-                // lets it be edited, which is correct — but silently doing
-                // nothing is not. Say so.
-                text: !Equaliser.enabled ? qsTr("(not active)")
-                      : Equaliser.preset === "custom" ? qsTr("(edited)") : ""
-                opacity: 0.6
-            }
+
             Item { Layout.fillWidth: true }
-            Button { text: qsTr("Save…");   onClicked: savePresetDialog.open() }
-            Button { text: qsTr("Import .eqf…"); onClicked: eqfFileDialog.open() }
-            Button { text: qsTr("Reset");   onClicked: Equaliser.reset() }
+            PanelButton { text: qsTr("save"); onClicked: savePresetDialog.open() }
+            PanelButton { text: qsTr("import .eqf"); onClicked: eqfFileDialog.open() }
+            PanelButton { text: qsTr("reset"); onClicked: Equaliser.reset() }
         }
 
         // The equaliser is a raised surface: it is touched, not watched. The
