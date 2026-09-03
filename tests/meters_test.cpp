@@ -506,6 +506,47 @@ void testTexturePacking()
           "out-of-range values clamp rather than wrapping around");
 }
 
+// The bound the flame shader dismisses empty pixels with. It has to be a true
+// upper bound on every band, or the shader will discard a pixel a silhouette
+// actually reached and cut the top off the display — a defect that would appear
+// only on the loudest frames, which is where nobody looks for one.
+void testCeiling()
+{
+    std::printf("\nspectrum ceiling (BUG-016)\n");
+
+    MeterSource meters;
+    meters.setBandCount(MeterSource::kSpectrumBands);
+    check(meters.ceiling() == 0.0, "silence has a ceiling of zero");
+
+    QList<float> spectrum;
+    for (int bin = 0; bin < 512; ++bin)
+        spectrum.append(bin == 40 ? -3.0f : -70.0f);
+
+    // Enough frames for the attack smoothing to settle on the loud band.
+    for (int frame = 0; frame < 120; ++frame) {
+        meters.consumeSpectrum(spectrum, 44100);
+        meters.advance(16.0);
+    }
+
+    float tallest = 0.0f;
+    for (float magnitude : meters.magnitudes())
+        tallest = std::max(tallest, magnitude);
+
+    check(std::fabs(meters.ceiling() - double(tallest)) < 1e-9,
+          "the ceiling is the tallest band, exactly",
+          QStringLiteral("ceiling %1, tallest band %2")
+              .arg(meters.ceiling(), 0, 'f', 6).arg(double(tallest), 0, 'f', 6));
+
+    bool bounded = true;
+    for (float magnitude : meters.magnitudes())
+        bounded = bounded && double(magnitude) <= meters.ceiling() + 1e-9;
+    check(bounded, "and no band exceeds it, which is what makes it safe to cull by");
+
+    check(meters.ceiling() > 0.0 && meters.ceiling() <= 1.0,
+          "it stays within the normalised range the shader compares heights against",
+          QStringLiteral("%1").arg(meters.ceiling(), 0, 'f', 4));
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -520,6 +561,7 @@ int main(int argc, char *argv[])
     testScalesAgainstRealMaterial();
     testRestAndHold();
     testTexturePacking();
+    testCeiling();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");

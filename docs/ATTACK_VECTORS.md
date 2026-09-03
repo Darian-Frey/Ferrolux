@@ -20,34 +20,47 @@ Ferrolux is pre-implementation, so most detection entries are currently `not imp
 ### AV-002 Frame budget overrun from meter rendering
 **Severity:** Major
 **Description.** The meters redraw every frame at whatever resolution the panel occupies. A shader that is cheap at 1080p may not be at 4K, and the failure mode is a dropped frame rather than an error. Compounding risk: multiple independent position pollers, per-frame QML bindings that allocate, and texture uploads scheduled outside the render pass.
-**Detection.** **Partly implemented**, `src/meters/FrameTimer.{h,cpp}` driven by
-`tools/measure-frames.sh`. `FrameTimer` hooks `QQuickWindow::beforeRendering` and
-`afterRendering` on the render thread and accumulates frame intervals, CPU render
-times and a count of late frames into atomics; setting `FERROLUX_FRAME_MEASURE`
-to a number of seconds runs the application self-timed, discards the first second
-so shader compilation and initial layout do not distort the mean, and prints one
-`FRAMES` line to stderr. The script sweeps all five modes at three sizes.
+**Detection.** **Implemented**, in two passes that answer different halves of
+the question, both driven by `tools/measure-frames.sh`.
 
-Measured 2026-09-02, 4 s per run, 15 combinations: every mode holds, worst frame
-interval 16.014 ms against a 16.667 ms budget, zero late frames, worst CPU render
-pass 0.830 ms (flame at 1600×900).
+*The window pass* runs the real application in a real window at the sizes the
+display can render. `src/meters/FrameTimer` hooks `QQuickWindow::beforeRendering`
+and `afterRendering` on the render thread and accumulates frame intervals, CPU
+render times and late frames into atomics; `FERROLUX_FRAME_MEASURE` runs the
+application self-timed, discards the first second so shader compilation and
+initial layout do not distort the mean, and prints one line. This is the whole
+scene — meters, playlist, chrome, per-frame bindings — and so it is the number
+that describes what a user sees. It cannot reach 4K, because the window manager
+clamps a managed window to the screen, and its headroom figure is a lower bound,
+because the compositor paces frames whatever the swap interval says.
 
-**Two limits, both material.** *Headroom* is reported from the CPU render pass
-only and is a **lower bound** — GPU execution is submitted asynchronously and is
-not in it. Disabling the swap interval does not recover the true frame cost; the
-compositor paces frames regardless, and the run becomes erratic rather than
-faster. Read a high figure as "the CPU is not the problem", never as "there is
-room to spare", so the 30% headroom clause is **not** verified by this.
+*The offscreen pass* is `tests/frame_bench`, which renders `qml/MeterDisplay.qml`
+— the file the application itself instantiates, not a copy — through
+`QQuickRenderControl` on the OpenGL RHI. No window, so nothing clamps the size;
+no compositor, so nothing paces the loop; and a `glFinish` after each frame, so
+the interval is the true cost of producing one rather than the cost of submitting
+it. **This is what closes the 3840x2160 clause and the 30% headroom clause.** Its
+synthetic material sweeps from silence to full scale, because for the flame mode
+quiet is the expensive case and a loud-only signal reports the best case as the
+average — see BUG-016.
 
-*Resolution* is capped by the display. The window manager clamps a managed window
-to the screen, so a 3840×2160 request on this 1920-wide display rendered 1920×1008
-— an earlier run reported a 4K pass it never performed, which is why the report
-now carries the size actually rendered rather than the size asked for. Neither
-way round it works: bypassing the window manager puts the surface off-screen,
-where it receives no frame callbacks and renders nothing, and the offscreen
-platform plugin loads the software backend, which does not execute the shaders at
-all. **The 4K clause is therefore unverified**, and needs either a 4K display or
-a `QQuickRenderControl` harness rendering to a texture on the OpenGL RHI.
+Measured 2026-09-03. Window pass, five modes at three sizes to 1920x1008: every
+mode holds, worst interval 16.03 ms against a 16.667 ms budget, zero late frames.
+Offscreen pass at 3840x2160: every mode holds with between 46% and 64% of the
+budget spare, zero late frames, worst mode flame at 8.0 ms.
+
+**The detection found the defect it was written for.** On its first run that
+could reach 4K, flame took 26.9 ms per frame — 37 fps — with 377 of 600 frames
+late, and the level sweep then showed that the quiet passages nobody would think
+to test were the expensive ones. See BUG-016; the shader is now 4.6 times faster
+with a pixel-identical result.
+
+**One limit remains.** The offscreen pass measures the meter display alone. The
+playlist, the chrome and the per-frame bindings that AV-002 names as compounding
+risks are in the window pass only, and so are measured only up to 1920x1008.
+Their cost does not scale with resolution the way a fragment shader's does, which
+is why the split is drawn here, but it is a split and not a proof.
+
 **Related decisions.** D-004 (texture-fed shaders), D-005.
 **Related features.** F-031, F-032, F-033.
 

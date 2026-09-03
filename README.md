@@ -6,11 +6,13 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 to 3 built, Phase 4 under way.** Transport, a 20,000-entry
+> **Status: Phases 1 to 4 built, Phase 5 next.** Transport, a 20,000-entry
 > playlist, shuffle, repeat, playlist file I/O, gapless playback, a ten-band
-> equaliser and live spectrum and VU metering all work, behind a deliberately
-> plain harness. There is no panel yet — that is Phase 5, and it is the reason
-> the project exists. See [Status](#status) below.
+> equaliser and five shader-rendered meter displays all work, behind a
+> deliberately plain harness. Every display holds 60 fps at 3840×2160 with at
+> least 46% of the frame budget spare — measured, not assumed. There is no panel
+> yet — that is Phase 5, and it is the reason the project exists. See
+> [Status](#status) below.
 
 ---
 
@@ -45,6 +47,14 @@ system reaching 99% deflection at 300 ms with 1–1.5% overshoot, per IEC 60268-
 lag, and the slight settle-back after it, are the entire character of the
 instrument. Measured: 302.0 ms and 1.16%.
 
+Behaving like an instrument has to be affordable as well as correct. Every
+display is measured at 3840×2160 against a 60 fps budget by
+`tools/measure-frames.sh`, which renders the real meter QML offscreen with a
+fence after each frame so the headroom figure is the true one rather than
+whatever the compositor's pacing allows it to look like. That measurement caught
+the flame display running at 37 fps at 4K, where it had passed every test that
+could only reach 1080p.
+
 A static mockup of the intended layout is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
 There are no screenshots of the panel because it does not exist yet; what runs
@@ -58,7 +68,7 @@ playlist in the default style, which is exactly what a harness should be.
 | **Playback** | FLAC, MP3, Ogg Vorbis, Opus, AAC/M4A, WAV, AIFF, WavPack, Musepack, ALAC. Gapless. Cubic volume taper, constant-power balance. |
 | **Playlist** | 20,000 entries at 60 fps. Multi-select, drag reorder, undo. Shuffle as a permutation, not a per-track dice roll. M3U, M3U8 and PLS. |
 | **Equaliser** | Ten bands at the classic centre frequencies, ±12 dB, with preamp and headroom management. Winamp `.eqf` preset import. |
-| **Displays** | Spectrum bars, mirrored spectrum, stereo VU needles and an LED peak ladder, all shader-rendered from a shared meter source. |
+| **Displays** | Spectrum bars, mirrored spectrum, flame, stereo VU needles and an LED peak ladder, all shader-rendered from a shared meter source. |
 | **Desktop** | MPRIS2, media keys under X11 and Wayland, single-instance enqueue, session restore. |
 
 Deliberately **not** in scope: Winamp skin compatibility, streaming services,
@@ -82,7 +92,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 | 1 | Transport core | **Complete** 2026-09-02 |
 | 2 | Playlist | Feature-complete 2026-09-02 |
 | 3 | Equaliser | Feature-complete 2026-09-02 |
-| 4 | Meters | In progress |
+| 4 | Meters | **Complete** 2026-09-03 |
 | 5 | The panel | Not started |
 | 6 | Desktop integration | Not started |
 | 7 | RS-1 release | Not started |

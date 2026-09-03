@@ -10,6 +10,7 @@
 #include <QSGTextureProvider>
 #include <QRunnable>
 
+#include <algorithm>
 #include <cmath>
 
 namespace ferrolux::meters {
@@ -63,7 +64,16 @@ void MeterTexture::encodeTexel(float magnitude, float peak, uchar *rgba)
     rgba[0] = uchar((packed >> 8) & 0xFF);
     rgba[1] = uchar(packed & 0xFF);
     rgba[2] = uchar(std::lround(double(qBound(0.0f, peak, 1.0f)) * 255.0));
-    rgba[3] = 255; // opaque, so nothing premultiplies the data channels
+
+    // Opaque, so nothing premultiplies the data channels. This is not a
+    // precaution; it has been tested. The flame shader wanted a per-frame
+    // ceiling to bound its silhouettes, and alpha was the one channel with
+    // nothing in it — so it was put there, and 52% of the spectrum display's
+    // pixels changed. The scene graph normalises an image with alpha to a
+    // premultiplied format on upload, which scales R, G and B by A, and R and G
+    // are the magnitude. Any value here but 255 silently corrupts every mode.
+    // The ceiling travels as a uniform instead. See BUG-016.
+    rgba[3] = 255;
 }
 
 float MeterTexture::decodeMagnitude(quint8 red, quint8 green)

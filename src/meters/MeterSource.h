@@ -42,6 +42,7 @@ class MeterSource : public QObject
     Q_PROPERTY(QString mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(QList<float> magnitudes READ magnitudes NOTIFY updated)
     Q_PROPERTY(QList<float> peaks READ peaks NOTIFY updated)
+    Q_PROPERTY(double ceiling READ ceiling NOTIFY updated)
     Q_PROPERTY(int queueDepth READ queueDepth NOTIFY updated)
     // Needle deflection per channel, as a property rather than only a method.
     // A QML binding over a plain function call has nothing to depend on, so it
@@ -113,6 +114,16 @@ public:
     // is in VU units where 1.0 is 0 VU and may exceed 1.0 on peaks.
     const QList<float> &magnitudes() const { return m_magnitudes; }
     const QList<float> &peaks() const { return m_peaks; }
+
+    // The tallest smoothed band in the current frame, 0 to 1.
+    //
+    // A bound rather than a datum: the flame shader draws nine receding
+    // silhouettes and no band exceeds this, so one comparison against it
+    // dismisses a pixel that no rank can reach and saves the forty-five texture
+    // taps that would have established the same thing rank by rank. It travels
+    // as a uniform because the texture cannot carry it — see the note in
+    // MeterTexture::encodeTexel, and BUG-016.
+    double ceiling() const;
     Q_INVOKABLE double vuDeflection(int channel) const;
     QList<double> vuLevels() const;
     QList<double> peakIndicatorLevels() const;

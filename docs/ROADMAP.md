@@ -105,8 +105,8 @@ as Phase 2's:
 
 ## Phase 4 — Meters
 **Goal:** Displays that are worth looking at.
-**Status:** In progress, started 2026-09-02
-**Features delivered:** F-030, F-031, F-032, F-033
+**Status:** Complete 2026-09-03
+**Features delivered:** F-030, F-031, F-032, F-033, F-035
 **Deliverables:**
 - [x] `meters/MeterSource` consuming `level` and `spectrum` bus messages
 - [x] Ballistics, smoothing and peak-hold on the CPU per SPEC.md §Meters
@@ -118,8 +118,11 @@ as Phase 2's:
 - [x] Flame mode (F-035), added during the phase at the author's request
 - [x] Rest on stop, hold on pause
 - [x] Frame-time instrumentation for AV-002 — `FrameTimer` plus `tools/measure-frames.sh`; see the acceptance note below for what it does not cover
+- [x] A `QQuickRenderControl` harness rendering to an offscreen texture on the OpenGL RHI — `tests/frame_bench`, which closes the 3840×2160 and 30% headroom clauses. It found flame running at 37 fps at 4K on its first run; see BUG-016
 
-**Four defects found by building it.** BUG-010: SPEC.md specified a first-order
+**Five defects found by building it.** BUG-016 is the one the phase was
+shaped to find: the flame display ran at 37 fps at 3840x2160, and the first
+benchmark written to catch it hid the failure by feeding a loud signal. BUG-010: SPEC.md specified a first-order
 VU with a 1% to 1.5% overshoot, and a first-order system cannot overshoot at all
 — the IEC characteristic is second-order, now solved and implemented. BUG-011 is
 the significant one: the analysis elements sit upstream of the sink, so their
@@ -129,21 +132,34 @@ the window left the process alive for ever, because `gst_deinit()` ran while a
 live pipeline still existed. BUG-013: the VU readout never moved, because a QML
 binding over a plain method call has nothing to watch.
 
+The texture's alpha channel is now spoken for as a constraint rather than as
+spare capacity: putting data in it corrupts every mode at once, because the
+scene graph premultiplies on upload. SPEC.md §Meters records it as a rule.
+
 AV-011 is also quantified rather than feared: at 44.1 kHz, 4 of the 24 display
 bands and 12 of the 48 span less than one analysis bin, so they borrow the
 nearest and the lowest bars move in lockstep. That is recorded in SPEC.md as an
 accepted consequence — bars moving together are honest about the analysis
 resolution, whereas a bar stuck at silence would read as missing bass.
 
-**Acceptance:** All four modes hold 60 fps at 3840×2160 on the reference hardware with a headroom margin of at least 30% of the frame budget.
+**Acceptance:** All four modes hold 60 fps at 3840×2160 on the reference hardware with a headroom margin of at least 30% of the frame budget. The VU needle is visually indistinguishable from a reference deck when both are fed the same programme material.
 
-> **Partly met, 2026-09-02.** All five modes hold 60 fps with zero late frames at
-> every size the development display can render, up to 1920×1008 — measured, not
-> assumed, by `tools/measure-frames.sh`. The 3840×2160 clause and the 30% headroom
-> clause are both **unverified**: the window manager clamps the window to the
-> screen, and the reported headroom covers the CPU render pass only. AV-002
-> records why neither has a workaround short of a 4K display or a
-> `QQuickRenderControl` harness. The VU needle is visually indistinguishable from a reference deck when both are fed the same programme material.
+> **Met, 2026-09-03**, by `tools/measure-frames.sh`. All five modes hold 60 fps
+> with zero late frames at 3840×2160, with between 46% and 64% of the frame
+> budget spare — the requirement is 30%. The window pass covers the whole
+> application up to the sizes this display can render; the offscreen pass covers
+> the meter display at full resolution with a fence after each frame, so its
+> headroom figure is real and not a lower bound. AV-002 records what each pass
+> does and does not cover.
+>
+> Getting there cost one substantial defect. Flame ran at **37 fps** at 4K, and
+> the benchmark's first version hid it by feeding a loud signal — quiet passages
+> turn out to be the expensive case for that shader, not the cheap one. Both the
+> shader and the benchmark are fixed; see BUG-016.
+>
+> The needle clause is met by construction and measured in `tests/meters_test`:
+> 302.0 ms to 99% deflection with 1.16% overshoot, against IEC 60268-17's 300 ms
+> and 1–1.5%.
 
 ---
 

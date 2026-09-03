@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick ShaderTools)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL ShaderTools)
 qt_standard_project_setup()
 
 find_package(PkgConfig REQUIRED)
@@ -69,7 +69,9 @@ qt_add_qml_module(ferrolux
     URI Ferrolux
     VERSION 1.0
     RESOURCE_PREFIX /qt/qml
-    QML_FILES qml/Main.qml
+    QML_FILES
+        qml/Main.qml
+        qml/MeterDisplay.qml
 )
 
 target_include_directories(ferrolux PRIVATE src)
@@ -81,6 +83,44 @@ target_link_libraries(ferrolux PRIVATE
 )
 
 enable_testing()
+
+# AV-002's offscreen half. Renders qml/MeterDisplay.qml — the same file the
+# application instantiates, not a copy — through QQuickRenderControl at an
+# arbitrary size, with a fence after each frame so the interval is the true
+# cost of one. This is what answers the 3840x2160 and 30% headroom clauses that
+# a managed window on this display cannot.
+#
+# Not registered with ctest. It needs a GPU and a display connection, and a
+# machine that has neither would report a failure that says nothing about the
+# code. tools/measure-frames.sh runs it.
+qt_add_executable(frame_bench
+    tests/frame_bench.cpp
+    src/meters/FrameTimer.cpp
+    src/meters/FrameTimer.h
+    src/meters/MeterSource.cpp
+    src/meters/MeterSource.h
+    src/meters/MeterTexture.cpp
+    src/meters/MeterTexture.h
+)
+target_include_directories(frame_bench PRIVATE src)
+target_link_libraries(frame_bench PRIVATE Qt6::Quick Qt6::OpenGL)
+
+# The QML is loaded from the source tree rather than from a resource, so that
+# editing a shader and re-running the benchmark needs no rebuild of anything
+# but the shader itself.
+target_compile_definitions(frame_bench PRIVATE
+    FERROLUX_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+
+# The same shaders under the same resource prefix, so the fragmentShader paths
+# inside MeterDisplay.qml resolve in this target exactly as they do in the app.
+qt_add_shaders(frame_bench "frame_bench_meter_shaders"
+    PREFIX "/qt/qml/Ferrolux"
+    FILES
+        qml/shaders/spectrum.frag
+        qml/shaders/vu.frag
+        qml/shaders/ladder.frag
+        qml/shaders/flame.frag
+)
 
 # Phase 1 acceptance harness. Drives core/Engine headlessly against the
 # criteria in ROADMAP.md Phase 1; needs two audio files passed on the command

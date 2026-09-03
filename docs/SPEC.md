@@ -159,8 +159,16 @@ channel would allow.
 Eight bits is left for the peak cap deliberately. Magnitude drives bar height
 and is what a viewer watches decay, where 8-bit steps of 1/255 show as
 stair-stepping on a large display; the cap is a two-pixel line whose position
-8 bits resolves past the point of noticing. Alpha is held opaque so that nothing
-in the pipeline can premultiply a data channel.
+8 bits resolves past the point of noticing.
+
+**Alpha is held at 255 and carries nothing.** This is a hard constraint, not a
+spare channel awaiting a use. The scene graph normalises an image that has an
+alpha channel to a premultiplied format when it uploads it, scaling R, G and B by
+A — and R and G are the magnitude. Putting a value there corrupts every mode at
+once, silently and proportionally, so the display still looks plausible. It has
+been tried: 270,221 of 518,400 pixels of the spectrum display changed. Data that
+a shader needs per frame and cannot pack into R, G or B travels as a uniform.
+See BUG-016.
 
 A shader reconstructs the magnitude as `(R × 256 + G) / 255` in normalised
 sampler units, or equivalently `dot(texel.rg, vec2(65280.0, 255.0)) / 65535.0`

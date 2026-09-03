@@ -51,26 +51,27 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 ## Active task
 
-Phase 4, meters. Acquisition and ballistics are done: `meters/MeterSource`
-consumes `level` and `spectrum`, buckets 512 analysis bins into 24 or 48 display
-bands logarithmically, smooths asymmetrically, holds peaks, and runs a
-second-order VU characteristic measured at 302.0 ms to 99% with 1.16% overshoot.
+Phase 5, the panel. Phase 4 closed on 2026-09-03 with every display measured at
+3840x2160 rather than assumed: five modes, 60 fps, between 46% and 64% of the
+frame budget spare against a requirement of 30%. `tools/measure-frames.sh` is
+the instrument — a window pass over the whole application and an offscreen
+`QQuickRenderControl` pass over the meter display alone — and running it after a
+shader change is cheap enough that there is no excuse for not doing it.
 
-Remaining deliverables:
+Two things from Phase 4 that will bite in Phase 5 if forgotten:
 
-- `meters/MeterTexture` — the `N×1` two-channel 16-bit texture item exposed to
-  QML, per D-004. **AV-007 is Critical and still has no detection**: texture
-  uploads must happen only on the render thread, and the basic render loop hides
-  violations that the threaded loop exposes. Develop with
-  `QSG_RENDER_LOOP=threaded` forced.
-- Spectrum bar and mirrored-spectrum shaders with the logarithmic mapping
-- VU needle shader, and the LED peak ladder
-- Mode cycling on click, persisted under `meters/mode`
-- Frame-time instrumentation for AV-002, which also closes the three clauses
-  above
+- **The meter texture's alpha channel is not spare.** The scene graph
+  premultiplies on upload, so any value but 255 scales R, G and B — and R and G
+  are the magnitude. Data a shader needs per frame goes in a uniform. BUG-016.
+- **For a layered shader, quiet is the expensive case, not loud.** Coverage lets
+  a pixel stop early; empty space does not. A benchmark fed a loud signal will
+  report a pass that means nothing, which is how BUG-016 nearly survived its own
+  detection. The synthetic material in `tests/frame_bench` sweeps the level for
+  this reason, and anything measuring a new panel element should too.
 
-Acceptance: all four modes hold 60 fps at 3840×2160 on the reference hardware
-with at least 30% of the frame budget spare. See ROADMAP.md Phase 4.
+`qml/Main.qml` remains the throwaway harness (D-003, F-040). `qml/MeterDisplay.qml`
+does not: it is the first piece of the real panel, and it is what the benchmark
+measures.
 
 ## Architectural invariants
 

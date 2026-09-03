@@ -23,6 +23,62 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-016 The flame display runs at 37 fps at 3840x2160, and quiet passages are the expensive case
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-03, by the AV-002 instrumentation on its first honest run
+**Related:** AV-002, D-004, F-035, SPEC.md §Meters
+
+Phase 4 requires every mode to hold 60 fps at 3840x2160 with 30% of the frame
+budget spare. The first measurement that could actually reach 4K — the offscreen
+`tests/frame_bench` harness — put flame at **26.9 ms per frame, 377 late frames
+in 600**. That is 37 fps against a requirement of 60. The other four modes held.
+
+This is precisely the failure AV-002 was written to catch, and it had been in the
+tree since flame was added: the mode was measured only at sizes this display can
+show, where it holds comfortably, and the cost scales with pixels.
+
+**The cost.** Flame draws nine receding silhouettes, each smoothed with five
+texture taps — 45 taps per pixel, at 8.3 million pixels, 60 times a second.
+
+**The trap in it.** The obvious reading is that a loud signal is the expensive
+case, because more of the panel is covered. It is the opposite. A tall silhouette
+lets a pixel below the nearest crest finish at the first rank, since everything
+behind it is hidden; near silence nothing covers anything, no rank can be
+dismissed, and every pixel low enough to be within a rank's reach pays for all
+nine. The first version of the benchmark fed a loud signal and reported 9.8 ms —
+a pass. Sweeping the level from silence to full scale reported 16.5 ms and 77
+late frames on the same build. **The benchmark had been measuring the best case
+and calling it the average**, which is a worse defect than the one it was hiding.
+
+**Fixed** in four steps, each verified to leave the output pixel-identical:
+
+1. `fwidth(height)` hoisted out of the rank loop — it does not vary by rank.
+2. Ranks composited front to back with an *under* operator instead of back to
+   front with an *over*. Mathematically identical, but this order can stop once
+   the pixel is opaque, and back-to-front cannot: it has to draw every rank
+   before it knows which were hidden.
+3. A per-rank bound: a rank cannot rise above its own scale, so a pixel above
+   that skips the five taps that would have proved it.
+4. A whole-pixel bound, which is what actually fixed the quiet case. `MeterSource`
+   publishes the frame's tallest band as `ceiling`, and no silhouette can exceed
+   `ceiling × backHeight` — the smoothing weights sum to one — so one comparison
+   dismisses a pixel that no rank can reach, before any texture is sampled. With
+   no signal the ceiling is near zero and almost every pixel leaves immediately.
+
+**Result: 26.9 ms → 5.8 ms at 3840x2160**, 52% headroom, zero late frames, and
+the rendered frame identical to the last pixel (0 of 518,400 differ).
+
+**A wrong turn worth recording.** The ceiling was first packed into the texture's
+alpha channel, which held a constant 255 and looked like free space. It is not
+free space. The scene graph normalises an image with alpha to a premultiplied
+format on upload, scaling R, G and B by A — and R and G are the magnitude. The
+spectrum display changed in **270,221 of 518,400 pixels** and every mode was
+quietly wrong; only the fact that all five modes got mysteriously *faster* gave
+it away. SPEC.md §Meters already said alpha was held opaque "so that nothing in
+the pipeline can premultiply a data channel", which is exactly what happened. The
+ceiling travels as a uniform instead. The texture's four channels are full.
+
 ### BUG-015 A path on the command line starts playing, which is not what the documents say
 **Status:** fixed
 **Severity:** low

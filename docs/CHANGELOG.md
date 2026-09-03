@@ -116,7 +116,31 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   clamps the window to the display, and the reported headroom covers only the
   CPU pass. AV-002 records both limits and what would lift them.
 
+- AV-002 detection completed with `tests/frame_bench`, a `QQuickRenderControl`
+  harness that renders `qml/MeterDisplay.qml` offscreen on the OpenGL RHI with a
+  fence after each frame. No window manager to clamp the size and no compositor
+  to pace the loop, so it reaches 3840x2160 and its headroom figure is real
+  rather than a lower bound. `tools/measure-frames.sh` now runs both passes.
+- The meter display moved out of `Main.qml` into `qml/MeterDisplay.qml`, so the
+  benchmark measures the shaders the application actually shows rather than a
+  copy that would drift away from them.
+- `MeterSource.ceiling`: the frame's tallest band, published as a bound the
+  flame shader culls empty pixels against.
+- Phase 4 acceptance met: all five modes hold 60 fps at 3840x2160 with between
+  46% and 64% of the frame budget spare, against a requirement of 30%.
+
 ### Fixed
+- BUG-016: the flame display ran at 26.9 ms per frame at 3840x2160 — 37 fps
+  against a 60 fps requirement — with 377 of 600 frames late. Nine receding
+  silhouettes at five texture taps each is 45 taps per pixel, and quiet passages
+  are the expensive case rather than the cheap one: a tall silhouette lets a low
+  pixel stop at the first rank, near silence lets nothing stop anything. Fixed by
+  hoisting the loop-invariant derivative, compositing front to back so the loop
+  can stop once the pixel is opaque, and culling against a per-frame ceiling
+  before any texture is sampled. 26.9 ms to 5.8 ms, output pixel-identical.
+- The first version of that benchmark fed a loud signal and reported a pass. It
+  now sweeps from silence to full scale, because measuring the best case and
+  calling it the average is a worse defect than the one it concealed.
 - BUG-012: closing the window left the process running and the audio playing.
   `gst_deinit()` ran while a live pipeline still existed, because the objects
   owning it were locals destroyed only when `main` returned. Now scoped ahead

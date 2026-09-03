@@ -357,6 +357,14 @@ void MeterSource::releaseUpTo(qint64 runningTimeNs)
     }
 }
 
+double MeterSource::ceiling() const
+{
+    float tallest = 0.0f;
+    for (float magnitude : m_magnitudes)
+        tallest = std::max(tallest, magnitude);
+    return double(tallest);
+}
+
 QList<double> MeterSource::vuLevels() const
 {
     QList<double> values;

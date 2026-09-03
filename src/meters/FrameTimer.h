@@ -84,6 +84,16 @@ public:
     // from the other side.
     double cpuHeadroom() const;
 
+    // Fraction of the frame budget left unused by the *whole* frame.
+    //
+    // Only meaningful where nothing paces the loop. In the application the
+    // compositor supplies a frame every 16.7 ms whatever the frame cost, so
+    // this reads as zero headroom on a display with plenty and would be a lie.
+    // Rendering through QQuickRenderControl with a fence after each frame gives
+    // it a true value, which is what tests/frame_bench exists to do; use
+    // cpuHeadroom() in the application and this offscreen.
+    double frameHeadroom() const;
+
     Q_INVOKABLE void reset();
 
     // One line, for a report on exit or a measurement run.

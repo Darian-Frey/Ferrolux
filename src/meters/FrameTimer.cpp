@@ -107,6 +107,14 @@ double FrameTimer::cpuHeadroom() const
     return std::clamp(1.0 - mean / kBudgetMs, 0.0, 1.0);
 }
 
+double FrameTimer::frameHeadroom() const
+{
+    const double mean = meanIntervalMs();
+    if (mean <= 0.0)
+        return 1.0;
+    return std::clamp(1.0 - mean / kBudgetMs, 0.0, 1.0);
+}
+
 void FrameTimer::reset()
 {
     m_frames.store(0, std::memory_order_relaxed);
