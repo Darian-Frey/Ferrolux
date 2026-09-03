@@ -378,11 +378,13 @@ Panel appearance is defined by a named token set, resolved at load. The `ferric`
 | `shell` | `#B4B2A9` | Chassis face |
 | `shell-recess` | `#D3D1C7` | Raised control surfaces |
 | `shell-edge` | `#888780` | Bevel and division lines |
-| `display-bg` | `#2C2C2A` | Readout background |
+| `display-bg` | `#2C2C2A` | Readout background — see the rule below |
 | `readout` | `#EF9F27` | Primary readout amber |
 | `readout-dim` | `#BA7517` | Secondary readout amber |
 | `readout-floor` | `#854F0B` | Lowest active segment, and the unlit-segment ghost layer |
 | `ink` | `#2C2C2A` | Legends on the shell |
+
+**`display-bg` is a requirement, not a label.** A readout is lit text over an unlit ghost, and that arrangement only works over a ground darker than both layers. Put one on the chassis instead and the relationship inverts: `readout-floor` is a dark brown with *more* contrast against the light shell than the amber value drawn over it, so the segments that are off read louder than the number that is on. The field is then drawn exactly to specification and is hard to read because of it — which is how it reached a screenshot before anyone noticed. Every readout therefore sits in a well or carries its own window, as the numerals on a deck do.
 
 Bevel geometry, corner radii and the type scale are specified alongside the palette in the token file rather than here, because they are authored as data. The faces themselves are not data — they are fixed for the project and are specified below. Components reference tokens by name and never contain literal colour values; this is what makes F-044 a token swap rather than an asset pack.
 
@@ -408,7 +410,9 @@ No face outside this table appears on the control surface. A role that needs a f
 
 **The transport marks are drawn, not set.** ▶ ❚❚ ■ ⏮ ⏭ are legends by the rule above — they name a control and never change — but the legend face carries none of them: IBM Plex Sans Condensed has no U+25B6, U+25C0, U+25A0, U+23F8 or U+23EE. An icon font would be a fifth face on the control surface, which this section forbids, and a bitmap would be the defect the project exists to avoid. So they are drawn as half-plane intersections in `qml/shaders/transport.frag`, antialiased from the screen-space derivative rather than at a fixed edge width, which is exactly the answer D-003 already gives: every element of the control surface is vector geometry or a fragment shader.
 
-**Role separation is a hard rule.** `type-readout-numeric` renders digits and separators only. A seven-segment alphabet cannot distinguish 5 from S, 6 from b, or 0 from O, so DSEG7 must never be given text. Track titles carry arbitrary Unicode, which is why `type-readout-text` is Handjet: it covers Latin, Cyrillic, Greek, Armenian, Hebrew, Arabic and Korean, so a non-Latin title degrades to a wider glyph set from the same face rather than to a substituted system face in the middle of a lit readout.
+**Role separation is a hard rule.** `type-readout-numeric` renders digits and separators only.
+
+That is a statement about the file and not only about taste. DSEG7 Classic carries the digits, the full stop, the colon and a **minus**, and carries no plus sign and no per-cent sign. So a signed value in a readout shows its sign only when negative — which is what a deck's gain display does anyway — and a unit is silkscreened beside the field in `type-legend` rather than set in it. Reaching for a `+` or a `%` does not fail: Qt substitutes a system face for that one character, in the middle of a lit field, which is exactly the failure this rule exists to prevent. A seven-segment alphabet cannot distinguish 5 from S, 6 from b, or 0 from O, so DSEG7 must never be given text. Track titles carry arbitrary Unicode, which is why `type-readout-text` is Handjet: it covers Latin, Cyrillic, Greek, Armenian, Hebrew, Arabic and Korean, so a non-Latin title degrades to a wider glyph set from the same face rather than to a substituted system face in the middle of a lit readout.
 
 **Handjet axis settings.** Handjet is a variable font, but Ferrolux ships a **static instance** of it, generated at the values below, rather than the variable file.
 
@@ -435,7 +439,9 @@ The instance is produced with `fonttools varLib.instancer` by `tools/make-fonts.
 
 **Unlit segments.** Physical LED and VFD readouts show their inactive segments faintly rather than not at all, and omitting this is the most common tell of a simulated readout. It is not a font feature. Each readout renders two text layers at identical face, size and position: a ghost layer of the all-segments-lit string in `readout-floor`, with the live string in `readout` composited over it. This costs one extra text node per readout and nothing else.
 
-The ghost string for `type-readout-numeric` is `8` repeated across the field width, with the separators lit — `88:88` for a time display. Where a face has no all-lit glyph, the ghost layer is omitted for that readout rather than approximated.
+The ghost string for `type-readout-numeric` is `8` repeated across the field width, with the separators lit — `88:88` for a time display, `-88` for a gain that spans −12 to 12.
+
+**The live string is aligned into the ghost's cells, not centred in it.** A segmented display has fixed cells and lights some of them; a one-character value centred over a three-character ghost sits *between* two unlit cells, which no physical readout does. Numeric fields are therefore right-aligned against a ghost of the field's full width, so a short value lights the low-order cells and leaves the leading ones dark. Where a face has no all-lit glyph, the ghost layer is omitted for that readout rather than approximated.
 
 **`type-readout-text` has no ghost**, which resolves the codepoint left provisional here pending Phase 5: the bundled instance has none. Of its 1,339 glyphs it carries no U+2588 FULL BLOCK, U+25A0 BLACK SQUARE, U+2593 DARK SHADE or U+25CF BLACK CIRCLE, and nothing else in it fills a cell. A row of some other dense character would be a different string in the same face rather than the same string unlit, which is the approximation the rule above already forbids. The time readout keeps its ghost; the title does not, and the asymmetry is a property of the faces rather than an inconsistency in the panel.
 

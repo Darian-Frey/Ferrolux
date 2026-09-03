@@ -171,7 +171,23 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   a section as either a well or a raised surface — the same moulding seen from
   opposite sides, which is why it is one component and one boolean.
 
+- The equaliser is panel chrome: a raised surface carrying eleven faders, each
+  with a lit gain readout over an unlit ghost and a printed band centre beneath.
+  `qml/Slot.qml` now serves both orientations rather than being copied on its
+  side, and lights its run from an `origin` — a band at +6 dB lights upward from
+  flat and one at −6 dB downward, because what the control reports is a
+  departure from flat and not an amount of something.
+- Volume and balance are the same control with a printed scale, and balance has
+  its detent at centre (F-040). Centre is also its origin, so a centred control
+  shows no lit run at all, which is what centred should look like.
+
 ### Fixed
+- The equaliser, preamp, volume and balance figures were hard to read, reported
+  from use. They were lit readouts standing on the chassis, and a readout needs
+  a ground darker than both of its layers: against the light shell the unlit
+  ghost out-contrasted the lit value, so the segments that were off read louder
+  than the number that was on. Each now carries its own dark window. SPEC.md
+  states `display-bg` as a requirement rather than a label.
 - BUG-017: the specified Handjet weight rendered the dot-matrix face as
   continuous strokes, failing the intent stated beside the value that set it.
   `wght` 500 to 300, and `size-readout-large` 13 to 20 — below roughly 20 units

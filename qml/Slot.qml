@@ -3,76 +3,134 @@
 //
 // A continuous control: a slot cut into the chassis, with a lit run and a lever.
 //
-// F-040 requires continuous controls to carry a legible scale, and this carries
-// the plainest one there is — the lit part of the slot is the value. A run of
-// light against an unlit remainder is readable from across a room, which is the
-// property a deck's position indicator actually needs.
+// One component for both orientations, because a fader is a slot stood on end
+// and nothing else about it differs. The alternative was two files sharing the
+// value arithmetic, the detent and the BUG-009 rule by copy, which is three
+// things to keep in step for the sake of an axis.
 //
-// **The value is the caller's, and this never writes to it.** That is not
-// fastidiousness; it is BUG-009. The position bar is bound to a value that a
-// per-frame poll re-asserts sixty times a second, so a control that wrote its
-// own value while being dragged would have that write undone before the next
-// frame, and the lever would appear to spring back to where it started. So a
-// drag emits `moved` and leaves the binding alone, and `held` tells the caller
-// to suspend the binding for as long as the lever is under the finger.
+// F-040 requires continuous controls to carry a legible scale, and the lit run
+// *is* the scale at its coarsest: light against unlit is readable across a room,
+// which is the property a position indicator actually needs. `ticks` prints a
+// finer one on the chassis for the controls that are set rather than watched.
 //
-// The lever is moulded like the buttons and lit the same way, because it is the
-// same piece of plastic. It does not travel — a lever that sank when grabbed
-// would fight the horizontal movement it exists to report.
+// **The value is the caller's, and this never writes to it.** That is BUG-009
+// rather than fastidiousness. The position is re-asserted by a per-frame poll
+// sixty times a second, so a control that wrote its own value while being
+// dragged would have the write undone before the next frame, and the lever
+// would appear to spring back to where it started. A drag emits `moved` and
+// leaves the binding alone; `held` tells the caller to suspend that binding
+// while the lever is under the finger.
+//
+// The lever is moulded and lit like every other control face, because it is the
+// same piece of plastic. It does not sink — a lever that travelled into the
+// chassis when grabbed would fight the movement along it that it exists to
+// report.
 
 import QtQuick
 
 Item {
     id: slot
 
+    property bool vertical: false
+
     property real from: 0
     property real to: 1
     property real value: 0
 
-    // True while the lever is under the finger. The caller suspends its binding
-    // on this, which is the whole of the BUG-009 fix.
+    // Where the lit run starts. A level runs from its minimum, but a gain runs
+    // from the centre — a band at +6 dB should light upward from zero and one
+    // at −6 dB downward from it, because what the control reports is a
+    // departure from flat rather than a quantity of something.
+    property real origin: from
+
+    // A value the lever settles onto when released near it, and `NaN` for a
+    // control that has none. F-040 requires one at centre for balance, and the
+    // reason generalises: centre is the position such a control returns to most
+    // and the one position it cannot be set to by eye. A control that can be
+    // left imperceptibly off-centre with no way to see it is the defect — the
+    // user's aim is not the problem.
+    property real detent: NaN
+    property real detentRange: Math.abs(to - from) * 0.02
+
+    // Marks printed on the chassis beside the slot. Legends by SPEC.md's rule:
+    // they describe the scale and never change, so they are `ink` and unlit.
+    property int ticks: 0
+
     readonly property alias held: drag.pressed
 
-    // Emitted continuously during a drag and once on a click, always with a
-    // value clamped into range. The caller decides what to do with it — seeking
-    // on release is a different policy from setting a volume immediately, and
-    // that policy does not belong in the control.
+    // Emitted continuously during a drag and once on a click, always clamped
+    // into range and settled onto the detent when near it. What to do with it
+    // is the caller's: seeking on release is a different policy from setting a
+    // volume at once, and that policy does not belong in the control.
     signal moved(real to)
-
-    // Emitted when the lever is let go, for a caller that acts on release.
     signal released()
 
-    implicitWidth: Tokens.controlHeight * 4
-    implicitHeight: Tokens.controlHeight
+    implicitWidth: vertical ? Tokens.thumbWidth : Tokens.controlHeight * 4
+    implicitHeight: vertical ? Tokens.faderTravel : Tokens.controlHeight
 
     readonly property real span: Math.max(1e-9, to - from)
-    readonly property real fraction: Math.max(0, Math.min(1, (value - from) / span))
-    readonly property real travelWidth: Math.max(0, width - Tokens.thumbWidth)
+    readonly property real length: vertical ? height : width
+    readonly property real travelLength: Math.max(1, length - Tokens.thumbHeight * 2)
 
-    // The slot itself: cut into the chassis, so it is dark at the top where the
-    // material overhangs it.
+    function fractionOf(v) { return Math.max(0, Math.min(1, (v - from) / span)) }
+    readonly property real fraction: fractionOf(value)
+    readonly property real originFraction: fractionOf(origin)
+
+    // The slot itself, cut into the chassis and therefore dark.
     Rectangle {
         id: track
-        anchors.verticalCenter: parent.verticalCenter
-        width: parent.width
-        height: Tokens.slotWidth
+        anchors.centerIn: parent
+        width: slot.vertical ? Tokens.slotWidth : parent.width
+        height: slot.vertical ? parent.height : Tokens.slotWidth
         radius: Tokens.radiusSlot
         color: Tokens.displayBg
 
-        // The lit run. Amber up to the value, nothing after it.
+        // The lit run, between the origin and the value. Drawn from whichever
+        // of the two is lower, so a gain below flat lights downward without the
+        // caller having to say so.
         Rectangle {
-            width: track.width * slot.fraction
-            height: parent.height
+            readonly property real a: Math.min(slot.fraction, slot.originFraction)
+            readonly property real b: Math.max(slot.fraction, slot.originFraction)
+
+            x: slot.vertical ? 0 : a * track.width
+            y: slot.vertical ? (1 - b) * track.height : 0
+            width: slot.vertical ? track.width : (b - a) * track.width
+            height: slot.vertical ? (b - a) * track.height : track.height
             radius: parent.radius
             color: slot.enabled ? Tokens.readout : Tokens.readoutFloor
         }
     }
 
+    // The printed scale. Evenly spaced rather than at named values: this is the
+    // ruler beside the slot, not a set of labels, and a label would have to be
+    // a legend in its own right.
+    Repeater {
+        model: slot.ticks
+        delegate: Rectangle {
+            required property int index
+            readonly property real at: slot.ticks > 1 ? index / (slot.ticks - 1) : 0.5
+            color: Tokens.ink
+            opacity: 0.5
+
+            width: slot.vertical ? Tokens.thumbHeight : Tokens.hairline * 2
+            height: slot.vertical ? Tokens.hairline * 2 : Tokens.thumbHeight
+
+            x: slot.vertical
+               ? slot.width / 2 + Tokens.slotWidth
+               : Tokens.thumbWidth / 2 + at * (slot.width - Tokens.thumbWidth)
+            y: slot.vertical
+               ? Tokens.thumbHeight + (1 - at) * (slot.height - Tokens.thumbHeight * 2)
+               : slot.height / 2 + Tokens.slotWidth
+        }
+    }
+
     Rectangle {
         id: lever
-        x: slot.fraction * slot.travelWidth
-        anchors.verticalCenter: parent.verticalCenter
-        width: Tokens.thumbWidth
+        x: slot.vertical ? (slot.width - width) / 2
+                         : slot.fraction * (slot.width - Tokens.thumbWidth)
+        y: slot.vertical ? (1 - slot.fraction) * slot.travelLength + Tokens.thumbHeight / 2
+                         : (slot.height - height) / 2
+        width: slot.vertical ? Tokens.thumbWidth : Tokens.thumbWidth
         height: Tokens.thumbHeight * 2
         radius: Tokens.radiusSlot
         border.width: Tokens.hairline
@@ -90,16 +148,23 @@ Item {
         anchors.fill: parent
         enabled: slot.enabled
 
-        function report(x) {
-            // The lever's centre follows the cursor, so the point grabbed stays
-            // under it. Measuring from the item's left edge instead would make
-            // the lever jump by half its width on the first press.
-            const at = Math.max(0, Math.min(1, (x - Tokens.thumbWidth / 2) / slot.travelWidth))
-            slot.moved(slot.from + at * slot.span)
+        function report(x, y) {
+            // The lever's centre follows the cursor, so whatever point was
+            // grabbed stays under it. Measured from the item's edge instead,
+            // the lever would jump by half its length on the first press.
+            const along = slot.vertical
+                        ? 1 - (y - Tokens.thumbHeight) / slot.travelLength
+                        : (x - Tokens.thumbWidth / 2) / (slot.width - Tokens.thumbWidth)
+            let next = slot.from + Math.max(0, Math.min(1, along)) * slot.span
+
+            if (!isNaN(slot.detent) && Math.abs(next - slot.detent) < slot.detentRange)
+                next = slot.detent
+
+            slot.moved(next)
         }
 
-        onPressed: function(mouse) { report(mouse.x) }
-        onPositionChanged: function(mouse) { if (pressed) report(mouse.x) }
+        onPressed: function(mouse) { report(mouse.x, mouse.y) }
+        onPositionChanged: function(mouse) { if (pressed) report(mouse.x, mouse.y) }
         onReleased: slot.released()
     }
 }

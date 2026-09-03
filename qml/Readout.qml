@@ -31,6 +31,24 @@ import QtQuick
 Item {
     id: readout
 
+    // The ground the readout is lit against. SPEC.md's palette calls
+    // `display-bg` the readout background, and that is not decoration: the
+    // whole lit-over-unlit arrangement below depends on the ground being
+    // darker than both layers.
+    //
+    // Put a readout on the chassis instead and the relationship inverts. The
+    // ghost is a dark brown, which against a light shell has *more* contrast
+    // than the amber value over it — so the segments that are off read louder
+    // than the number that is on, and the field becomes hard to read precisely
+    // because it is drawn correctly. A readout standing on the chassis
+    // therefore carries its own window, as the numerals on a deck do.
+    //
+    // Transparent by default, for the readouts already inside a well: painting
+    // the same colour again there would only cover whatever the well is doing
+    // underneath, such as the backlight on a selected playlist row.
+    property color ground: "transparent"
+    property real inset: 0
+
     // What the instrument reports.
     property string text: ""
 
@@ -49,12 +67,20 @@ Item {
     // value grows, which is what a time field wants and a title does not.
     property int alignment: Text.AlignLeft
 
-    implicitWidth: Math.max(ghostLayer.implicitWidth, liveLayer.implicitWidth)
-    implicitHeight: Math.max(ghostLayer.implicitHeight, liveLayer.implicitHeight)
+    implicitWidth: Math.max(ghostLayer.implicitWidth, liveLayer.implicitWidth) + inset * 2
+    implicitHeight: Math.max(ghostLayer.implicitHeight, liveLayer.implicitHeight) + inset * 2
+
+    Rectangle {
+        anchors.fill: parent
+        color: readout.ground
+        radius: Tokens.radiusSlot
+        visible: readout.ground.a > 0
+    }
 
     Text {
         id: ghostLayer
         anchors.fill: parent
+        anchors.margins: readout.inset
         visible: readout.ghost !== ""
         text: readout.ghost
         color: readout.ghostColour
@@ -67,6 +93,7 @@ Item {
     Text {
         id: liveLayer
         anchors.fill: parent
+        anchors.margins: readout.inset
         text: readout.text
         color: readout.colour
         horizontalAlignment: readout.alignment
@@ -78,6 +105,5 @@ Item {
         // extent and must never shrink to fit its contents, or the unlit cells
         // would come and go with the value.
         elide: Text.ElideRight
-        width: parent.width
     }
 }

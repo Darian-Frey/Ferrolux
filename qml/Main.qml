@@ -477,54 +477,119 @@ ApplicationWindow {
             Button { text: qsTr("Reset");   onClicked: Equaliser.reset() }
         }
 
-        Frame {
+        // The equaliser is a raised surface: it is touched, not watched. The
+        // gain readouts on it are lit because they report values, and the band
+        // centres beneath are printed because they name controls — the same
+        // division as everywhere else, and the reason the two are components
+        // rather than differently configured Text items.
+        PanelSection {
             id: eqPanel
             visible: false
+            recessed: false
             Layout.fillWidth: true
+            Layout.preferredHeight: eqRow.implicitHeight + Tokens.padSection * 2
+
             // Dimmed, not disabled: the curve stays readable and editable while
             // the equaliser is bypassed, but it is visibly not in circuit.
             opacity: Equaliser.enabled ? 1.0 : 0.45
 
+            // A gain in a seven-segment face. DSEG7 Classic has a minus and no
+            // plus — SPEC.md says the numeric face renders digits and separators
+            // only, and this is what that means in practice — so a boost shows
+            // unsigned, as the readout on a deck does. A '+' here would fall
+            // back to a substituted system font in the middle of a lit field,
+            // which is the failure the role rule exists to prevent.
+            function gain(decibels) {
+                return String(Math.round(decibels))
+            }
+
             RowLayout {
+                id: eqRow
                 anchors.fill: parent
-                spacing: 4
+                anchors.margins: Tokens.padSection
+                spacing: Tokens.gapControl
 
                 // Preamp sits apart from the bands: it is a different quantity,
                 // applied ahead of the filters rather than being one of them.
                 ColumnLayout {
-                    spacing: 2
-                    Label { Layout.alignment: Qt.AlignHCenter; text: Math.round(Equaliser.preamp) }
-                    Slider {
+                    spacing: Tokens.padRow
+                    Readout {
                         Layout.alignment: Qt.AlignHCenter
-                        orientation: Qt.Vertical
-                        Layout.preferredHeight: 90
-                        from: -12; to: 12
-                        value: Equaliser.preamp
-                        onMoved: Equaliser.preamp = value
+                        face: Tokens.readoutNumeric
+                        size: Tokens.sizeLegend
+
+                        // Three cells: a sign and two digits, which is what
+                        // -12 to 12 needs. The ghost is the whole field lit, so
+                        // the live value must be *right*-aligned into it — a
+                        // centred single digit would sit between two unlit
+                        // cells rather than in one of them, which no segmented
+                        // display does.
+                        ghost: "-88"
+                        alignment: Text.AlignRight
+                        text: eqPanel.gain(Equaliser.preamp)
+
+                        // Its own window, because it stands on the chassis. A
+                        // readout needs a ground darker than both of its layers
+                        // or the unlit segments out-contrast the lit ones.
+                        ground: Tokens.displayBg
+                        inset: Tokens.hairline * 4
                     }
-                    Label { Layout.alignment: Qt.AlignHCenter; text: qsTr("pre"); font.bold: true }
+                    Slot {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredHeight: Tokens.faderTravel
+                        Layout.preferredWidth: Tokens.thumbWidth
+                        vertical: true
+                        from: -12; to: 12
+                        origin: 0
+                        detent: 0
+                        ticks: 5
+                        value: Equaliser.preamp
+                        onMoved: function(to) { Equaliser.preamp = to }
+                    }
+                    Legend { Layout.alignment: Qt.AlignHCenter; text: qsTr("pre") }
                 }
 
-                ToolSeparator {}
+                // A scored line, not a Controls separator: one hairline in the
+                // bevel colour is what divides two areas of a moulded chassis.
+                Rectangle {
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: Tokens.hairline
+                    color: Tokens.shellEdge
+                }
 
                 Repeater {
                     model: 10
                     delegate: ColumnLayout {
                         required property int index
-                        spacing: 2
-                        Label {
+                        spacing: Tokens.padRow
+
+                        Readout {
                             Layout.alignment: Qt.AlignHCenter
-                            text: Math.round(Equaliser.bands[index])
+                            face: Tokens.readoutNumeric
+                            size: Tokens.sizeLegend
+                            ghost: "-88"
+                            alignment: Text.AlignRight
+                            text: eqPanel.gain(Equaliser.bands[index])
+                            ground: Tokens.displayBg
+                            inset: Tokens.hairline * 4
                         }
-                        Slider {
+                        Slot {
                             Layout.alignment: Qt.AlignHCenter
-                            orientation: Qt.Vertical
-                            Layout.preferredHeight: 90
+                            Layout.preferredHeight: Tokens.faderTravel
+                            Layout.preferredWidth: Tokens.thumbWidth
+                            vertical: true
                             from: -12; to: 12
+                            // Flat is the origin and the detent both: the lit
+                            // run reports a departure from flat rather than an
+                            // amount of something, and flat is the position the
+                            // control is returned to and cannot be found by eye.
+                            origin: 0
+                            detent: 0
+                            ticks: 5
                             value: Equaliser.bands[index]
-                            onMoved: Equaliser.setBand(index, value)
+                            onMoved: function(to) { Equaliser.setBand(index, to) }
                         }
-                        Label {
+                        Legend {
                             Layout.alignment: Qt.AlignHCenter
                             text: Equaliser.bandLabels()[index]
                         }
@@ -565,49 +630,70 @@ ApplicationWindow {
                 }
             }
             Item { Layout.fillWidth: true }
-            Label { text: qsTr("Vol") }
-            Slider {
-                Layout.preferredWidth: 100
+            // Volume and balance: the two continuous controls that are set
+            // rather than watched, so both carry a printed scale. The value
+            // beside each is lit, because it is a value; the unit beside that
+            // is printed, because it names what the value is in. The seven-
+            // segment face has no per-cent sign — it has digits and separators
+            // and nothing else — so the sign is silkscreened, which is what a
+            // deck does anyway.
+            Legend { text: qsTr("vol") }
+            Slot {
+                Layout.preferredWidth: Tokens.controlHeight * 3
+                Layout.preferredHeight: Tokens.controlHeight
                 from: 0; to: 1
+                ticks: 5
                 value: Engine.volume
-                onMoved: Engine.volume = value
+                onMoved: function(to) { Engine.volume = to }
             }
-            Label {
-                Layout.preferredWidth: 34
-                horizontalAlignment: Text.AlignRight
-                text: Math.round(Engine.volume * 100) + "%"
+            Readout {
+                Layout.preferredWidth: Tokens.sizeLegend * 3
+                face: Tokens.readoutNumeric
+                size: Tokens.sizeLegend
+                ghost: "888"
+                alignment: Text.AlignRight
+                text: String(Math.round(Engine.volume * 100))
+                ground: Tokens.displayBg
+                inset: Tokens.hairline * 4
             }
+            Legend { text: qsTr("%") }
 
-            Label { text: qsTr("Bal") }
-            Slider {
-                id: balanceSlider
-                Layout.preferredWidth: 100
+            Legend { text: qsTr("bal") }
+            Slot {
+                Layout.preferredWidth: Tokens.controlHeight * 3
+                Layout.preferredHeight: Tokens.controlHeight
                 from: -1; to: 1
+
+                // Centre is the origin as well as the detent: the lit run
+                // reports a departure from centre, so a control set to the
+                // middle shows no run at all, which is exactly what "centred"
+                // should look like.
+                origin: 0
+                detent: 0
+                detentRange: 0.04
+                ticks: 5
                 value: Engine.balance
-
-                // Snap to exact centre within a few percent. Every hardware
-                // balance control has a detent there for the same reason:
-                // centre is the position returned to most often, and the one
-                // position a continuous control cannot be set to by eye.
-                onMoved: Engine.balance = Math.abs(value) < 0.04 ? 0.0 : value
-
-                // Centre mark, so the detent has something to agree with.
-                Rectangle {
-                    z: -1
-                    width: 1
-                    height: 6
-                    color: palette.mid
-                    x: balanceSlider.leftPadding + balanceSlider.availableWidth / 2
-                    y: balanceSlider.topPadding + balanceSlider.availableHeight / 2 + 6
-                }
+                onMoved: function(to) { Engine.balance = to }
             }
-            Label {
-                Layout.preferredWidth: 48
-                horizontalAlignment: Text.AlignRight
+            Readout {
+                Layout.preferredWidth: Tokens.sizeLegend * 4
+                face: Tokens.readoutNumeric
+                size: Tokens.sizeLegend
+                alignment: Text.AlignRight
+                // Nothing lit when centred. A seven-segment field cannot spell
+                // "centre" — it cannot tell 5 from S — and the absence of a
+                // reading against an unlit run is the clearer statement anyway.
+                ghost: "88"
                 text: Math.abs(Engine.balance) < 0.005
-                      ? qsTr("centre")
-                      : (Engine.balance < 0 ? qsTr("L ") : qsTr("R "))
-                        + Math.round(Math.abs(Engine.balance) * 100)
+                      ? ""
+                      : String(Math.round(Math.abs(Engine.balance) * 100))
+                ground: Tokens.displayBg
+                inset: Tokens.hairline * 4
+            }
+            Legend {
+                Layout.preferredWidth: Tokens.sizeLegend
+                text: Math.abs(Engine.balance) < 0.005 ? ""
+                      : (Engine.balance < 0 ? qsTr("L") : qsTr("R"))
             }
         }
     }
