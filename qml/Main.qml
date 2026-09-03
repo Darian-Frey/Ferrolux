@@ -128,32 +128,30 @@ ApplicationWindow {
             }
         }
 
-        RowLayout {
+        Slot {
+            id: positionBar
             Layout.fillWidth: true
-            spacing: 8
-            Slider {
-                id: positionBar
-                Layout.fillWidth: true
-                enabled: Engine.seekable
-                from: 0
-                to: Engine.duration > 0 ? Engine.duration : 1
+            Layout.preferredHeight: Tokens.controlHeight * 0.6
+            enabled: Engine.seekable
+            from: 0
+            to: Engine.duration > 0 ? Engine.duration : 1
 
-                // The position binding is suspended while the handle is held.
-                // Binding value directly to Engine.position means the per-frame
-                // poll re-asserts it sixty times a second, so a drag is undone
-                // as fast as it is made and the handle appears to snap back.
-                // See BUG-009.
-                Binding on value {
-                    when: !positionBar.pressed
-                    value: Engine.position
-                    restoreMode: Binding.RestoreNone
-                }
-
-                onPressedChanged: {
-                    if (!pressed)
-                        Engine.seek(value)
-                }
+            // The position binding is suspended while the lever is held.
+            // Binding value directly to Engine.position means the per-frame
+            // poll re-asserts it sixty times a second, so a drag is undone
+            // as fast as it is made and the lever appears to snap back.
+            // See BUG-009.
+            Binding on value {
+                when: !positionBar.held
+                value: Engine.position
+                restoreMode: Binding.RestoreNone
             }
+
+            // Dragging moves the lever; the seek happens on release. Seeking
+            // continuously would ask the pipeline to flush and refill on every
+            // frame of the drag, which stutters the audio for the whole of it.
+            onMoved: function(to) { positionBar.value = to }
+            onReleased: Engine.seek(positionBar.value)
         }
 
         // ---- transport ---------------------------------------------------
@@ -264,14 +262,19 @@ ApplicationWindow {
             Button { text: qsTr("Save…"); enabled: Playlist.count > 0; onClicked: savePlaylistDialog.open() }
         }
 
-        Frame {
+        // The playlist is a lit surface, not a chassis one: every row on it is
+        // a value the instrument reports. So it is a well, and its rows are in
+        // the readout face at two brightnesses — one lamp colour, the current
+        // entry brighter — rather than in two different hues. A single-colour
+        // display is what the palette describes and what a deck actually has.
+        PanelSection {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            padding: 1
 
             ListView {
                 id: list
                 anchors.fill: parent
+                anchors.margins: Tokens.padRow
                 clip: true
                 model: PlaylistView
                 // Virtualised by default, which is what keeps a 20,000-entry
@@ -305,11 +308,17 @@ ApplicationWindow {
                     required property int metadataState
 
                     width: ListView.view.width
-                    height: 24
+                    height: Tokens.sizeReadout * 2
 
                     readonly property int sourceRow: PlaylistView.toSourceRow(index)
                     readonly property bool selected: window.selection.indexOf(sourceRow) >= 0
-                    color: selected ? palette.highlight : "transparent"
+
+                    // A selected row is backlit rather than inverted. The
+                    // dimmest amber in the palette is the whole of it: a
+                    // highlight colour from the system theme would be the one
+                    // thing on the panel that changed with the desktop.
+                    color: selected ? Tokens.readoutFloor : "transparent"
+                    radius: Tokens.radiusSlot
 
                     // Drag reorder (F-011). Disabled while a filter is active:
                     // dropping between two visible rows is ambiguous when rows
@@ -369,27 +378,49 @@ ApplicationWindow {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        spacing: 8
+                        anchors.leftMargin: Tokens.gapControl
+                        anchors.rightMargin: Tokens.gapControl
+                        spacing: Tokens.gapControl
 
-                        Label {
-                            text: isCurrent ? "▶" : ""
-                            Layout.preferredWidth: 12
+                        // The playing entry is marked, not merely coloured: on
+                        // a lit display, brightness alone is hard to pick out
+                        // of a long list at a glance, and the mark survives
+                        // being looked at from an angle.
+                        TransportGlyph {
+                            Layout.preferredWidth: Tokens.sizeReadout
+                            Layout.preferredHeight: Tokens.sizeReadout
+                            mark: TransportGlyph.Play
+                            ink: Tokens.readout
+                            visible: isCurrent
                         }
-                        Label {
+                        Item {
+                            Layout.preferredWidth: Tokens.sizeReadout
+                            visible: !isCurrent
+                        }
+
+                        Readout {
                             Layout.fillWidth: true
-                            elide: Text.ElideRight
-                            font.bold: isCurrent
-                            // 3 == MetadataState::Missing, 2 == Failed
-                            color: metadataState === 3 ? "#a00"
-                                 : metadataState === 2 ? "#a60"
-                                 : (row.selected ? palette.highlightedText : palette.text)
+                            Layout.fillHeight: true
+                            face: Tokens.readoutText
+                            size: Tokens.sizeReadout
+                            // One lamp, three brightnesses. A missing or
+                            // unreadable file is the dimmest rather than red:
+                            // there is no red on this display, and dimming is
+                            // what a lit indicator does when its subject is not
+                            // there. 3 == MetadataState::Missing, 2 == Failed.
+                            colour: (metadataState === 3 || metadataState === 2)
+                                        ? Tokens.readoutFloor
+                                        : (isCurrent ? Tokens.readout : Tokens.readoutDim)
                             text: artist !== "" ? artist + " — " + title : title
                         }
-                        Label {
+                        Readout {
+                            Layout.fillHeight: true
+                            face: Tokens.readoutNumeric
+                            size: Tokens.sizeReadout
+                            colour: isCurrent ? Tokens.readout : Tokens.readoutDim
+                            alignment: Text.AlignRight
+                            width: implicitWidth
                             text: window.formatTime(duration)
-                            opacity: 0.7
                         }
                     }
                 }
@@ -507,13 +538,31 @@ ApplicationWindow {
             Layout.fillWidth: true
             spacing: 8
 
-            Button {
-                text: qsTr("Shuffle: %1").arg(Playlist.shuffle ? qsTr("on") : qsTr("off"))
-                onClicked: Playlist.shuffle = !Playlist.shuffle
+            // Settings, not actions, so they are switches and not buttons —
+            // F-040 names the cycling buttons that used to be here as exactly
+            // what it excludes. The lever reports the state; the marks beneath
+            // it are printed on the chassis and never light up.
+            ColumnLayout {
+                spacing: 0
+                Legend { text: qsTr("shuffle"); font.pixelSize: Tokens.sizeLegendSmall }
+                SlideSwitch {
+                    Layout.preferredHeight: Tokens.controlHeight
+                    positions: [qsTr("off"), qsTr("on")]
+                    current: Playlist.shuffle ? 1 : 0
+                    onThrown: function(position) { Playlist.shuffle = position === 1 }
+                }
             }
-            Button {
-                text: qsTr("Repeat: %1").arg(window.repeatNames[Playlist.repeat])
-                onClicked: Playlist.repeat = (Playlist.repeat + 1) % 3
+            ColumnLayout {
+                spacing: 0
+                Legend { text: qsTr("repeat"); font.pixelSize: Tokens.sizeLegendSmall }
+                SlideSwitch {
+                    Layout.preferredHeight: Tokens.controlHeight
+                    // Three detents rather than a boolean with a special case:
+                    // a three-position slide switch is an ordinary object.
+                    positions: [qsTr("off"), qsTr("all"), qsTr("one")]
+                    current: Playlist.repeat
+                    onThrown: function(position) { Playlist.repeat = position }
+                }
             }
             Item { Layout.fillWidth: true }
             Label { text: qsTr("Vol") }

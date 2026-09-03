@@ -52,7 +52,7 @@
     "legend":          "IBM Plex Sans Condensed",
 
     "size-readout-large": 20,
-    "size-readout":       12,
+    "size-readout":       16,
     "size-legend":        11,
     "size-legend-small":  10
   }

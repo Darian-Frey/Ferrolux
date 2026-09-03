@@ -88,6 +88,9 @@ qt_add_qml_module(ferrolux
         qml/Legend.qml
         qml/TransportGlyph.qml
         qml/PanelButton.qml
+        qml/PanelSection.qml
+        qml/Slot.qml
+        qml/SlideSwitch.qml
 )
 
 # The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),

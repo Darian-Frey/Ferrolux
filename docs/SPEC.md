@@ -426,7 +426,7 @@ Weight here controls spacing, not boldness. A physical dot-matrix cell shows dis
 
 Two consequences follow, and neither is optional:
 
-- **The dot-matrix readout has a minimum size.** Below roughly 20 device-independent units the elements merge whatever the weight, so `size-readout-large` is 20 rather than the 13 the mockup drew a proportional face at. A dot-matrix face too small to show its dots is a costly way to obtain a plain one.
+- **The dot-matrix readout has a minimum size**, and it binds everywhere the face is used. `type-readout-text` is assigned to the track title *and to playlist rows*, so both are subject to it. Below roughly 20 device-independent units the elements merge whatever the weight, and below 14 the face becomes ambiguous rather than merely soft — at 12, `Reebok` reads as `Aeebok`, which is worse than a plain face would be. `size-readout-large` is 20 and `size-readout` is 16: 16 is where a capital R stops being mistakeable, and a playlist row cannot afford 20 without showing a third fewer entries. A dot-matrix face too small to show its dots is a costly way to obtain a plain one.
 - **The instance is named for its axis values**, `Handjet Light Circle Single`, which is what `type-readout-text` asks for. Changing the weight changes the family name, so the token set and the generator move together.
 
 The instance is produced with `fonttools varLib.instancer` by `tools/make-fonts.sh`, which also fetches the other three faces so that what is committed under `resources/fonts/` has a stated provenance rather than being binaries of unclear origin.

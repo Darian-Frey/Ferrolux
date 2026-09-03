@@ -51,6 +51,16 @@ drew a proportional face at cannot show its dots whatever the instance says.
 `size-readout-large` is 20. A dot-matrix face too small to be one is an expensive
 way to obtain a plain face.
 
+**The same limit reached the playlist**, found when its rows were first drawn in
+the readout face. SPEC.md assigns `type-readout-text` to playlist rows as well as
+to the title, so the minimum applies to both — and at the 12 the rows were drawn
+at, the face was not merely soft but *ambiguous*: `Reebok` read as `Aeebok`. A
+misread character is worse than a plain face, which is the trade the dot-matrix
+was chosen against in the first place. Rendered across the range, 14 is
+borderline and 16 is where a capital R stops being mistakeable, so `size-readout`
+is 16. 20 would be clearer still and would cost a third of the visible rows,
+which is a bad trade for a list.
+
 Changing the weight also renames the instance — `fonttools` derives the family
 name from the pinned axes, so it is now `Handjet Light Circle Single` rather than
 `...Medium...`. The token set, the generator and `tests/tokens_test` all name it,

@@ -156,6 +156,21 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 - The window is the chassis: `shell` behind everything, which is what makes the
   bevel gradients legible as mouldings rather than as rounded rectangles.
 
+- The playlist is a lit well. Rows are in the readout face at three
+  brightnesses — one lamp colour rather than three hues — with the playing
+  entry marked as well as brightened, a selected row backlit in the dimmest
+  amber rather than in the desktop's highlight colour, and a missing or
+  unreadable file dimmed rather than reddened: there is no red on this display.
+- `qml/SlideSwitch.qml` replaces the cycling buttons for shuffle and repeat,
+  which F-040 names as exactly what it excludes. Two detents or three cost the
+  same, so repeat is a three-position switch rather than a boolean with a
+  special case. The lever reports the state; the marks beneath it are printed
+  and never light, because a lit mark would be a second report that could
+  disagree with the first.
+- `qml/Slot.qml` replaces the position slider, and `qml/PanelSection.qml` draws
+  a section as either a well or a raised surface — the same moulding seen from
+  opposite sides, which is why it is one component and one boolean.
+
 ### Fixed
 - BUG-017: the specified Handjet weight rendered the dot-matrix face as
   continuous strokes, failing the intent stated beside the value that set it.
