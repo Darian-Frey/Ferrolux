@@ -23,6 +23,11 @@ ApplicationWindow {
     visible: true
     title: qsTr("Ferrolux RS-1 — Phase 5 harness")
 
+    // The chassis. Warm off-white, and the surface every moulded control is
+    // lit against — the bevel gradients are only legible as mouldings because
+    // the face they sit on is lighter than the panel around them.
+    color: Tokens.shell
+
     // The panel's scale, set once for everything drawn in the window. F-041
     // requires continuous resizing rather than snapping to fixed multiples, so
     // this is a plain ratio and not a step function; Tokens clamps the ends.
@@ -151,14 +156,58 @@ ApplicationWindow {
             }
         }
 
+        // ---- transport ---------------------------------------------------
+        // Moulded controls with drawn marks. Play latches while the pipeline is
+        // playing, which is the lamp behind the button rather than the finger
+        // on it: `activated` and `pressed` are different states and look it.
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
-            Button { text: qsTr("Prev");  Layout.fillWidth: true; onClicked: Engine.previous() }
-            Button { text: qsTr("Play");  Layout.fillWidth: true; onClicked: Engine.play() }
-            Button { text: qsTr("Pause"); Layout.fillWidth: true; onClicked: Engine.pause() }
-            Button { text: qsTr("Stop");  Layout.fillWidth: true; onClicked: Engine.stop() }
-            Button { text: qsTr("Next");  Layout.fillWidth: true; onClicked: Playlist.advance() }
+            spacing: Tokens.gapControl
+
+            PanelButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.controlHeight
+                onClicked: Engine.previous()
+                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Previous }
+            }
+            PanelButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.controlHeight
+                activated: window.stateNames[Engine.state] === "Playing"
+                onClicked: Engine.play()
+                TransportGlyph {
+                    anchors.fill: parent
+                    mark: TransportGlyph.Play
+                    // On an amber face the mark is printed in the darkest of the
+                    // readout ambers rather than in `ink`: black on amber reads
+                    // as a hole punched in the lamp, where the deeper amber
+                    // reads as ink on a lit surface.
+                    ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
+                }
+            }
+            PanelButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.controlHeight
+                activated: window.stateNames[Engine.state] === "Paused"
+                onClicked: Engine.pause()
+                TransportGlyph {
+                    anchors.fill: parent
+                    mark: TransportGlyph.Pause
+                    ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
+                }
+            }
+            PanelButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.controlHeight
+                onClicked: Engine.stop()
+                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Stop }
+            }
+            PanelButton {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Tokens.controlHeight
+                onClicked: Playlist.advance()
+                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Next }
+            }
         }
 
         // ---- playlist ---------------------------------------------------

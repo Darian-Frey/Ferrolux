@@ -65,6 +65,7 @@ qt_add_shaders(ferrolux "ferrolux_meter_shaders"
         qml/shaders/vu.frag
         qml/shaders/ladder.frag
         qml/shaders/flame.frag
+        qml/shaders/transport.frag
 )
 
 # A QML file carrying `pragma Singleton` is only registered as one if the
@@ -84,6 +85,9 @@ qt_add_qml_module(ferrolux
         qml/Tokens.qml
         qml/Readout.qml
         qml/DisplayPanel.qml
+        qml/Legend.qml
+        qml/TransportGlyph.qml
+        qml/PanelButton.qml
 )
 
 # The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),

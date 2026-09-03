@@ -406,6 +406,8 @@ a legend as a readout implies a state it does not have. See F-040.
 
 No face outside this table appears on the control surface. A role that needs a face it does not have is a specification gap to be recorded here, not a licence to fall back to a system font.
 
+**The transport marks are drawn, not set.** ▶ ❚❚ ■ ⏮ ⏭ are legends by the rule above — they name a control and never change — but the legend face carries none of them: IBM Plex Sans Condensed has no U+25B6, U+25C0, U+25A0, U+23F8 or U+23EE. An icon font would be a fifth face on the control surface, which this section forbids, and a bitmap would be the defect the project exists to avoid. So they are drawn as half-plane intersections in `qml/shaders/transport.frag`, antialiased from the screen-space derivative rather than at a fixed edge width, which is exactly the answer D-003 already gives: every element of the control surface is vector geometry or a fragment shader.
+
 **Role separation is a hard rule.** `type-readout-numeric` renders digits and separators only. A seven-segment alphabet cannot distinguish 5 from S, 6 from b, or 0 from O, so DSEG7 must never be given text. Track titles carry arbitrary Unicode, which is why `type-readout-text` is Handjet: it covers Latin, Cyrillic, Greek, Armenian, Hebrew, Arabic and Korean, so a non-Latin title degrades to a wider glyph set from the same face rather than to a substituted system face in the middle of a lit readout.
 
 **Handjet axis settings.** Handjet is a variable font, but Ferrolux ships a **static instance** of it, generated at the values below, rather than the variable file.

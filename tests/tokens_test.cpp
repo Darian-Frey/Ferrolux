@@ -180,6 +180,17 @@ void testMetricsAndType(const ThemeTokens &tokens)
     check(tokens.metric(QStringLiteral("travel")) > 0.0
               && tokens.metric(QStringLiteral("travel-ms")) > 0.0,
           "pressed controls have travel and a duration, rather than only a colour");
+
+    // The bevel factors are arguments to Qt.lighter and Qt.darker, which take a
+    // multiplier greater than 1. Below 1 they invert — Qt.lighter(c, 0.5)
+    // darkens — without complaint, and a moulding lit from underneath is not a
+    // visible error so much as a subtly wrong-looking panel.
+    check(tokens.metric(QStringLiteral("bevel-light")) > 1.0
+              && tokens.metric(QStringLiteral("bevel-shadow")) > 1.0,
+          "the bevel factors are above 1, so Qt.lighter lightens and Qt.darker darkens",
+          QStringLiteral("light %1, shadow %2")
+              .arg(tokens.metric(QStringLiteral("bevel-light")))
+              .arg(tokens.metric(QStringLiteral("bevel-shadow"))));
 }
 
 void testFaces(const ThemeTokens &tokens, const QString &fontDir)

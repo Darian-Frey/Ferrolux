@@ -44,6 +44,7 @@
 #include <QOpenGLFunctions>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QStringList>
 #include <QQmlEngine>
 #include <QQuickGraphicsDevice>
 #include <QQuickItem>
@@ -179,6 +180,21 @@ int main(int argc, char *argv[])
         meters.setMode(mode);
 
         QQmlEngine engine;
+
+        // Drop the application directory from the import path. qt_add_qml_module
+        // writes a file-based `Ferrolux` module into the build directory whose
+        // qmldir says `prefer :/qt/qml/Ferrolux/`, and that resource exists only
+        // inside the application binary. A bench run from the build directory
+        // would find that qmldir, follow the redirect, and fail to resolve
+        // whichever singleton the module currently declares — an error naming
+        // the singleton, and nothing naming the import path that caused it.
+        //
+        // MeterTexture is registered from C++ below, so `import Ferrolux`
+        // resolves to the type namespace this program actually provides.
+        QStringList imports = engine.importPathList();
+        imports.removeAll(QCoreApplication::applicationDirPath());
+        engine.setImportPathList(imports);
+
         engine.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
 
         QQmlComponent component(&engine, QUrl::fromLocalFile(

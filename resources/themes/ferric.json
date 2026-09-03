@@ -25,10 +25,10 @@
 
     "hairline":        0.5,
     "bevel":           1.5,
-    "bevel-light":     0.55,
-    "bevel-shadow":    0.35,
+    "bevel-light":     1.16,
+    "bevel-shadow":    1.14,
 
-    "travel":          1.0,
+    "travel":          2.0,
     "travel-ms":      40,
 
     "gap-panel":      14,

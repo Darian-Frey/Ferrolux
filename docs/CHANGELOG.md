@@ -145,6 +145,17 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   all-segments-lit string under the live value — which SPEC.md calls the most
   common tell of a simulated display when it is left out.
 
+- The transport is moulded chrome. `qml/PanelButton.qml` drops its face into a
+  well and inverts its lighting from one `depress` quantity, so travel and
+  shading cannot disagree; `qml/TransportGlyph.qml` draws the five marks from
+  `qml/shaders/transport.frag` as half-plane intersections, antialiased from
+  the screen-space derivative and therefore exact at any scale. The legend face
+  carries none of those symbols and SPEC.md forbids a fifth face on the control
+  surface, so drawing them is the only answer that is not an icon font or a
+  bitmap. `qml/Legend.qml` is the printed half of the lit-versus-printed rule.
+- The window is the chassis: `shell` behind everything, which is what makes the
+  bevel gradients legible as mouldings rather than as rounded rectangles.
+
 ### Fixed
 - BUG-017: the specified Handjet weight rendered the dot-matrix face as
   continuous strokes, failing the intent stated beside the value that set it.

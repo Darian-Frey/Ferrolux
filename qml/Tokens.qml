@@ -70,6 +70,12 @@ QtObject {
     readonly property real hairline: Theme.metric("hairline") * scale
 
     readonly property real bevel: Theme.metric("bevel") * scale
+
+    // Factors for Qt.lighter and Qt.darker, not fractions. A moulded face is
+    // lit from above, so its top is its own colour lightened by one of these
+    // and its bottom the same colour darkened by the other; pressing a control
+    // exchanges them. Both are greater than 1 because that is what those two
+    // functions take — a value below 1 passed to Qt.lighter darkens, silently.
     readonly property real bevelLight: Theme.metric("bevel-light")
     readonly property real bevelShadow: Theme.metric("bevel-shadow")
 
