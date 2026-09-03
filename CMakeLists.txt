@@ -140,6 +140,8 @@ qt_add_executable(frame_bench
     tests/frame_bench.cpp
     src/meters/FrameTimer.cpp
     src/meters/FrameTimer.h
+    src/ui/ThemeTokens.cpp
+    src/ui/ThemeTokens.h
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
@@ -152,7 +154,8 @@ target_link_libraries(frame_bench PRIVATE Qt6::Quick Qt6::OpenGL)
 # editing a shader and re-running the benchmark needs no rebuild of anything
 # but the shader itself.
 target_compile_definitions(frame_bench PRIVATE
-    FERROLUX_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml")
+    FERROLUX_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml"
+    FERROLUX_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
 
 # The same shaders under the same resource prefix, so the fragmentShader paths
 # inside MeterDisplay.qml resolve in this target exactly as they do in the app.

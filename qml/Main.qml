@@ -28,6 +28,52 @@ ApplicationWindow {
     // the face they sit on is lighter than the panel around them.
     color: Tokens.shell
 
+    // ---- compact mode (F-042) ---------------------------------------------
+    // Winamp's window shade: the panel folds away to the strip that reports
+    // and controls what is playing, and everything that is browsed or adjusted
+    // goes with it. Nothing here touches the engine or the playlist, so
+    // playback state is preserved by construction rather than by being saved
+    // and restored — the sections are hidden, not unloaded.
+    property bool compact: false
+
+    // The height to come back to, kept up to date rather than snapshotted when
+    // the panel folds. A window the user has resized should come back the size
+    // they left it, and a snapshot taken at the toggle is only right if nothing
+    // has happened since.
+    property int expandedHeight: 780
+    onHeightChanged: if (!compact) expandedHeight = height
+
+    // What the strip comes to once the folded sections have stopped counting.
+    readonly property int stripHeight: Math.ceil(panel.implicitHeight + Tokens.gapPanel * 2)
+
+    // The strip is *constrained* to its content rather than assigned a height
+    // once. Assigning was the first attempt and it produced a strip with a
+    // third of a window of empty air beneath it: the height was read before the
+    // layout had been polished with the new visibilities, so it was the height
+    // of a panel that had already stopped existing. A constraint re-evaluates
+    // as the layout settles, and it has the second effect of stopping the
+    // window being dragged taller while folded — a shade that can be stretched
+    // is a window with a lot of chassis in it.
+    minimumHeight: compact ? stripHeight : 0
+    maximumHeight: compact ? stripHeight : 16777215
+
+    onCompactChanged: {
+        // F-042 requires the position to survive the toggle. Changing only the
+        // height ought to leave it alone and does not always: a manager is free
+        // to move a window it is already resizing, and some recentre one that
+        // shrinks. Putting it back costs nothing and does not depend on which
+        // manager is running.
+        const keptX = x
+        const keptY = y
+
+        Qt.callLater(function () {
+            if (!window.compact)
+                window.height = window.expandedHeight
+            window.x = keptX
+            window.y = keptY
+        })
+    }
+
     // The panel's scale, set once for everything drawn in the window. F-041
     // requires continuous resizing rather than snapping to fixed multiples, so
     // this is a plain ratio and not a step function; Tokens clamps the ends.
@@ -94,15 +140,14 @@ ApplicationWindow {
     }
 
     ColumnLayout {
+        id: panel
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
+        anchors.margins: Tokens.gapPanel
+        spacing: Tokens.gapSection
 
         // ---- now playing -----------------------------------------------
-        // The first piece of the real panel in among the harness. Everything on
-        // it is a value the instrument reports, so all of it is lit; the buttons
-        // and legends around it are still Phase 3's plain Controls and will be
-        // replaced with moulded chrome next.
+        // Everything on it is a value the instrument reports, so all of it is
+        // lit. This and the two rows below it are what compact mode keeps.
         DisplayPanel {
             Layout.fillWidth: true
             title: Engine.source == "" ? qsTr("no disc")
@@ -194,10 +239,24 @@ ApplicationWindow {
                 onClicked: Playlist.advance()
                 TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Next }
             }
+
+            // The shade. Narrower than the transport controls and not stretched
+            // with them: it is not one of the transport, and a control that
+            // looked like one would be reached for by mistake.
+            PanelButton {
+                Layout.preferredWidth: Tokens.controlHeight
+                Layout.preferredHeight: Tokens.controlHeight
+                onClicked: window.compact = !window.compact
+                TransportGlyph {
+                    anchors.fill: parent
+                    mark: window.compact ? TransportGlyph.RollDown : TransportGlyph.RollUp
+                }
+            }
         }
 
         // ---- playlist ---------------------------------------------------
         RowLayout {
+            visible: !window.compact
             Layout.fillWidth: true
             spacing: 6
 
@@ -278,6 +337,7 @@ ApplicationWindow {
         // entry brighter — rather than in two different hues. A single-colour
         // display is what the palette describes and what a deck actually has.
         PanelSection {
+            visible: !window.compact
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -440,21 +500,23 @@ ApplicationWindow {
         // Defined in MeterDisplay.qml so that tests/frame_bench measures the
         // same shaders this window shows. See AV-002.
         MeterDisplay {
+            visible: !window.compact
             Layout.fillWidth: true
             Layout.preferredHeight: 92
         }
 
         // ---- equaliser ---------------------------------------------------
         RowLayout {
+            visible: !window.compact
             Layout.fillWidth: true
             spacing: 8
 
             PanelButton {
                 text: qsTr("equaliser")
-                // Latched while the panel is open, so the control reports the
+                // Latched while the drawer is open, so the control reports the
                 // state of the drawer rather than only being the way to it.
-                activated: eqPanel.visible
-                onClicked: eqPanel.visible = !eqPanel.visible
+                activated: eqPanel.open
+                onClicked: eqPanel.open = !eqPanel.open
             }
 
             // Bypass is a setting the machine is left in, not an action taken,
@@ -520,7 +582,13 @@ ApplicationWindow {
         // rather than differently configured Text items.
         PanelSection {
             id: eqPanel
-            visible: false
+
+            // Whether the drawer is pulled out, which is a different question
+            // from whether it can be seen. Compact mode hides it without
+            // closing it, so folding the panel away and opening it again
+            // returns the drawer to how it was left.
+            property bool open: false
+            visible: open && !window.compact
             recessed: false
             Layout.fillWidth: true
             Layout.preferredHeight: eqRow.implicitHeight + Tokens.padSection * 2
@@ -636,6 +704,7 @@ ApplicationWindow {
 
         // ---- play order and mixing --------------------------------------
         RowLayout {
+            visible: !window.compact
             Layout.fillWidth: true
             spacing: 8
 

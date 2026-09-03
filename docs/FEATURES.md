@@ -222,7 +222,7 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 **Acceptance:**
 - Collapses to a single transport-and-display strip, equivalent to Winamp's window shade
 - Toggling preserves playback state and window position
-**Status:** Not started (Phase 5)
+**Status:** **Met** 2026-09-04. Driven under XTest rather than judged by eye: 780 to 175 to 780, window position identical at all three points, and the engine still playing across both toggles. Playback survives by construction — the folded sections are hidden, not unloaded, and nothing in the fold reaches the engine.
 
 ### F-043 Keyboard control
 **Priority:** Should

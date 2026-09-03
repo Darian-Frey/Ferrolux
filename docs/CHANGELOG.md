@@ -205,7 +205,25 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   different layout. This is the criterion the project exists for, so it is
   measured rather than asserted.
 
+- Compact mode (F-042): the panel folds to a display-and-transport strip and
+  back, keeping its position and its playback. The strip is *constrained* to its
+  content rather than assigned a height, which is what makes the fold correct
+  however it is reached — including from `ui/compact` at startup, a path that an
+  assignment inside the toggle function did not cover.
+- The equaliser drawer has its own open state, so folding the panel hides it
+  without closing it and unfolding returns it to how it was left.
+
 ### Fixed
+- `tests/frame_bench` could not render the meter display after the mode label
+  was tokenised: the file it deliberately loads had gained a dependency on the
+  `Tokens` singleton, and the bench supplied no tokens. Every run failed with a
+  page of "Unable to assign [undefined]". The bench now loads the token set and
+  the faces, which is the cost of it measuring the real component rather than a
+  copy — and the copy was the worse option.
+- The benchmark now settles the GPU between modes. Run back to back at 2160p the
+  last of five modes read about 40% slower than the first, which dropped one
+  below the headroom floor and looked like a regression until an idle interval
+  made it pass. Only one mode is ever displayed at a time.
 - The equaliser, preamp, volume and balance figures were hard to read, reported
   from use. They were lit readouts standing on the chassis, and a readout needs
   a ground darker than both of its layers: against the light shell the unlit

@@ -14,7 +14,7 @@ ShaderEffect {
 
     // Matches the branch order in the shader. Kept as an enumeration so a
     // caller never writes the number.
-    enum Mark { Play, Pause, Stop, Previous, Next }
+    enum Mark { Play, Pause, Stop, Previous, Next, RollUp, RollDown }
 
     property int mark: TransportGlyph.Play
     property color ink: Tokens.ink

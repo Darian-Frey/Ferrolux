@@ -52,6 +52,8 @@
 #include <QQuickRenderTarget>
 #include <QQuickWindow>
 #include <QSurfaceFormat>
+#include <QThread>
+#include <QFontDatabase>
 #include <QImage>
 
 #include <cstdio>
@@ -60,10 +62,12 @@
 #include "meters/FrameTimer.h"
 #include "meters/MeterSource.h"
 #include "meters/MeterTexture.h"
+#include "ui/ThemeTokens.h"
 
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
+using ferrolux::ui::ThemeTokens;
 
 namespace {
 
@@ -153,11 +157,52 @@ int main(int argc, char *argv[])
 
     qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
 
+    // The display is a piece of the real panel and resolves real tokens, so the
+    // bench has to supply them. It did not, once: tokenising the mode label
+    // gave MeterDisplay.qml a dependency on the Tokens singleton, and this
+    // program — which loads that file deliberately, so that it measures the
+    // shaders the application shows — could not resolve it. Every run failed
+    // with a page of "Unable to assign [undefined]" and no frames. The coupling
+    // is the point of the design and the cost of it is this block.
+    qmlRegisterSingletonType(
+        QUrl::fromLocalFile(QStringLiteral(FERROLUX_QML_DIR "/Tokens.qml")),
+        "Ferrolux", 1, 0, "Tokens");
+
+    for (const QString &face : { QStringLiteral("DSEG7Classic-Regular.ttf"),
+                                 QStringLiteral("DSEG14Classic-Regular.ttf"),
+                                 QStringLiteral("Handjet-Panel.ttf"),
+                                 QStringLiteral("IBMPlexSansCondensed-Regular.ttf") }) {
+        QFontDatabase::addApplicationFont(
+            QStringLiteral(FERROLUX_RESOURCE_DIR "/fonts/") + face);
+    }
+
+    ThemeTokens theme;
+    if (!theme.load(QStringLiteral(FERROLUX_RESOURCE_DIR "/themes/ferric.json"))) {
+        std::fprintf(stderr, "%s\n", qPrintable(theme.lastError()));
+        return 2;
+    }
+
     int failures = 0;
+    bool first = true;
 
     for (const QString &mode : MeterSource::modes()) {
         if (!only.isEmpty() && mode != only)
             continue;
+
+        // Let the GPU settle between modes. Six hundred frames at 2160p heats
+        // it, and the mode measured next inherits the heat: run back to back,
+        // the last of five reads about 40% slower than the first, which put a
+        // mode below the headroom floor and looked exactly like a regression
+        // until the same run passed comfortably after ninety seconds idle.
+        //
+        // The settled figure is the honest one for this question. Only one mode
+        // is ever displayed at a time, so no user reaches the fourth mode's
+        // shader with three others' work still in the pipe; measuring that way
+        // reports the cost of the benchmark's own sequence rather than of the
+        // shader.
+        if (!first)
+            QThread::msleep(4000);
+        first = false;
 
         // A fresh control, window and engine per mode. Sharing them would let
         // one mode's compiled pipelines and warmed caches flatter the next, and
@@ -196,6 +241,7 @@ int main(int argc, char *argv[])
         engine.setImportPathList(imports);
 
         engine.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
+        engine.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
 
         QQmlComponent component(&engine, QUrl::fromLocalFile(
                                              QStringLiteral(FERROLUX_QML_DIR "/MeterDisplay.qml")));

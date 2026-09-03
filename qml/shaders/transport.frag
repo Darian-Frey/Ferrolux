@@ -28,7 +28,8 @@ layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
-    float glyph;   // 0 play, 1 pause, 2 stop, 3 previous, 4 next
+    float glyph;   // 0 play, 1 pause, 2 stop, 3 previous, 4 next,
+                   // 5 roll up, 6 roll down
     float aspect;  // width / height, so the marks stay square in a wide button
     vec4 inkColour;
 };
@@ -54,6 +55,19 @@ float triangleRight(vec2 p, vec2 centre, float halfWidth, float rise)
 float triangleLeft(vec2 p, vec2 centre, float halfWidth, float rise)
 {
     return triangleRight(vec2(2.0 * centre.x - p.x, p.y), centre, halfWidth, rise);
+}
+
+// The same triangle with the axes exchanged. Turning the coordinate rather than
+// the shape means there is one triangle in this file and four directions of it,
+// so a change to how a point is antialiased cannot apply to some of them only.
+float triangleUp(vec2 p, vec2 centre, float halfWidth, float rise)
+{
+    return triangleRight(vec2(-p.y, p.x), vec2(-centre.y, centre.x), halfWidth, rise);
+}
+
+float triangleDown(vec2 p, vec2 centre, float halfWidth, float rise)
+{
+    return triangleRight(vec2(p.y, p.x), vec2(centre.y, centre.x), halfWidth, rise);
 }
 
 float box(vec2 p, vec2 centre, vec2 halfExtent)
@@ -86,10 +100,19 @@ void main()
         // Previous: a bar the head returns to, then the triangle.
         d = min(box(p, vec2(-0.20, 0.0), vec2(0.045, 0.19)),
                 triangleLeft(p, vec2(0.04, 0.0), 0.15, 0.19));
-    } else {
+    } else if (which == 4) {
         // Next, the same mark reflected.
         d = min(box(p, vec2(0.20, 0.0), vec2(0.045, 0.19)),
                 triangleRight(p, vec2(-0.04, 0.0), 0.15, 0.19));
+    } else if (which == 5) {
+        // Roll up: the panel folds away to a strip. The bar is the strip that
+        // will be left, and the triangle is the direction the rest goes.
+        d = min(triangleUp(p, vec2(0.0, -0.06), 0.16, 0.20),
+                box(p, vec2(0.0, 0.19), vec2(0.20, 0.045)));
+    } else {
+        // Roll down, the same mark inverted.
+        d = min(triangleDown(p, vec2(0.0, 0.06), 0.16, 0.20),
+                box(p, vec2(0.0, -0.19), vec2(0.20, 0.045)));
     }
 
     // Antialias from the derivative rather than from a constant: the edge is

@@ -284,6 +284,19 @@ int main(int argc, char *argv[])
         if (auto *window = qobject_cast<QQuickWindow *>(qml.rootObjects().first())) {
             frameTimer.attach(window);
 
+            // F-042. Set directly rather than through setCompact(), which
+            // animates the window down from whatever it was: at startup there
+            // is nothing to come down from, and the height the panel would be
+            // told to return to would be the default rather than the one the
+            // user last had. SPEC.md §Settings owns this key.
+            if (settings.value(QStringLiteral("ui/compact"), false).toBool())
+                window->setProperty("compact", true);
+
+            QObject::connect(&app, &QGuiApplication::aboutToQuit, window, [window] {
+                QSettings out;
+                out.setValue(QStringLiteral("ui/compact"), window->property("compact"));
+            });
+
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");
                 const QStringList parts = geometry.split(QLatin1Char('x'));

@@ -55,6 +55,15 @@ late, and the level sweep then showed that the quiet passages nobody would think
 to test were the expensive ones. See BUG-016; the shader is now 4.6 times faster
 with a pixel-identical result.
 
+**The sweep settles the GPU between modes**, and that is not padding. Six hundred
+frames at 2160p heats it, and the mode measured next inherits the heat: run back
+to back, the last of five reads about 40% slower than the first. That put a mode
+below the headroom floor and looked exactly like a regression, until the same run
+passed comfortably after ninety seconds idle. Only one display mode is ever shown
+at a time, so no user reaches the fourth mode's shader with three others' work
+still in the pipe — measuring that way reports the cost of the benchmark's own
+sequence rather than of the shader.
+
 **One limit remains.** The offscreen pass measures the meter display alone. The
 playlist, the chrome and the per-frame bindings that AV-002 names as compounding
 risks are in the window pass only, and so are measured only up to 1920x1008.
