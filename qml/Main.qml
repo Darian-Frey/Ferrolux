@@ -21,7 +21,13 @@ ApplicationWindow {
     width: 720
     height: 780
     visible: true
-    title: qsTr("Ferrolux RS-1 — Phase 3 harness")
+    title: qsTr("Ferrolux RS-1 — Phase 5 harness")
+
+    // The panel's scale, set once for everything drawn in the window. F-041
+    // requires continuous resizing rather than snapping to fixed multiples, so
+    // this is a plain ratio and not a step function; Tokens clamps the ends.
+    onWidthChanged: Tokens.scale = Tokens.scaleFor(width)
+    Component.onCompleted: Tokens.scale = Tokens.scaleFor(width)
 
     // Invariant 4: the single position poll for the whole application. It also
     // drives the meters, releasing queued analysis frames as the pipeline's
@@ -88,11 +94,16 @@ ApplicationWindow {
         spacing: 10
 
         // ---- now playing -----------------------------------------------
-        Label {
+        // The first piece of the real panel in among the harness. Everything on
+        // it is a value the instrument reports, so all of it is lit; the buttons
+        // and legends around it are still Phase 3's plain Controls and will be
+        // replaced with moulded chrome next.
+        DisplayPanel {
             Layout.fillWidth: true
-            elide: Text.ElideMiddle
-            text: Engine.source == "" ? qsTr("Drop files or a folder here")
-                                      : Engine.source.toString().split("/").pop()
+            title: Engine.source == "" ? qsTr("no disc")
+                                       : Engine.source.toString().split("/").pop()
+            position: Engine.position
+            duration: Engine.duration
         }
 
         RowLayout {
@@ -115,7 +126,6 @@ ApplicationWindow {
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-            Label { text: window.formatTime(Engine.position) }
             Slider {
                 id: positionBar
                 Layout.fillWidth: true
@@ -139,7 +149,6 @@ ApplicationWindow {
                         Engine.seek(value)
                 }
             }
-            Label { text: window.formatTime(Engine.duration) }
         }
 
         RowLayout {

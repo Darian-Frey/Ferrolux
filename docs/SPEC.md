@@ -414,16 +414,27 @@ Setting a variable axis at runtime requires `QFont::setVariableAxis`, introduced
 
 | Axis | Range | Instanced at | Effect |
 |------|-------|--------------|--------|
-| `ELSH` | 0.0–16.0 | 8.0 | Element shape. 2.0 is a square, 8.0 a circle. **Provisional.** |
-| `ELGR` | 1.0–2.0 | 1.0 | Elements per grid unit. 1.0 is one element per cell; 2.0 is a 2×2 group. **Provisional.** |
-| `wght` | 100–900 | 500 | Element size, and therefore the gap between adjacent dots. **Provisional.** |
+| `ELSH` | 0.0–16.0 | 8.0 | Element shape. 2.0 is a square, 8.0 a circle. Confirmed 2026-09-03. |
+| `ELGR` | 1.0–2.0 | 1.0 | Elements per grid unit. 1.0 is one element per cell; 2.0 is a 2×2 group. Confirmed 2026-09-03. |
+| `wght` | 100–900 | **300** | Element size, and therefore the gap between adjacent dots. Was 500; see below. |
 
 Weight here controls spacing, not boldness. A physical dot-matrix cell shows discrete separated dots, so the value is chosen for a visible gap between neighbours rather than for stroke weight.
 
-The instance is produced with `fonttools varLib.instancer` and, per the OFL Reserved Font Name clause, is renamed rather than shipped under the Handjet name. The consequence is that changing the dot-matrix character means regenerating the instance rather than editing a token value: this is the one place in the token set where F-044's token-swap property does not hold, and it is a deliberate trade against a toolchain requirement the target distributions cannot meet.
+**500 did not meet that intent and 300 does.** Rendered across the axis, the elements at 500 touch at every size the panel uses, and the face reads as continuous strokes — a condensed sans with notches, not a dot-matrix. Separation becomes visible at 300 and clearer below it, at the cost of the readout going faint. Recorded as BUG-017.
+
+Two consequences follow, and neither is optional:
+
+- **The dot-matrix readout has a minimum size.** Below roughly 20 device-independent units the elements merge whatever the weight, so `size-readout-large` is 20 rather than the 13 the mockup drew a proportional face at. A dot-matrix face too small to show its dots is a costly way to obtain a plain one.
+- **The instance is named for its axis values**, `Handjet Light Circle Single`, which is what `type-readout-text` asks for. Changing the weight changes the family name, so the token set and the generator move together.
+
+The instance is produced with `fonttools varLib.instancer` by `tools/make-fonts.sh`, which also fetches the other three faces so that what is committed under `resources/fonts/` has a stated provenance rather than being binaries of unclear origin.
+
+**Handjet declares no Reserved Font Name**, so nothing in the licence requires the instance to be renamed. An earlier revision of this document said otherwise and cited a clause that does not apply — the only occurrence of the phrase in Handjet's licence file is the OFL's own boilerplate definition, not a reservation on the copyright line. See BUG-018. The instance is nonetheless not called plain `Handjet`: `fonttools` derives a family name from the pinned axis values, and the file is not Handjet as published, so naming it as though it were would misreport what has been shipped. DSEG does reserve its name and is redistributed unmodified. The consequence is that changing the dot-matrix character means regenerating the instance rather than editing a token value: this is the one place in the token set where F-044's token-swap property does not hold, and it is a deliberate trade against a toolchain requirement the target distributions cannot meet.
 
 **Unlit segments.** Physical LED and VFD readouts show their inactive segments faintly rather than not at all, and omitting this is the most common tell of a simulated readout. It is not a font feature. Each readout renders two text layers at identical face, size and position: a ghost layer of the all-segments-lit string in `readout-floor`, with the live string in `readout` composited over it. This costs one extra text node per readout and nothing else.
 
-The ghost string for `type-readout-numeric` is `8` repeated across the field width, with the separators lit — `88:88` for a time display. The equivalent for `type-readout-text` is a full-cell glyph repeated across the field, and the specific codepoint Handjet uses for it is **provisional** pending Phase 5. Where a face has no all-lit glyph, the ghost layer is omitted for that readout rather than approximated.
+The ghost string for `type-readout-numeric` is `8` repeated across the field width, with the separators lit — `88:88` for a time display. Where a face has no all-lit glyph, the ghost layer is omitted for that readout rather than approximated.
+
+**`type-readout-text` has no ghost**, which resolves the codepoint left provisional here pending Phase 5: the bundled instance has none. Of its 1,339 glyphs it carries no U+2588 FULL BLOCK, U+25A0 BLACK SQUARE, U+2593 DARK SHADE or U+25CF BLACK CIRCLE, and nothing else in it fills a cell. A row of some other dense character would be a different string in the same face rather than the same string unlit, which is the approximation the rule above already forbids. The time readout keeps its ghost; the title does not, and the asymmetry is a property of the faces rather than an inconsistency in the panel.
 
 **Scaling.** All four faces are geometric outlines rather than pixel-grid designs, and stay correct at fractional device pixel ratios. Faces drawn on an integer pixel grid — the pixel and bitmap-revival category generally, however well it suits the period — are excluded from the control surface, because at 1.5× and 2.5× they soften in exactly the way AV-005 exists to prevent.

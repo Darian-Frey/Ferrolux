@@ -21,6 +21,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QFontDatabase>
 #include <QQuickWindow>
 #include <QSurfaceFormat>
 #include <QSettings>
@@ -41,6 +42,7 @@
 #include "meters/MeterSource.h"
 #include "meters/FrameTimer.h"
 #include "meters/MeterTexture.h"
+#include "ui/ThemeTokens.h"
 
 using ferrolux::core::Engine;
 using ferrolux::core::Equaliser;
@@ -50,6 +52,7 @@ using ferrolux::library::PlaylistModel;
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
+using ferrolux::ui::ThemeTokens;
 
 int main(int argc, char *argv[])
 {
@@ -221,12 +224,38 @@ int main(int argc, char *argv[])
     // can be named as a ShaderEffect source.
     qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
 
+        // The panel's four faces, from the binary rather than from the system
+        // (D-012, SPEC.md §Typography). A missing face does not fail: Qt
+        // substitutes a system font, and a substitution in the middle of a lit
+        // readout is a defect that has to be seen to be found. So each one is
+        // checked here, where it can still be said out loud.
+        for (const QString &face : { QStringLiteral(":/resources/fonts/DSEG7Classic-Regular.ttf"),
+                                     QStringLiteral(":/resources/fonts/DSEG14Classic-Regular.ttf"),
+                                     QStringLiteral(":/resources/fonts/Handjet-Panel.ttf"),
+                                     QStringLiteral(":/resources/fonts/IBMPlexSansCondensed-Regular.ttf") }) {
+            if (QFontDatabase::addApplicationFont(face) < 0)
+                qWarning("could not load %s; the panel will substitute a system face",
+                         qPrintable(face));
+        }
+
+        // The token set, resolved at load per SPEC.md §Design tokens. Refusing to
+        // start is deliberate: a half-loaded set draws the chassis in whatever a
+        // missing colour resolves to, which is black, and black chrome under a
+        // black readout is not a visible failure. F-044 will select the set from
+        // settings; until there is a second one, there is nothing to select.
+        ThemeTokens theme;
+        if (!theme.load(QStringLiteral(":/resources/themes/ferric.json"))) {
+            qCritical("%s", qPrintable(theme.lastError()));
+            return 1;
+        }
+
     QQmlApplicationEngine qml;
         qml.rootContext()->setContextProperty(QStringLiteral("Engine"), &engine);
         qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), &playlist);
         qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), &view);
         qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
         qml.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
+        qml.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
 
         // A path on the command line fills the playlist and selects the first
         // track, but does not start it. Handing over a directory of several

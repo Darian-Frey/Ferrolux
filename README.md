@@ -6,13 +6,13 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 to 4 built, Phase 5 next.** Transport, a 20,000-entry
+> **Status: Phases 1 to 4 built, Phase 5 under way.** Transport, a 20,000-entry
 > playlist, shuffle, repeat, playlist file I/O, gapless playback, a ten-band
 > equaliser and five shader-rendered meter displays all work, behind a
 > deliberately plain harness. Every display holds 60 fps at 3840×2160 with at
 > least 46% of the frame budget spare — measured, not assumed. There is no panel
-> yet — that is Phase 5, and it is the reason the project exists. See
-> [Status](#status) below.
+> yet — that is Phase 5, and it is the reason the project exists. Its token set
+> and its first lit readouts are in. See [Status](#status) below.
 
 ---
 
@@ -93,7 +93,7 @@ The reasoning for each of these, and the alternatives rejected, is in
 | 2 | Playlist | Feature-complete 2026-09-02 |
 | 3 | Equaliser | Feature-complete 2026-09-02 |
 | 4 | Meters | **Complete** 2026-09-03 |
-| 5 | The panel | Not started |
+| 5 | The panel | In progress |
 | 6 | Desktop integration | Not started |
 | 7 | RS-1 release | Not started |
 

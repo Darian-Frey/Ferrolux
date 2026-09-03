@@ -1,0 +1,59 @@
+{
+  "name": "ferric",
+  "description": "Warm off-white chassis, amber readouts. The default set, and the appearance the project is named for.",
+
+  "palette": {
+    "shell":         "#B4B2A9",
+    "shell-recess":  "#D3D1C7",
+    "shell-edge":    "#888780",
+    "display-bg":    "#2C2C2A",
+    "readout":       "#EF9F27",
+    "readout-dim":   "#BA7517",
+    "readout-floor": "#854F0B",
+    "ink":           "#2C2C2A"
+  },
+
+  "metrics": {
+    "reference-width": 720,
+    "scale-min": 0.75,
+    "scale-max": 3.0,
+
+    "radius-panel":   12,
+    "radius-section":  6,
+    "radius-control":  4,
+    "radius-slot":     2,
+
+    "hairline":        0.5,
+    "bevel":           1.5,
+    "bevel-light":     0.55,
+    "bevel-shadow":    0.35,
+
+    "travel":          1.0,
+    "travel-ms":      40,
+
+    "gap-panel":      14,
+    "gap-section":    12,
+    "gap-control":     6,
+    "pad-section":    12,
+    "pad-row":         3,
+
+    "control-height":  34,
+    "slot-width":       4,
+    "thumb-width":     20,
+    "thumb-height":     7,
+    "fader-travel":    64,
+    "detent":           7
+  },
+
+  "type": {
+    "readout-numeric": "DSEG7 Classic",
+    "readout-text":    "Handjet Light Circle Single",
+    "readout-segment": "DSEG14 Classic",
+    "legend":          "IBM Plex Sans Condensed",
+
+    "size-readout-large": 20,
+    "size-readout":       12,
+    "size-legend":        11,
+    "size-legend-small":  10
+  }
+}

@@ -23,6 +23,64 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-017 The specified Handjet weight renders the dot-matrix face as continuous strokes
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-03, on the first render of the panel's title readout
+**Related:** D-012, F-040, SPEC.md §Typography
+
+SPEC.md instanced Handjet at `wght` 500 and said, in the sentence directly below
+the table, that the value is chosen "for a visible gap between neighbours rather
+than for stroke weight". At 500 there is no gap. The elements touch, and the face
+renders as a condensed sans with notched joins — recognisably not a dot-matrix,
+which is the one thing the role was chosen for.
+
+The value was marked **Provisional** pending Phase 5, so this is the phase doing
+what it was told to; it is logged rather than quietly corrected because the
+document asserted a property its own value did not have, and that is worth being
+able to find again.
+
+Rendered across the axis at the sizes the panel uses, 500 never separates and 300
+does. Below 300 the separation widens and the readout goes faint, so 300 is the
+edge of the useful range rather than a midpoint. **`wght` is now 300.**
+
+A second finding came out of the same render, and it is the more useful one: the
+dot-matrix character has a **minimum size**. Below roughly 20 device-independent
+units the elements merge at any weight, so a title readout at the 13 the mockup
+drew a proportional face at cannot show its dots whatever the instance says.
+`size-readout-large` is 20. A dot-matrix face too small to be one is an expensive
+way to obtain a plain face.
+
+Changing the weight also renames the instance — `fonttools` derives the family
+name from the pinned axes, so it is now `Handjet Light Circle Single` rather than
+`...Medium...`. The token set, the generator and `tests/tokens_test` all name it,
+which is why the test asserts the face Qt actually reports rather than trusting
+the filename.
+
+### BUG-018 SPEC.md cited a Reserved Font Name clause that Handjet does not invoke
+**Status:** fixed
+**Severity:** low
+**Found:** 2026-09-03, while bundling the faces
+**Related:** D-012, SPEC.md §Typography
+
+SPEC.md said the Handjet instance "is renamed rather than shipped under the
+Handjet name" **per the OFL Reserved Font Name clause**. Handjet reserves no
+name. Its licence file carries the phrase exactly once, in the OFL's own
+boilerplate definition of the term, and its copyright line is bare —
+`Copyright 2018 The Handjet Project Authors`, with no `with Reserved Font Name`
+following it. DSEG, bundled alongside, does reserve its name and shows what the
+declaration looks like when it is there.
+
+Nothing was broken by this, which is the reason to record it. A licence
+obligation asserted where none exists is the kind of statement that gets
+believed and repeated, and the next person to touch the font pipeline would have
+worked around a constraint that was never there.
+
+The instance is still not called plain `Handjet`, on the different and better
+ground that it is not Handjet as published: `fonttools` names it for its pinned
+axis values, and shipping a modified file under the unmodified name would
+misreport what is in the package. Corrected in SPEC.md with the evidence.
+
 ### BUG-016 The flame display runs at 37 fps at 3840x2160, and quiet passages are the expensive case
 **Status:** fixed
 **Severity:** high

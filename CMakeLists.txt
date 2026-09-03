@@ -40,6 +40,8 @@ qt_add_executable(ferrolux
     src/meters/MeterTexture.h
     src/meters/FrameTimer.cpp
     src/meters/FrameTimer.h
+    src/ui/ThemeTokens.cpp
+    src/ui/ThemeTokens.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
@@ -65,6 +67,13 @@ qt_add_shaders(ferrolux "ferrolux_meter_shaders"
         qml/shaders/flame.frag
 )
 
+# A QML file carrying `pragma Singleton` is only registered as one if the
+# generated qmldir says so, and that comes from this source property rather than
+# from the pragma. Without it the type still registers, `Tokens` still resolves
+# to an object, and every property on it reads as undefined — which surfaces as
+# colours failing to assign rather than as anything naming the singleton.
+set_source_files_properties(qml/Tokens.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(ferrolux
     URI Ferrolux
     VERSION 1.0
@@ -72,6 +81,31 @@ qt_add_qml_module(ferrolux
     QML_FILES
         qml/Main.qml
         qml/MeterDisplay.qml
+        qml/Tokens.qml
+        qml/Readout.qml
+        qml/DisplayPanel.qml
+)
+
+# The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),
+# compiled in rather than installed alongside. A panel that renders correctly
+# only where its fonts happen to be installed is not resolution-independent
+# chrome, it is a skin with an external dependency — and the point of D-012 was
+# to remove exactly that class of surprise.
+#
+# Licence texts travel with the faces. They are redistributed under the SIL Open
+# Font License 1.1, which requires the notice to accompany the font, and a
+# notice left out of the binary is a notice that did not accompany anything.
+qt_add_resources(ferrolux "ferrolux_panel_assets"
+    PREFIX "/"
+    FILES
+        resources/fonts/DSEG7Classic-Regular.ttf
+        resources/fonts/DSEG14Classic-Regular.ttf
+        resources/fonts/Handjet-Panel.ttf
+        resources/fonts/IBMPlexSansCondensed-Regular.ttf
+        resources/fonts/OFL-DSEG.txt
+        resources/fonts/OFL-Handjet.txt
+        resources/fonts/OFL-IBMPlexSansCondensed.txt
+        resources/themes/ferric.json
 )
 
 target_include_directories(ferrolux PRIVATE src)
@@ -141,6 +175,21 @@ qt_add_executable(acceptance_transport
 )
 target_include_directories(acceptance_transport PRIVATE src)
 target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer)
+
+# Phase 5 token set. Asserts that resources/themes/ferric.json still says what
+# SPEC.md §Design tokens says it says, that every token qml/Tokens.qml names is
+# present, and that the four faces load and report the family names the set asks
+# for. Each of those is a way for the panel to go quietly wrong: a token that
+# resolves to nothing draws black, and a face that fails to load substitutes a
+# system font mid-readout.
+qt_add_executable(tokens_test
+    tests/tokens_test.cpp
+    src/ui/ThemeTokens.cpp
+    src/ui/ThemeTokens.h
+)
+target_include_directories(tokens_test PRIVATE src)
+target_link_libraries(tokens_test PRIVATE Qt6::Gui)
+add_test(NAME tokens COMMAND tokens_test "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Phase 2 playlist tests. Pure logic over URLs, so these are self-contained.
 qt_add_executable(playlist_model_test
