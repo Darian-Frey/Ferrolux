@@ -197,6 +197,14 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   inside the window, and a hand-rolled one fails in exactly the ways nobody
   tests.
 
+- AV-005's detection, which had been outstanding since the documents were
+  written: `tools/verify-scaling.sh` captures the panel at 1×, 1.5×, 2× and 3×
+  and measures the edge rise across a chassis-to-well boundary in device pixels,
+  which is the resampling-artefact check as a number. It holds at one pixel at
+  every ratio, and each capture reduces back to the 1× panel rather than to a
+  different layout. This is the criterion the project exists for, so it is
+  measured rather than asserted.
+
 ### Fixed
 - The equaliser, preamp, volume and balance figures were hard to read, reported
   from use. They were lit readouts standing on the chassis, and a readout needs

@@ -176,7 +176,7 @@ resolution, whereas a bar stuck at silence would read as missing bass.
 - [x] Continuous controls carry a legible scale, and balance has a detent at centre (F-040) — `qml/Slot.qml` serves both orientations, prints a tick scale, and lights its run from an `origin` so a gain reports its departure from flat rather than an amount of something
 - [x] Shuffle and repeat as physical switches (F-040) — `qml/SlideSwitch.qml`, with two detents and three; state is read from the lever, and the marks beneath it are printed on the chassis and never light
 - [ ] Compact mode
-- [ ] Verification pass at 1×, 1.5×, 2× and 3× device pixel ratio
+- [x] Verification pass at 1×, 1.5×, 2× and 3× device pixel ratio — `tools/verify-scaling.sh`, which is also AV-005's detection. One device pixel of edge rise at every ratio, and the panel reduces back to its 1× self rather than reflowing. 1.5× is the worst of the three and still holds, which is the case the whole approach exists for
 
 **Acceptance:** Screenshots at every tested scale factor are pixel-crisp with no resampling. A viewer shown the panel without context reads it as photographed hardware rather than a rendered interface.
 

@@ -215,7 +215,7 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 **Acceptance:**
 - Correct at 1× through 3× device pixel ratio with no resampling artefacts
 - Window resizes continuously rather than snapping to fixed multiples — see AV-005
-**Status:** Not started (Phase 5)
+**Status:** **Met** 2026-09-03, measured by `tools/verify-scaling.sh` rather than asserted. Edge rise holds at one device pixel from 1× to 3×, and each capture reduces back to the 1× panel instead of a differently laid-out one.
 
 ### F-042 Compact mode
 **Priority:** Should

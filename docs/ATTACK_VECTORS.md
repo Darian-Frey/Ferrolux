@@ -99,7 +99,38 @@ the reported excess figure bounds what actually happens.
 ### AV-005 Scaling regression
 **Severity:** Critical
 **Description.** The founding defect of the project. Any element of the control surface that is authored at a fixed pixel size, or any layout that assumes a device pixel ratio of 1, reintroduces exactly the problem Ferrolux exists to avoid. Most likely entry points are icon assets, hairline borders specified in pixels rather than device-independent units, and shader code that assumes a viewport size.
-**Detection.** Not implemented (would require automated screenshot capture at 1×, 1.5×, 2× and 3× device pixel ratio with a resampling-artefact check, run in CI on any change to `qml/`).
+**Detection.** **Implemented**, `tools/verify-scaling.sh`. The panel is captured at
+1×, 1.5×, 2× and 3× device pixel ratio at one logical size, and each capture is
+put to two questions that "it looks fine" runs together.
+
+*Crispness* is the **10–90% rise distance across a chassis-to-well boundary**, in
+device pixels. This is the artefact check, expressed as a number: resampled
+chrome spreads its edges in proportion to the scale, so a bitmap skin would show
+this figure growing with the ratio. Vector geometry and a shader antialiased from
+the screen-space derivative do not.
+
+*Fidelity* reduces each capture back to the 1× size and compares it with the 1×
+capture. It answers a different question — whether it is the same panel or a
+different layout that happens to fit — and catches a design that snaps to whole
+multiples, reflows, or rounds its metrics onto a pixel grid.
+
+Measured 2026-09-03, a 626×330 logical panel: **1 device pixel of edge rise at
+every ratio**, and a mean per-channel difference against 1× of 2.57 at 1.5×, 1.04
+at 2× and 1.06 at 3×. The fractional ratio is the worst of the three, which is
+what this vector predicts and why 1.5× is in the list at all. Not in CI, because
+it needs a display, a window manager and a GPU; it is run by hand and its
+captures can be kept with `FERROLUX_SCALING_SHOTS`.
+
+**The measurement's own trap, twice.** A window manager clamps a window to the
+*monitor* it is on rather than to the desktop, so asking for a size the largest
+ratio cannot fit silently compares a 3× panel with a 1× one and reports the
+difference as a defect — the first run read exactly that way. The default size is
+now derived from the smallest connected monitor. And a window that opens larger
+than the screen is *maximised* by the manager on the way up, after which it
+ignores resize requests entirely; the 3× run came back at the full work area
+until the script learned to unmaximise first. Both are the same shape of error as
+the one recorded against AV-002: a measurement that cannot say what it measured
+is worse than none, because it will be believed.
 **Related decisions.** D-003 (bespoke vector chrome).
 **Related features.** F-040, F-041.
 
