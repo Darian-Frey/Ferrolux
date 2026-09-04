@@ -176,3 +176,44 @@ expose are not visible until those four consumers do, and a facade designed for
 guesses about them would be worse than the refactor it saves. Phase 6 should
 open by building it, not by discovering it is needed.
 
+### IMP-006 The meter shaders carry literal colours, so a theme cannot reach them
+**Status:** suggested
+**Effort:** small
+**Noticed:** 2026-09-04, while making the meter well a `PanelSection`
+**Related:** F-044, D-004, SPEC.md §Design tokens, CLAUDE.md §Conventions
+
+`qml/MeterDisplay.qml` passes literal hexadecimal to its shaders — `barColour`
+`#EF9F27`, `barColourLow` `#BA7517`, `capColour` `#F6D08A`, the flame's
+`frontColour` and `backColour`, and the VU's four. The convention is explicit
+that QML uses design tokens and never literal colours, and the reason is F-044:
+a variant is "a token set over the same geometry", so anything holding a literal
+is geometry a variant cannot reach. Under a second theme the whole panel would
+change and the meters would stay exactly as they are.
+
+Its root was the same until this commit — `color: "#2C2C2A"`, `radius: 3`, both
+predating the token set — so the well the meters sit in could not be themed
+either. That part is fixed; the shader properties are not.
+
+Five of the nine are exact matches for tokens that already exist and are a
+straight substitution: `barColour` and `overColour` are `readout`, `barColourLow`
+and `inkColour` are `readout-dim`, `faceColour` is `display-bg`.
+
+The other four are the problem, and the reason this is logged rather than done.
+`capColour` and `needleColour` (`#F6D08A`) and the flame's two are pale, partly
+desaturated tints with no token behind them, and they are not `Qt.lighter()` of
+`readout` either — the nearest factor lands on `#FFB950`, which is more saturated
+and visibly wrong. So they need either a palette token each, which means
+extending SPEC.md's table and the check in `tests/tokens_test` that asserts it
+has no extras, or a derivation that has to be tuned until it reproduces the
+current appearance and verified by pixel comparison.
+
+The flame's two in particular were chosen by eye by the author over several
+iterations. Substituting a derivation for them without checking is how that work
+gets quietly undone.
+
+**Trade-offs:** Doing it costs a SPEC.md palette change — the table is currently
+eight tokens and deliberately closed — or a tuning exercise against screenshots.
+Leaving it means F-044 ships a theme that visibly does not apply to a fifth of
+the panel, which is worse than not offering the theme. Best done *with* the
+first variant rather than before it, when there is a second palette to test the
+derivations against and the right answer is observable rather than guessed.

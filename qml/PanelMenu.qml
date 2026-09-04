@@ -100,14 +100,15 @@ Popup {
 
                 width: menu.contentWidth
                 height: Tokens.sizeReadout * 1.8
-                // The option in effect is *backlit*, not merely brighter.
-                // Brightness alone gave it 1.7 times the contrast of the rest,
-                // which is not enough to pick out at a glance and left every
-                // other option below the contrast normal text needs. A lit
-                // ground says which one is current and lets them all stay
-                // readable. See BUG-020.
-                color: hover.hovered || index === menu.current
-                       ? Tokens.readoutFloor : "transparent"
+                // The option in effect is *inverted* — the lamp fills the
+                // cell and the word is cut out of it — and a hovered one is
+                // merely backlit, so the two states cannot be confused with
+                // each other. Brightness alone gave the current option 1.7
+                // times the contrast of the rest, which is not enough to pick
+                // out at a glance and left every other option below the
+                // contrast normal text needs. See BUG-020.
+                color: index === menu.current ? Tokens.readout
+                       : hover.hovered ? Tokens.readoutFloor : "transparent"
                 radius: Tokens.radiusSlot
 
                 Readout {
@@ -117,7 +118,7 @@ Popup {
                     anchors.rightMargin: Tokens.gapControl
                     face: Tokens.readoutText
                     size: Tokens.sizeReadout
-                    colour: Tokens.readout
+                    colour: index === menu.current ? Tokens.displayBg : Tokens.readout
                     text: modelData
                 }
 

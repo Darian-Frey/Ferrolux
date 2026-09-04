@@ -170,132 +170,156 @@ ApplicationWindow {
             error: Engine.errorText
         }
 
-        // Position and volume share a row, and volume lives here rather than
-        // down in the mixing section because it is the control reached for
-        // most often while listening — and because compact mode keeps this row
-        // and folds that section away. One control that is present in both
-        // modes beats two instances bound to the same property, which is the
-        // arrangement that drifts.
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Tokens.gapControl
-
-        Slot {
-            id: positionBar
-            Layout.fillWidth: true
-            Layout.preferredHeight: Tokens.controlHeight * 0.6
-            enabled: Engine.seekable
-            from: 0
-            to: Engine.duration > 0 ? Engine.duration : 1
-
-            // The position binding is suspended while the lever is held.
-            // Binding value directly to Engine.position means the per-frame
-            // poll re-asserts it sixty times a second, so a drag is undone
-            // as fast as it is made and the lever appears to snap back.
-            // See BUG-009.
-            Binding on value {
-                when: !positionBar.held
-                value: Engine.position
-                restoreMode: Binding.RestoreNone
-            }
-
-            // Dragging moves the lever; the seek happens on release. Seeking
-            // continuously would ask the pipeline to flush and refill on every
-            // frame of the drag, which stutters the audio for the whole of it.
-            onMoved: function(to) { positionBar.value = to }
-            onReleased: Engine.seek(positionBar.value)
-        }
-
-            // The value is lit because it is a value; the unit beside it is
-            // printed because it names what the value is in. The seven-segment
-            // face has no per-cent sign — digits and separators and nothing
-            // else — so the sign is silkscreened, which is what a deck does.
-            Legend { text: qsTr("vol") }
-            Slot {
-                Layout.preferredWidth: Tokens.controlHeight * 3
-                Layout.preferredHeight: Tokens.controlHeight
-                from: 0; to: 1
-                ticks: 5
-                value: Engine.volume
-                onMoved: function(to) { Engine.volume = to }
-            }
-            Readout {
-                Layout.preferredWidth: Tokens.sizeLegend * 3
-                face: Tokens.readoutNumeric
-                size: Tokens.sizeLegend
-                ghost: "888"
-                alignment: Text.AlignRight
-                text: String(Math.round(Engine.volume * 100))
-                ground: Tokens.displayBg
-                inset: Tokens.hairline * 4
-            }
-            Legend { text: qsTr("%") }
-        }
-
         // ---- transport ---------------------------------------------------
-        // Moulded controls with drawn marks. Play latches while the pipeline is
-        // playing, which is the lamp behind the button rather than the finger
-        // on it: `activated` and `pressed` are different states and look it.
-        RowLayout {
+        // Position, volume and the transport keys on one raised plate, the
+        // way a deck mounts its transport as a module rather than setting
+        // each control into the chassis on its own. It is the same treatment
+        // the equaliser drawer already had; giving it to the controls that
+        // are used most is what stops the panel reading as a list of parts.
+        //
+        // Compact mode keeps this plate and folds everything else, so the
+        // strip is a module rather than a few controls left behind.
+        PanelSection {
+            recessed: false
+            title: qsTr("transport")
             Layout.fillWidth: true
-            spacing: Tokens.gapControl
+            Layout.preferredHeight: transportPlate.implicitHeight + Tokens.padSection * 2
 
-            PanelButton {
+            ColumnLayout {
+                id: transportPlate
+                anchors.fill: parent
+                anchors.margins: Tokens.padSection
+                spacing: Tokens.gapControl
+
+            // Position and volume share a row, and volume lives here rather than
+            // down in the mixing section because it is the control reached for
+            // most often while listening — and because compact mode keeps this row
+            // and folds that section away. One control that is present in both
+            // modes beats two instances bound to the same property, which is the
+            // arrangement that drifts.
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                onClicked: Engine.previous()
-                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Previous }
-            }
-            PanelButton {
+                spacing: Tokens.gapControl
+
+            Slot {
+                id: positionBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                activated: window.stateNames[Engine.state] === "Playing"
-                onClicked: Engine.play()
-                TransportGlyph {
-                    anchors.fill: parent
-                    mark: TransportGlyph.Play
-                    // On an amber face the mark is printed in the darkest of the
-                    // readout ambers rather than in `ink`: black on amber reads
-                    // as a hole punched in the lamp, where the deeper amber
-                    // reads as ink on a lit surface.
-                    ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
+                Layout.preferredHeight: Tokens.controlHeight * 0.6
+                enabled: Engine.seekable
+                from: 0
+                to: Engine.duration > 0 ? Engine.duration : 1
+
+                // The position binding is suspended while the lever is held.
+                // Binding value directly to Engine.position means the per-frame
+                // poll re-asserts it sixty times a second, so a drag is undone
+                // as fast as it is made and the lever appears to snap back.
+                // See BUG-009.
+                Binding on value {
+                    when: !positionBar.held
+                    value: Engine.position
+                    restoreMode: Binding.RestoreNone
                 }
-            }
-            PanelButton {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                activated: window.stateNames[Engine.state] === "Paused"
-                onClicked: Engine.pause()
-                TransportGlyph {
-                    anchors.fill: parent
-                    mark: TransportGlyph.Pause
-                    ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
-                }
-            }
-            PanelButton {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                onClicked: Engine.stop()
-                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Stop }
-            }
-            PanelButton {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                onClicked: Playlist.advance()
-                TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Next }
+
+                // Dragging moves the lever; the seek happens on release. Seeking
+                // continuously would ask the pipeline to flush and refill on every
+                // frame of the drag, which stutters the audio for the whole of it.
+                onMoved: function(to) { positionBar.value = to }
+                onReleased: Engine.seek(positionBar.value)
             }
 
-            // The shade. Narrower than the transport controls and not stretched
-            // with them: it is not one of the transport, and a control that
-            // looked like one would be reached for by mistake.
-            PanelButton {
-                Layout.preferredWidth: Tokens.controlHeight
-                Layout.preferredHeight: Tokens.controlHeight
-                onClicked: window.compact = !window.compact
-                TransportGlyph {
-                    anchors.fill: parent
-                    mark: window.compact ? TransportGlyph.RollDown : TransportGlyph.RollUp
+                // The value is lit because it is a value; the unit beside it is
+                // printed because it names what the value is in. The seven-segment
+                // face has no per-cent sign — digits and separators and nothing
+                // else — so the sign is silkscreened, which is what a deck does.
+                Legend { text: qsTr("vol") }
+                Slot {
+                    Layout.preferredWidth: Tokens.controlHeight * 3
+                    Layout.preferredHeight: Tokens.controlHeight
+                    from: 0; to: 1
+                    ticks: 5
+                    value: Engine.volume
+                    onMoved: function(to) { Engine.volume = to }
                 }
+                Readout {
+                    Layout.preferredWidth: Tokens.sizeLegend * 3
+                    face: Tokens.readoutNumeric
+                    size: Tokens.sizeLegend
+                    ghost: "888"
+                    alignment: Text.AlignRight
+                    text: String(Math.round(Engine.volume * 100))
+                    ground: Tokens.displayBg
+                    inset: Tokens.hairline * 4
+                }
+                Legend { text: qsTr("%") }
+            }
+
+            // ---- transport ---------------------------------------------------
+            // Moulded controls with drawn marks. Play latches while the pipeline is
+            // playing, which is the lamp behind the button rather than the finger
+            // on it: `activated` and `pressed` are different states and look it.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Tokens.gapControl
+
+                PanelButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Tokens.controlHeight
+                    onClicked: Engine.previous()
+                    TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Previous }
+                }
+                PanelButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Tokens.controlHeight
+                    activated: window.stateNames[Engine.state] === "Playing"
+                    onClicked: Engine.play()
+                    TransportGlyph {
+                        anchors.fill: parent
+                        mark: TransportGlyph.Play
+                        // On an amber face the mark is printed in the darkest of the
+                        // readout ambers rather than in `ink`: black on amber reads
+                        // as a hole punched in the lamp, where the deeper amber
+                        // reads as ink on a lit surface.
+                        ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
+                    }
+                }
+                PanelButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Tokens.controlHeight
+                    activated: window.stateNames[Engine.state] === "Paused"
+                    onClicked: Engine.pause()
+                    TransportGlyph {
+                        anchors.fill: parent
+                        mark: TransportGlyph.Pause
+                        ink: parent.activated ? Tokens.readoutFloor : Tokens.ink
+                    }
+                }
+                PanelButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Tokens.controlHeight
+                    onClicked: Engine.stop()
+                    TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Stop }
+                }
+                PanelButton {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Tokens.controlHeight
+                    onClicked: Playlist.advance()
+                    TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Next }
+                }
+
+                // The shade. Narrower than the transport controls and not stretched
+                // with them: it is not one of the transport, and a control that
+                // looked like one would be reached for by mistake.
+                PanelButton {
+                    Layout.preferredWidth: Tokens.controlHeight
+                    Layout.preferredHeight: Tokens.controlHeight
+                    onClicked: window.compact = !window.compact
+                    TransportGlyph {
+                        anchors.fill: parent
+                        mark: window.compact ? TransportGlyph.RollDown : TransportGlyph.RollUp
+                    }
+                }
+            }
+
             }
         }
 
@@ -383,6 +407,7 @@ ApplicationWindow {
         // display is what the palette describes and what a deck actually has.
         PanelSection {
             visible: !window.compact
+            title: qsTr("programme")
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -428,11 +453,18 @@ ApplicationWindow {
                     readonly property int sourceRow: PlaylistView.toSourceRow(index)
                     readonly property bool selected: window.selection.indexOf(sourceRow) >= 0
 
-                    // A selected row is backlit rather than inverted. The
-                    // dimmest amber in the palette is the whole of it: a
-                    // highlight colour from the system theme would be the one
-                    // thing on the panel that changed with the desktop.
-                    color: selected ? Tokens.readoutFloor : "transparent"
+                    // A selected row is *inverted*: the lamp fills the cell and
+                    // the text is cut out of it in the colour of the unlit
+                    // display. This is what a panel does to say "this one" —
+                    // the whole segment lights and the glyph becomes the hole
+                    // in it — and it is unmistakable in a way that a change of
+                    // brightness is not. A backlight in the dimmest amber was
+                    // the previous answer and it was too quiet to find.
+                    //
+                    // Never a highlight colour from the system theme: that
+                    // would be the one thing on the panel that changed with the
+                    // desktop.
+                    color: selected ? Tokens.readout : "transparent"
                     radius: Tokens.radiusSlot
 
                     // Drag reorder (F-011). Disabled while a filter is active:
@@ -505,7 +537,7 @@ ApplicationWindow {
                             Layout.preferredWidth: Tokens.sizeReadout
                             Layout.preferredHeight: Tokens.sizeReadout
                             mark: TransportGlyph.Play
-                            ink: Tokens.readout
+                            ink: row.selected ? Tokens.displayBg : Tokens.readout
                             visible: isCurrent
                         }
                         Item {
@@ -536,16 +568,18 @@ ApplicationWindow {
                             // read so much as one to be noticed as unavailable,
                             // and there is no red on this display to say so
                             // with. 3 == MetadataState::Missing, 2 == Failed.
-                            colour: (metadataState === 3 || metadataState === 2)
-                                        ? Tokens.readoutFloor
-                                        : Tokens.readout
+                            colour: row.selected
+                                        ? Tokens.displayBg
+                                        : (metadataState === 3 || metadataState === 2)
+                                              ? Tokens.readoutFloor
+                                              : Tokens.readout
                             text: artist !== "" ? artist + " — " + title : title
                         }
                         Readout {
                             Layout.fillHeight: true
                             face: Tokens.readoutNumeric
                             size: Tokens.sizeReadout
-                            colour: Tokens.readout
+                            colour: row.selected ? Tokens.displayBg : Tokens.readout
                             alignment: Text.AlignRight
                             width: implicitWidth
                             text: window.formatTime(duration)
@@ -559,6 +593,7 @@ ApplicationWindow {
         // same shaders this window shows. See AV-002.
         MeterDisplay {
             visible: !window.compact
+            title: qsTr("level")
             Layout.fillWidth: true
             Layout.preferredHeight: 92
         }
@@ -760,80 +795,115 @@ ApplicationWindow {
             }
         }
 
-        // ---- play order and mixing --------------------------------------
+        // ---- play order and output --------------------------------------
+        // Two slim plates rather than one. The controls at either end of this
+        // row do different jobs — shuffle and repeat decide what plays next,
+        // balance decides what comes out — and a single plate spanning both
+        // would be mostly empty in the middle, which is a worse use of a
+        // surface than leaving the chassis showing between two modules.
         RowLayout {
             visible: !window.compact
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Tokens.gapSection
 
-            // Settings, not actions, so they are switches and not buttons —
-            // F-040 names the cycling buttons that used to be here as exactly
-            // what it excludes. The lever reports the state; the marks beneath
-            // it are printed on the chassis and never light up.
-            ColumnLayout {
-                spacing: 0
-                Legend { text: qsTr("shuffle"); font.pixelSize: Tokens.sizeLegendSmall }
-                SlideSwitch {
-                    Layout.preferredHeight: Tokens.controlHeight
-                    positions: [qsTr("off"), qsTr("on")]
-                    current: Playlist.shuffle ? 1 : 0
-                    onThrown: function(position) { Playlist.shuffle = position === 1 }
+            PanelSection {
+                recessed: false
+                title: qsTr("play order")
+                Layout.preferredWidth: orderRow.implicitWidth + Tokens.padSection * 2
+                Layout.preferredHeight: orderRow.implicitHeight + Tokens.padSection * 2
+
+                RowLayout {
+                    id: orderRow
+                    anchors.fill: parent
+                    anchors.margins: Tokens.padSection
+                    spacing: Tokens.gapControl
+
+                // Settings, not actions, so they are switches and not buttons —
+                // F-040 names the cycling buttons that used to be here as exactly
+                // what it excludes. The lever reports the state; the marks beneath
+                // it are printed on the chassis and never light up.
+                ColumnLayout {
+                    spacing: 0
+                    Legend { text: qsTr("shuffle"); font.pixelSize: Tokens.sizeLegendSmall }
+                    SlideSwitch {
+                        Layout.preferredHeight: Tokens.controlHeight
+                        positions: [qsTr("off"), qsTr("on")]
+                        current: Playlist.shuffle ? 1 : 0
+                        onThrown: function(position) { Playlist.shuffle = position === 1 }
+                    }
+                }
+                ColumnLayout {
+                    spacing: 0
+                    Legend { text: qsTr("repeat"); font.pixelSize: Tokens.sizeLegendSmall }
+                    SlideSwitch {
+                        Layout.preferredHeight: Tokens.controlHeight
+                        // Three detents rather than a boolean with a special case:
+                        // a three-position slide switch is an ordinary object.
+                        positions: [qsTr("off"), qsTr("all"), qsTr("one")]
+                        current: Playlist.repeat
+                        onThrown: function(position) { Playlist.repeat = position }
+                    }
+                }
                 }
             }
-            ColumnLayout {
-                spacing: 0
-                Legend { text: qsTr("repeat"); font.pixelSize: Tokens.sizeLegendSmall }
-                SlideSwitch {
-                    Layout.preferredHeight: Tokens.controlHeight
-                    // Three detents rather than a boolean with a special case:
-                    // a three-position slide switch is an ordinary object.
-                    positions: [qsTr("off"), qsTr("all"), qsTr("one")]
-                    current: Playlist.repeat
-                    onThrown: function(position) { Playlist.repeat = position }
-                }
-            }
+
             Item { Layout.fillWidth: true }
 
-            // Balance is set once and left, so it stays in the mixing section
-            // with the play-order switches. Volume is not, and has moved up to
-            // the transport row. Both are continuous controls that are set
-            // rather than watched, so both carry a printed scale.
-            Legend { text: qsTr("bal") }
-            Slot {
-                Layout.preferredWidth: Tokens.controlHeight * 3
-                Layout.preferredHeight: Tokens.controlHeight
-                from: -1; to: 1
+            PanelSection {
+                recessed: false
+                title: qsTr("output")
+                Layout.preferredWidth: outputRow.implicitWidth + Tokens.padSection * 2
+                Layout.preferredHeight: outputRow.implicitHeight + Tokens.padSection * 2
 
-                // Centre is the origin as well as the detent: the lit run
-                // reports a departure from centre, so a control set to the
-                // middle shows no run at all, which is exactly what "centred"
-                // should look like.
-                origin: 0
-                detent: 0
-                detentRange: 0.04
-                ticks: 5
-                value: Engine.balance
-                onMoved: function(to) { Engine.balance = to }
-            }
-            Readout {
-                Layout.preferredWidth: Tokens.sizeLegend * 4
-                face: Tokens.readoutNumeric
-                size: Tokens.sizeLegend
-                alignment: Text.AlignRight
-                // Nothing lit when centred. A seven-segment field cannot spell
-                // "centre" — it cannot tell 5 from S — and the absence of a
-                // reading against an unlit run is the clearer statement anyway.
-                ghost: "88"
-                text: Math.abs(Engine.balance) < 0.005
-                      ? ""
-                      : String(Math.round(Math.abs(Engine.balance) * 100))
-                ground: Tokens.displayBg
-                inset: Tokens.hairline * 4
-            }
-            Legend {
-                Layout.preferredWidth: Tokens.sizeLegend
-                text: Math.abs(Engine.balance) < 0.005 ? ""
-                      : (Engine.balance < 0 ? qsTr("L") : qsTr("R"))
+                RowLayout {
+                    id: outputRow
+                    anchors.fill: parent
+                    anchors.margins: Tokens.padSection
+                    spacing: Tokens.gapControl
+
+
+                // Balance is set once and left, so it stays in the mixing section
+                // with the play-order switches. Volume is not, and has moved up to
+                // the transport row. Both are continuous controls that are set
+                // rather than watched, so both carry a printed scale.
+                Legend { text: qsTr("bal") }
+                Slot {
+                    Layout.preferredWidth: Tokens.controlHeight * 3
+                    Layout.preferredHeight: Tokens.controlHeight
+                    from: -1; to: 1
+
+                    // Centre is the origin as well as the detent: the lit run
+                    // reports a departure from centre, so a control set to the
+                    // middle shows no run at all, which is exactly what "centred"
+                    // should look like.
+                    origin: 0
+                    detent: 0
+                    detentRange: 0.04
+                    ticks: 5
+                    value: Engine.balance
+                    onMoved: function(to) { Engine.balance = to }
+                }
+                Readout {
+                    Layout.preferredWidth: Tokens.sizeLegend * 4
+                    face: Tokens.readoutNumeric
+                    size: Tokens.sizeLegend
+                    alignment: Text.AlignRight
+                    // Nothing lit when centred. A seven-segment field cannot spell
+                    // "centre" — it cannot tell 5 from S — and the absence of a
+                    // reading against an unlit run is the clearer statement anyway.
+                    ghost: "88"
+                    text: Math.abs(Engine.balance) < 0.005
+                          ? ""
+                          : String(Math.round(Math.abs(Engine.balance) * 100))
+                    ground: Tokens.displayBg
+                    inset: Tokens.hairline * 4
+                }
+                Legend {
+                    Layout.preferredWidth: Tokens.sizeLegend
+                    text: Math.abs(Engine.balance) < 0.005 ? ""
+                          : (Engine.balance < 0 ? qsTr("L") : qsTr("R"))
+                }
+                }
             }
         }
     }

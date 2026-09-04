@@ -75,6 +75,7 @@ const QStringList kMetricTokens = {
     QStringLiteral("hairline"),        QStringLiteral("bevel"),
     QStringLiteral("bevel-light"),     QStringLiteral("bevel-shadow"),
     QStringLiteral("travel"),          QStringLiteral("travel-ms"),
+    QStringLiteral("recess"),
     QStringLiteral("gap-panel"),       QStringLiteral("gap-section"),
     QStringLiteral("gap-control"),     QStringLiteral("pad-section"),
     QStringLiteral("pad-row"),         QStringLiteral("control-height"),

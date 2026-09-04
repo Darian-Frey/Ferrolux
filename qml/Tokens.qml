@@ -85,6 +85,11 @@ QtObject {
     readonly property real travel: Theme.metric("travel") * scale
     readonly property int travelMs: Theme.metric("travel-ms")
 
+    // How deep a well is sunk, as distinct from `bevel`, which is how the lip
+    // of a raised face is lit. A recess has a wall; a bevel is a highlight on
+    // an edge. Naming them apart because they are a letter apart.
+    readonly property real recess: Theme.metric("recess") * scale
+
     readonly property real gapPanel: Theme.metric("gap-panel") * scale
     readonly property real gapSection: Theme.metric("gap-section") * scale
     readonly property real gapControl: Theme.metric("gap-control") * scale

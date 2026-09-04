@@ -26,10 +26,36 @@ Rectangle {
     // holds controls that are touched.
     property bool recessed: true
 
+    // What the section is called, silkscreened on the chassis beside it. A
+    // legend by SPEC.md's rule — it names a thing and never changes — so `ink`,
+    // never lit. Empty for a section that needs no label.
+    property string title: ""
+
     color: recessed ? Tokens.displayBg : Tokens.shellRecess
     radius: Tokens.radiusSection
     border.width: Tokens.hairline
     border.color: Tokens.shellEdge
+
+    // The wall of the recess. A well is not a dark rectangle: it has a depth,
+    // and what shows that depth is the shadow the near wall casts across the
+    // top of it. One hairline of lip was doing this job before and it read as a
+    // change of colour rather than a change of level.
+    Rectangle {
+        visible: section.recessed
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.leftMargin: Tokens.radiusSection
+        anchors.rightMargin: Tokens.radiusSection
+        anchors.topMargin: Tokens.hairline
+        height: Tokens.recess
+        radius: Tokens.radiusSlot
+
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.darker(Tokens.displayBg, Tokens.bevelShadow * 1.3) }
+            GradientStop { position: 1.0; color: Tokens.displayBg }
+        }
+    }
 
     // The lip. One hairline of light along the bottom of a well, or along the
     // top of a raised surface — the edge that faces the light, in either case.
@@ -47,5 +73,17 @@ Rectangle {
         height: Tokens.hairline
         color: section.recessed ? Qt.lighter(Tokens.displayBg, Tokens.bevelLight)
                                 : Qt.lighter(Tokens.shellRecess, Tokens.bevelLight)
+    }
+
+    // The section's name, printed on the chassis above its top-left corner.
+    // Outside the section rather than in it: a label inside a lit well would
+    // have to be lit, and a legend that lights is a lamp that means nothing.
+    Legend {
+        visible: section.title !== ""
+        text: section.title
+        font.pixelSize: Tokens.sizeLegendSmall
+        anchors.left: parent.left
+        anchors.bottom: parent.top
+        anchors.bottomMargin: Tokens.hairline * 2
     }
 }

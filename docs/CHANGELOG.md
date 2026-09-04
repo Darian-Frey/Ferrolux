@@ -234,6 +234,29 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   the second being the one that is easy to miss and the more visible, since
   without it a track starts showing a file name and never stops.
 
+- The transport is a mounted plate. Position, volume and the transport keys sit
+  on one raised surface with its name silkscreened beside it, the way a deck
+  mounts its transport as a module rather than setting each control into the
+  chassis on its own — the same treatment the equaliser drawer already had.
+  Compact mode keeps that plate, so the strip is a module rather than a few
+  controls left behind.
+- Wells have a wall: the shadow the near edge casts across the top of a recess.
+  One hairline of lip was doing that job and read as a change of colour rather
+  than a change of level.
+- A selected row and the current preset are *inverted* — the lamp fills the cell
+  and the text is cut out of it in the colour of the unlit display — which is
+  how a panel says "this one". A hovered menu option stays merely backlit, so
+  the two states cannot be confused. Backlighting alone was too quiet to find.
+- Drawn fasteners were tried at the corners of each module and removed: they did
+  not read as fittings at panel sizes, and the plate treatment says "mounted
+  module" without them. Kept in the history rather than in the tree.
+- `MeterDisplay` is a `PanelSection` rather than a bare Rectangle. Its root
+  carried `color: "#2C2C2A"` and `radius: 3` as literals predating the token
+  set, so a theme could change every surface on the panel except the one the
+  meters sit in. Its shaders still hold literal colours, which blocks F-044 in
+  the same way; logged as IMP-006 rather than guessed at, because four of them
+  are tints the author tuned by eye and no derivation reproduces them.
+
 ### Fixed
 - The display showed the file name while the playlist row beneath it showed
   the tags — `01 - Carousel.mp3` under `Blink-182 — Carousel`, the same fact in

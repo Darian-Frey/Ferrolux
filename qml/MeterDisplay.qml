@@ -14,10 +14,13 @@
 import QtQuick
 import Ferrolux
 
-Rectangle {
+// A well like every other, rather than a rectangle that happens to be the same
+// colour as one. It carried literal hex and a literal radius from before the
+// token set existed — which meant a theme could change every surface on the
+// panel except the one the meters sit in.
+PanelSection {
     id: meterPanel
-    color: "#2C2C2A"
-    radius: 3
+    recessed: true
 
     // Band values, resident on the GPU. Draws nothing itself — it
     // exists to be sampled, and builds its texture during scene graph

@@ -38,6 +38,26 @@ Rectangle {
 
     color: Tokens.displayBg
     radius: Tokens.radiusSection
+    border.width: Tokens.hairline
+    border.color: Tokens.shellEdge
+
+    // The wall of the recess: a well has a depth, and the shadow the near wall
+    // casts across the top of it is what shows that. See PanelSection, which
+    // does the same thing for every other well on the panel.
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.leftMargin: Tokens.radiusSection
+        anchors.rightMargin: Tokens.radiusSection
+        anchors.topMargin: Tokens.hairline
+        height: Tokens.recess
+        radius: Tokens.radiusSlot
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.darker(Tokens.displayBg, Tokens.bevelShadow * 1.3) }
+            GradientStop { position: 1.0; color: Tokens.displayBg }
+        }
+    }
 
     // Nanoseconds to m:ss, or h:mm:ss once there is an hour to show. The field
     // widens by a whole cell when it does, which is why the ghost is built from

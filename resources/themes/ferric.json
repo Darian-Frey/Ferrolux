@@ -31,6 +31,8 @@
     "travel":          2.0,
     "travel-ms":      40,
 
+    "recess":          3,
+
     "gap-panel":      14,
     "gap-section":    12,
     "gap-control":     6,
