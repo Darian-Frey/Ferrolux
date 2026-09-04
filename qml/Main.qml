@@ -473,21 +473,34 @@ ApplicationWindow {
                             Layout.fillHeight: true
                             face: Tokens.readoutText
                             size: Tokens.sizeReadout
-                            // One lamp, three brightnesses. A missing or
-                            // unreadable file is the dimmest rather than red:
-                            // there is no red on this display, and dimming is
-                            // what a lit indicator does when its subject is not
-                            // there. 3 == MetadataState::Missing, 2 == Failed.
+                            // Every row is lit at full brightness, and what is
+                            // playing is said by the mark beside it rather than
+                            // by the others being dimmed.
+                            //
+                            // Dimming them was the first design and it was
+                            // wrong: `readout-dim` is 3.8:1 against the well,
+                            // under the 4.5:1 that normal text needs, and this
+                            // is a dot-matrix face, which is harder to read
+                            // than a plain one at the same contrast. It made
+                            // the bulk of the playlist the least legible thing
+                            // on the panel to distinguish one row that already
+                            // had a mark of its own. See BUG-020.
+                            //
+                            // A missing or unreadable file is still dimmed, and
+                            // that one is deliberate: it is not a row to be
+                            // read so much as one to be noticed as unavailable,
+                            // and there is no red on this display to say so
+                            // with. 3 == MetadataState::Missing, 2 == Failed.
                             colour: (metadataState === 3 || metadataState === 2)
                                         ? Tokens.readoutFloor
-                                        : (isCurrent ? Tokens.readout : Tokens.readoutDim)
+                                        : Tokens.readout
                             text: artist !== "" ? artist + " — " + title : title
                         }
                         Readout {
                             Layout.fillHeight: true
                             face: Tokens.readoutNumeric
                             size: Tokens.sizeReadout
-                            colour: isCurrent ? Tokens.readout : Tokens.readoutDim
+                            colour: Tokens.readout
                             alignment: Text.AlignRight
                             width: implicitWidth
                             text: window.formatTime(duration)

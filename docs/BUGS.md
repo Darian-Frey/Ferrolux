@@ -51,6 +51,48 @@ harness displayed the same wrong value in a combo box and nobody looked.
 
 ## Fixed
 
+### BUG-020 The playlist and the preset list are hard to read
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-04, reported from use
+**Related:** BUG-017, F-040, SPEC.md §Design tokens, §Typography
+
+Two independent causes with the same symptom, which is why fixing either alone
+would have left it half wrong.
+
+**The colour.** `readout-dim` is **3.76:1** against `display-bg`, below the 4.5:1
+that normal text needs, and it was carrying the bulk of the panel's text: every
+playlist row that was not playing, and every preset that was not selected. The
+readout faces are dot-matrix and segmented rather than plain, which asks more of
+the contrast rather than less. The current row and the current preset were
+`readout` at 6.44:1 — a ratio of only **1.7×**, which is both too little to pick
+out at a glance and paid for by making everything around it illegible.
+
+The "one lamp, three brightnesses" idea was mine and it was applied to the wrong
+things. A single-colour display does distinguish by brightness, but it does not
+dim the text you are meant to read in order to emphasise one line that already
+carries a mark of its own. Rows and options are lit at full brightness now; what
+is playing is said by the mark beside it, and the preset in effect is *backlit*
+rather than merely brighter. A lit ground is unmistakable and costs the other
+options nothing.
+
+Dimming is kept for the one case that is about state rather than emphasis: a
+missing or unreadable file, which is not a row to be read so much as one to be
+noticed as unavailable, and there is no red on this display to say so with.
+
+**The weight.** BUG-017 moved Handjet from `wght` 500 to 300, because at 500 the
+elements touch and the face renders as continuous strokes. 300 was an
+overcorrection. The separation it buys only exists above roughly 20 units, and a
+playlist row is 16 — so in the list it bought nothing and cost stroke weight,
+which is exactly where the reading happens. Rendered side by side at 16, 400 is
+legibly heavier than 300 and still separates at the sizes where separation is
+possible. **`wght` is now 400**, and the instance is named `Handjet Circle Single`.
+
+The two faults compounded. Thin strokes at 3.76:1 is a good deal worse than
+either alone, which is why this arrived as "a little difficult to read" rather
+than as anything obviously broken — and why the first plausible explanation for
+it, taken alone, would have produced a fix that did not work.
+
 ### BUG-017 The specified Handjet weight renders the dot-matrix face as continuous strokes
 **Status:** fixed
 **Severity:** medium

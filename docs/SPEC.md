@@ -384,6 +384,8 @@ Panel appearance is defined by a named token set, resolved at load. The `ferric`
 | `readout-floor` | `#854F0B` | Lowest active segment, and the unlit-segment ghost layer |
 | `ink` | `#2C2C2A` | Legends on the shell |
 
+**`readout-dim` is not a body-text colour.** At 3.76:1 against `display-bg` it is below the 4.5:1 that normal text needs, and the readout faces are dot-matrix and segmented rather than plain, which asks more of the contrast rather than less. It is for annotation beside something else — a transport state under a title, a mode name, a secondary bar in a display — and never for text a reader is working through. Where one item among many has to be distinguished, light the *ground* behind it rather than dimming its neighbours: a backlit row is unmistakable and leaves everything else readable, where brightness alone gives 1.7× and costs the rest their legibility. See BUG-020.
+
 **`display-bg` is a requirement, not a label.** A readout is lit text over an unlit ghost, and that arrangement only works over a ground darker than both layers. Put one on the chassis instead and the relationship inverts: `readout-floor` is a dark brown with *more* contrast against the light shell than the amber value drawn over it, so the segments that are off read louder than the number that is on. The field is then drawn exactly to specification and is hard to read because of it — which is how it reached a screenshot before anyone noticed. Every readout therefore sits in a well or carries its own window, as the numerals on a deck do.
 
 Bevel geometry, corner radii and the type scale are specified alongside the palette in the token file rather than here, because they are authored as data. The faces themselves are not data — they are fixed for the project and are specified below. Components reference tokens by name and never contain literal colour values; this is what makes F-044 a token swap rather than an asset pack.
@@ -422,11 +424,13 @@ Setting a variable axis at runtime requires `QFont::setVariableAxis`, introduced
 |------|-------|--------------|--------|
 | `ELSH` | 0.0–16.0 | 8.0 | Element shape. 2.0 is a square, 8.0 a circle. Confirmed 2026-09-03. |
 | `ELGR` | 1.0–2.0 | 1.0 | Elements per grid unit. 1.0 is one element per cell; 2.0 is a 2×2 group. Confirmed 2026-09-03. |
-| `wght` | 100–900 | **300** | Element size, and therefore the gap between adjacent dots. Was 500; see below. |
+| `wght` | 100–900 | **400** | Element size, and therefore the gap between adjacent dots. Was 500, then 300; see below. |
 
 Weight here controls spacing, not boldness. A physical dot-matrix cell shows discrete separated dots, so the value is chosen for a visible gap between neighbours rather than for stroke weight.
 
-**500 did not meet that intent and 300 does.** Rendered across the axis, the elements at 500 touch at every size the panel uses, and the face reads as continuous strokes — a condensed sans with notches, not a dot-matrix. Separation becomes visible at 300 and clearer below it, at the cost of the readout going faint. Recorded as BUG-017.
+**500 did not meet that intent, and 300 overcorrected.** Rendered across the axis, the elements at 500 touch at every size the panel uses, and the face reads as continuous strokes — a condensed sans with notches, not a dot-matrix. Separation becomes visible at 300 and clearer below it, at the cost of the readout going faint. Recorded as BUG-017.
+
+300 then proved too light to read in a list. The separation it buys only exists above the minimum size below, and a playlist row is under it — so the thinness bought nothing there and cost stroke weight where the reading actually happens. 400 separates at the sizes where separation is possible and is legibly heavier at list size. Recorded as BUG-020.
 
 Two consequences follow, and neither is optional:
 

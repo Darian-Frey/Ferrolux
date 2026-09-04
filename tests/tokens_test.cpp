@@ -103,7 +103,7 @@ struct FaceEntry
 
 constexpr FaceEntry kFaces[] = {
     { "DSEG7Classic-Regular.ttf",        "DSEG7 Classic",                "readout-numeric" },
-    { "Handjet-Panel.ttf",               "Handjet Light Circle Single", "readout-text" },
+    { "Handjet-Panel.ttf",               "Handjet Circle Single", "readout-text" },
     { "DSEG14Classic-Regular.ttf",       "DSEG14 Classic",               "readout-segment" },
     { "IBMPlexSansCondensed-Regular.ttf","IBM Plex Sans Condensed",      "legend" },
 };

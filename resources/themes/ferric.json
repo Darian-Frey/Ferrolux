@@ -47,7 +47,7 @@
 
   "type": {
     "readout-numeric": "DSEG7 Classic",
-    "readout-text":    "Handjet Light Circle Single",
+    "readout-text":    "Handjet Circle Single",
     "readout-segment": "DSEG14 Classic",
     "legend":          "IBM Plex Sans Condensed",
 

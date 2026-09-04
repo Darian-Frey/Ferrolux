@@ -100,7 +100,14 @@ Popup {
 
                 width: menu.contentWidth
                 height: Tokens.sizeReadout * 1.8
-                color: hover.hovered ? Tokens.readoutFloor : "transparent"
+                // The option in effect is *backlit*, not merely brighter.
+                // Brightness alone gave it 1.7 times the contrast of the rest,
+                // which is not enough to pick out at a glance and left every
+                // other option below the contrast normal text needs. A lit
+                // ground says which one is current and lets them all stay
+                // readable. See BUG-020.
+                color: hover.hovered || index === menu.current
+                       ? Tokens.readoutFloor : "transparent"
                 radius: Tokens.radiusSlot
 
                 Readout {
@@ -110,7 +117,7 @@ Popup {
                     anchors.rightMargin: Tokens.gapControl
                     face: Tokens.readoutText
                     size: Tokens.sizeReadout
-                    colour: index === menu.current ? Tokens.readout : Tokens.readoutDim
+                    colour: Tokens.readout
                     text: modelData
                 }
 

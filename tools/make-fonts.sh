@@ -82,16 +82,24 @@ from fontTools.varLib import instancer
 # visible gap rather than for stroke weight. SPEC.md carried 500 as provisional
 # pending this phase, and 500 does not meet its own stated intent — at 500 the
 # elements touch and the face renders as continuous strokes at every size the
-# panel uses. 300 separates them while staying legible. Below 300 the dots
-# separate further but the readout goes faint. See BUG-017.
-AXES = {"ELSH": 8.0, "ELGR": 1.0, "wght": 300.0}
+# panel uses (BUG-017).
+#
+# 300 was the first correction and went too far the other way: it separates the
+# dots at the sizes where they can separate at all, and below about 20 units
+# they cannot, so in a playlist row it bought nothing and cost stroke weight.
+# Reported as hard to read. 400 keeps the separation at readout sizes and is
+# legibly heavier in a list. See BUG-020.
+#
+# Only weights the file names in its own STAT table can be instanced to;
+# fonttools refuses an unnamed one rather than inventing a name for it.
+AXES = {"ELSH": 8.0, "ELGR": 1.0, "wght": 400.0}
 
 font = ttLib.TTFont(sys.argv[1])
 instancer.instantiateVariableFont(font, AXES, inplace=True, updateFontNames=True)
 font.save(sys.argv[2])
 
 # updateFontNames derives a family name from the pinned axis values, which is
-# how the instance ends up as "Handjet Light Circle Single" rather than as
+# how the instance ends up as "Handjet Circle Single" rather than as
 # plain "Handjet". That is the name the panel asks for, and it is deliberate:
 # the file is not Handjet as published, and naming it as though it were would
 # misreport what has been shipped.
