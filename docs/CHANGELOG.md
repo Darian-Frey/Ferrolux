@@ -287,6 +287,26 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   clause gets a new home.
 
 ### Fixed
+- BUG-019: the equaliser preset name was written on exit and never read, so the
+  field reported `flat` after a restart over whatever curve had been restored.
+  `Equaliser::adoptPreset` takes a remembered name as a label and only when the
+  loaded curve still is that preset — resolved the way `applyPreset` resolves it,
+  compared to a hundredth of a decibel, and judging a built-in on its bands alone
+  because ten bands is all a built-in defines.
+- Testing that turned up a second fault of the same kind: a curve that had
+  drifted from its preset reported `flat`, the constructor's default, over
+  somebody else's bands. `setBands` did not clear the preset name while `setBand`
+  always had — moving one band away from `rock` stopped it being rock and
+  replacing all ten did not. It marks the curve `custom` now.
+- IMP-006 applied: the meter shaders held eleven literal colours, so a finish
+  that changed the lamp would have changed the whole panel except the displays.
+  Six were substitutions for existing tokens. The other five turned out not to
+  need tokens at all — measured in HSL, each is the same lamp at a different hue
+  and lightness, which is what a single-phosphor display physically is — so they
+  are derived from `readout` in `qml/Tokens.qml`. Fitted to the literals they
+  replace and verified twice: worst channel error 3/255 across all five modes,
+  and with the lamp temporarily set to VFD green the peak tier tracked it from
+  36° to 142° while keeping its 3° offset. SPEC.md's palette stays at eight.
 - `qml/Tokens.qml` read its tokens through method calls, which a binding does
   not track, so a theme could never have been exchanged at runtime — the panel
   would have kept whatever it resolved on the first evaluation. It reads the

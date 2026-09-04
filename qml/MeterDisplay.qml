@@ -48,7 +48,7 @@ PanelSection {
         property real mirrored: Meters.mode === "spectrum-mirror" ? 1.0 : 0.0
         property color barColour: Tokens.readout
         property color barColourLow: Tokens.readoutDim
-        property color capColour: "#F6D08A"
+        property color capColour: Tokens.readoutPeak
 
         fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/spectrum.frag.qsb"
     }
@@ -75,8 +75,8 @@ PanelSection {
         // #AARRGGBB — alpha *first* — not the #RRGGBBAA that most tools
         // emit, so "#e98b48ff" is not a light orange with full alpha but
         // a 91%-opaque purple. Leaving the alpha off avoids the question.
-        property color frontColour: "#E98B48"
-        property color backColour: "#FFD98A"
+        property color frontColour: Tokens.flameFront
+        property color backColour: Tokens.flameBack
 
         fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/flame.frag.qsb"
     }
@@ -105,7 +105,7 @@ PanelSection {
                         // pale tints remain literal; see IMP-006.
                         property color faceColour: Tokens.displayBg
                 property color inkColour: Tokens.readoutDim
-                property color needleColour: "#F6D08A"
+                property color needleColour: Tokens.readoutPeak
                 property color overColour: Tokens.readout
 
                 fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/vu.frag.qsb"
@@ -134,10 +134,10 @@ PanelSection {
         property real peakRight: Math.min(1, Meters.channelPeaks[1] / 1.25)
         property real segments: 28
         property real overFrom: 0.8
-        property color offColour: "#3A342C"
+        property color offColour: Tokens.segmentOff
         property color onColour: Tokens.readout
-        property color overOnColour: "#E8613A"
-        property color capColour: "#F6D08A"
+        property color overOnColour: Tokens.segmentOver
+        property color capColour: Tokens.readoutPeak
 
         fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/ladder.frag.qsb"
     }

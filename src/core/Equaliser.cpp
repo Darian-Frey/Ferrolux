@@ -369,6 +369,21 @@ void Equaliser::setBands(const QList<double> &decibels)
         m_bands[i] = qBound(-kGainLimit, decibels.at(i), kGainLimit);
     applyGains();
     emit bandsChanged();
+
+    // The curve has been set wholesale, so whatever name it had no longer
+    // describes it. `setBand` has always done this for a single band and this
+    // did not, which is arbitrary: moving one band away from `rock` stopped it
+    // being rock, and replacing all ten did not.
+    //
+    // Every caller that means to name the curve sets the name immediately
+    // afterwards — applyPreset, applyCurve and the .eqf import all do — so this
+    // only takes effect where nothing names it, which is the restore path. That
+    // is where it matters: without it a restored curve reported `flat`, the
+    // constructor's default, over somebody else's bands. See BUG-019.
+    if (m_preset != QStringLiteral("custom")) {
+        m_preset = QStringLiteral("custom");
+        emit presetChanged();
+    }
 }
 
 void Equaliser::applyPreset(const QString &name)
@@ -393,6 +408,61 @@ void Equaliser::applyPreset(const QString &name)
     setBands(values);
     m_preset = name;
     emit presetChanged();
+}
+
+void Equaliser::adoptPreset(const QString &name)
+{
+    if (name.isEmpty() || name == QStringLiteral("custom"))
+        return;
+
+    // Resolved the same way applyPreset resolves it, and for the same reason: a
+    // user preset of that name shadows a built-in, so the definition to compare
+    // against is the one that would be applied.
+    QList<double> values;
+    bool carriesPreamp = false;
+
+    QSettings settings;
+    const QVariant stored = settings.value(QStringLiteral("equaliser/user/") + name);
+    if (stored.isValid()) {
+        for (const QVariant &value : stored.toList())
+            values.append(value.toDouble());
+        carriesPreamp = values.size() == kBandCount + 1;
+        if (!carriesPreamp)
+            values.clear();
+    }
+
+    if (values.isEmpty())
+        values = presetBands(name);
+
+    // A name that no longer resolves — a user preset deleted, or a built-in
+    // renamed between versions. The curve is still whatever was restored, and
+    // it no longer has a name, which `custom` already says.
+    if (values.size() < kBandCount)
+        return;
+
+    // A hundredth of a decibel. Gains are set from sliders and preset tables in
+    // whole or near-whole decibels, and pass through the settings file as text,
+    // so this is far below anything that could be meant and far above what the
+    // round trip can lose.
+    constexpr double kSame = 0.01;
+
+    for (int band = 0; band < kBandCount; ++band) {
+        if (std::abs(values.at(band) - m_bands.at(band)) > kSame)
+            return;
+    }
+
+    // Built-in presets define ten bands and say nothing about the preamp, so
+    // only a user preset — which stores eleven values — puts the preamp in
+    // scope for the comparison. Holding a built-in to a preamp it never
+    // specified would make every preset read as edited the moment the preamp
+    // moved, which is the opposite of the fault being fixed.
+    if (carriesPreamp && std::abs(values.at(kBandCount) - m_preamp) > kSame)
+        return;
+
+    if (m_preset != name) {
+        m_preset = name;
+        emit presetChanged();
+    }
 }
 
 void Equaliser::reset()

@@ -382,6 +382,92 @@ void testGainRamp()
           "and settles at unity when disabled");
 }
 
+// BUG-019: the preset name is saved on exit and has to survive a restart
+// without ever being trusted.
+//
+// SPEC.md §Settings makes the band values authoritative on restore and the name
+// descriptive, because "a preset may have been edited, or its definition may
+// have changed since it was chosen". Restoring the name blindly is simpler and
+// is wrong in exactly the case the specification bothered to describe, so what
+// is checked here is that the name is adopted when the curve still *is* that
+// preset and refused when it is not.
+//
+// The defect this replaces was invisible for two phases: the harness showed the
+// wrong name in a combo box and nobody looked. It only surfaced once the panel
+// had a lit field to show it in — which is an argument for checking it here
+// rather than by eye.
+void testPresetNameSurvivesRestart()
+{
+    std::printf("\npreset name across a restart (BUG-019)\n");
+
+    // What a restart actually does: the bands and the preamp come back from
+    // settings, and nothing has set a name.
+    Equaliser eq;
+    eq.setBands(Equaliser::presetBands(QStringLiteral("rock")));
+    check(eq.preset() == QStringLiteral("custom"),
+          "a curve set wholesale has no name until something gives it one",
+          eq.preset());
+
+    eq.adoptPreset(QStringLiteral("rock"));
+    check(eq.preset() == QStringLiteral("rock"),
+          "the remembered name is adopted when the curve is still that preset",
+          eq.preset());
+
+    // The curve is the authority. A band moved away from the preset means the
+    // name no longer describes what is loaded.
+    Equaliser edited;
+    QList<double> altered = Equaliser::presetBands(QStringLiteral("rock"));
+    altered[3] += 2.0;
+    edited.setBands(altered);
+    edited.adoptPreset(QStringLiteral("rock"));
+    check(edited.preset() != QStringLiteral("rock"),
+          "a curve that has drifted from the preset does not take its name back",
+          edited.preset());
+
+    // A name that no longer resolves: a user preset deleted, or a built-in
+    // renamed between versions.
+    Equaliser orphan;
+    orphan.setBands(Equaliser::presetBands(QStringLiteral("rock")));
+    orphan.adoptPreset(QStringLiteral("a preset that was removed"));
+    check(orphan.preset() != QStringLiteral("a preset that was removed"),
+          "a name that no longer resolves is not adopted");
+
+    // A user preset carries a preamp where a built-in does not, so the preamp
+    // is part of the comparison for one and not the other. Holding a built-in
+    // to a preamp it never specified would make every preset read as edited the
+    // moment the preamp moved.
+    Equaliser withPreamp;
+    withPreamp.setBands(Equaliser::presetBands(QStringLiteral("rock")));
+    withPreamp.setPreamp(-6.0);
+    withPreamp.adoptPreset(QStringLiteral("rock"));
+    check(withPreamp.preset() == QStringLiteral("rock"),
+          "a built-in is judged on its bands alone, because that is all it defines",
+          withPreamp.preset());
+
+    Equaliser owner;
+    owner.setBands({ 6, 5, 4, 3, 2, 1, 0, -1, -2, -3 });
+    owner.setPreamp(-4.0);
+    owner.saveUserPreset(QStringLiteral("Restart Curve"));
+
+    Equaliser sameCurve;
+    sameCurve.setBands({ 6, 5, 4, 3, 2, 1, 0, -1, -2, -3 });
+    sameCurve.setPreamp(-4.0);
+    sameCurve.adoptPreset(QStringLiteral("Restart Curve"));
+    check(sameCurve.preset() == QStringLiteral("Restart Curve"),
+          "a user preset is adopted when its bands and its preamp both match",
+          sameCurve.preset());
+
+    Equaliser preampMoved;
+    preampMoved.setBands({ 6, 5, 4, 3, 2, 1, 0, -1, -2, -3 });
+    preampMoved.setPreamp(0.0);
+    preampMoved.adoptPreset(QStringLiteral("Restart Curve"));
+    check(preampMoved.preset() != QStringLiteral("Restart Curve"),
+          "and refused when the preamp has moved, because a user preset defines one",
+          preampMoved.preset());
+
+    owner.removeUserPreset(QStringLiteral("Restart Curve"));
+}
+
 // F-022's user presets. Settings are redirected to a test location by main(),
 // so nothing here can reach a real configuration file.
 void testUserPresets()
@@ -447,6 +533,7 @@ int main(int argc, char *argv[])
     testWorstCaseGain();
     testGainRamp();
     testUserPresets();
+    testPresetNameSurvivesRestart();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");

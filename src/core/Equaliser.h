@@ -175,6 +175,19 @@ public slots:
     void setBand(int index, double decibels);
     void setBands(const QList<double> &decibels);
     void applyPreset(const QString &name);
+
+    // Take a remembered name as a *label*, without applying anything.
+    //
+    // SPEC.md §Settings makes the band values authoritative on restore and the
+    // name descriptive, so the name cannot simply be trusted: a preset may have
+    // been edited, or its definition may have changed since it was chosen. This
+    // adopts the name only if the curve currently loaded still *is* that preset,
+    // and otherwise leaves it as whatever it was — which after a restore is
+    // `custom`, and is the truthful answer.
+    //
+    // Restoring the name blindly would be simpler and would be wrong in exactly
+    // the case the specification bothered to describe. See BUG-019.
+    Q_INVOKABLE void adoptPreset(const QString &name);
     void reset();
     bool importEqf(const QUrl &fileUrl);
 

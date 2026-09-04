@@ -187,6 +187,14 @@ int main(int argc, char *argv[])
 
             equaliser->setPreamp(settings.value(QStringLiteral("equaliser/preamp"), 0.0).toDouble());
             equaliser->setEnabled(settings.value(QStringLiteral("equaliser/enabled"), false).toBool());
+
+            // Last, and only as a label. The curve is already loaded; this asks
+            // the equaliser whether that curve is still the preset it was saved
+            // under, and takes the name only if it is. Written on exit and never
+            // read, the key left the panel reporting `flat` over somebody else's
+            // curve — which nobody noticed until the panel had a lit field to
+            // show it in. See BUG-019.
+            equaliser->adoptPreset(settings.value(QStringLiteral("equaliser/preset")).toString());
         }
 
         meters.setMode(settings.value(QStringLiteral("meters/mode"),

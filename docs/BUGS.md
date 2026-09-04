@@ -19,37 +19,52 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-019 The equaliser preset name is saved but never restored
-**Status:** open
-**Severity:** low
-**Found:** 2026-09-04, while taking screenshots for the README
-**Related:** SPEC.md §Settings, F-021
-
-`equaliser/preset` is written on exit and never read on start. `src/main.cpp`
-restores `equaliser/bands`, `equaliser/preamp` and `equaliser/enabled`, and stops
-there, so the preset field always reports `flat` after a restart — including when
-the restored band values are exactly some other preset's.
-
-SPEC.md is the reason this is only a display fault and not a correctness one:
-"the preset name is recorded, but the band values are what is authoritative on
-restore — a preset may have been edited, or its definition may have changed since
-it was chosen." The curve that is restored is right. What is wrong is the label
-over it, which claims a preset the bands are not.
-
-It was invisible until the panel had a lit field to show the name in. The Phase 3
-harness displayed the same wrong value in a combo box and nobody looked.
-
-**Candidate resolutions**, for the author to choose:
-1. Restore the name after the bands, purely as a label, without re-applying the
-   preset. Matches SPEC.md exactly: values authoritative, name descriptive.
-2. Restore the name and check it against the bands, showing `edited` when they
-   have diverged. Truthful in the case SPEC.md's sentence is about, at the cost
-   of a comparison whose tolerance has to be defined.
-3. Stop writing the key. Honest, and loses the only record of what the user
-   chose.
-
+*None.*
 
 ## Fixed
+
+### BUG-019 The equaliser preset name is saved but never restored
+**Status:** fixed
+**Severity:** low
+**Found:** 2026-09-04, while taking screenshots for the README
+**Fixed:** 2026-09-05
+**Related:** SPEC.md §Settings, F-021, F-022
+
+`equaliser/preset` was written on exit and never read on start. `src/main.cpp`
+restored the bands, the preamp and the enabled flag and stopped there, so the
+preset field always reported `flat` after a restart — including when the restored
+band values were exactly some other preset's.
+
+SPEC.md is why this is a display fault and not a correctness one: "the preset name
+is recorded, but the band values are what is authoritative on restore — a preset
+may have been edited, or its definition may have changed since it was chosen." The
+curve restored was right. What was wrong was the label over it.
+
+**Fixed by not trusting the name.** `Equaliser::adoptPreset` takes a remembered
+name as a label only, and only when the curve currently loaded still *is* that
+preset: it resolves the name the way `applyPreset` resolves it — a user preset of
+the same name shadows a built-in — and compares band by band to within a
+hundredth of a decibel. A built-in is judged on its bands alone, because ten bands
+is all a built-in defines; a user preset stores eleven values and so puts the
+preamp in scope too. Holding a built-in to a preamp it never specified would make
+every preset read as edited the moment the preamp moved, which is the opposite of
+the fault being fixed.
+
+Restoring the name blindly would have been one line and would have been wrong in
+exactly the case the specification bothered to describe.
+
+**A second, quieter fault came out of testing the first.** With the name adopted
+only on a match, a curve that had drifted from its preset reported `flat` — the
+constructor's default — over somebody else's bands. That is the same class of lie
+as the original, wearing a different name. The cause was that `setBands` did not
+clear the preset name while `setBand` always had: moving one band away from
+`rock` stopped it being rock, and replacing all ten did not. `setBands` now marks
+the curve `custom`, and every caller that means to name it — `applyPreset`,
+`applyCurve` and the `.eqf` import — sets the name immediately afterwards, so the
+change only takes effect where nothing names the curve, which is the restore path.
+
+Seven checks in `tests/equaliser_test`, and verified end to end: a restored `rock`
+curve reads `rock`, and the same curve with one band moved reads `edited`.
 
 ### BUG-020 The playlist and the preset list are hard to read
 **Status:** fixed

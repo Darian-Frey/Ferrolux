@@ -177,56 +177,49 @@ guesses about them would be worse than the refactor it saves. Phase 6 should
 open by building it, not by discovering it is needed.
 
 ### IMP-006 The meter shaders carry literal colours, so a theme cannot reach them
-**Status:** partly applied
+**Status:** applied
 **Effort:** small
 **Noticed:** 2026-09-04, while making the meter well a `PanelSection`
+**Applied:** 2026-09-05
 **Related:** F-044, D-004, SPEC.md §Design tokens, CLAUDE.md §Conventions
 
-`qml/MeterDisplay.qml` passes literal hexadecimal to its shaders — `barColour`
-`#EF9F27`, `barColourLow` `#BA7517`, `capColour` `#F6D08A`, the flame's
-`frontColour` and `backColour`, and the VU's four. The convention is explicit
-that QML uses design tokens and never literal colours, and the reason is F-044:
-a variant is "a token set over the same geometry", so anything holding a literal
-is geometry a variant cannot reach. Under a second theme the whole panel would
-change and the meters would stay exactly as they are.
+`qml/MeterDisplay.qml` passed literal hexadecimal to its shaders. The convention
+is explicit that QML uses design tokens and never literal colours, and the reason
+is F-044: a variant is "a token set over the same geometry", so anything holding a
+literal is geometry a variant cannot reach. Under a set that changed the lamp the
+whole panel would have changed and the meters would have stayed amber.
 
-Its root was the same until this commit — `color: "#2C2C2A"`, `radius: 3`, both
-predating the token set — so the well the meters sit in could not be themed
-either. That part is fixed; the shader properties are not.
+Six were exact matches for existing tokens and were substituted directly.
 
-Six of them were exact matches for tokens that already exist, and those are
-**done**: `barColour`, `overColour` and the ladder's `onColour` are `readout`,
-`barColourLow` and `inkColour` are `readout-dim`, and `faceColour` — the face the
-VU needle swings against — is `display-bg`. That last one mattered most: without
-it a dark chassis would have arrived with one component still painted for the
-light one.
+**The other five turned out not to need tokens at all**, which is why this closed
+without touching SPEC.md's palette. Measured in HSL against `readout`, every one
+of them is the same lamp at a different hue and lightness:
 
-**Four remain**, and they are the reason this is not closed.
-`capColour` and `needleColour` (`#F6D08A`) and the flame's two are pale, partly
-desaturated tints with no token behind them, and they are not `Qt.lighter()` of
-`readout` either — the nearest factor lands on `#FFB950`, which is more saturated
-and visibly wrong. So they need either a palette token each, which means
-extending SPEC.md's table and the check in `tests/tokens_test` that asserts it
-has no extras, or a derivation that has to be tuned until it reproduces the
-current appearance and verified by pixel comparison.
+| role | offset from the lamp |
+|------|----------------------|
+| cap, VU needle | +3°, same saturation, +0.21 lightness |
+| flame far rank | +4.5°, ×1.16 saturation, +0.23 lightness |
+| flame near rank | −11°, ×0.91 saturation, +0.05 lightness |
+| over-reference segment | −22.6°, ×0.92 saturation, +0.02 lightness |
+| unlit segment | the well with 7.5% of the lamp bled into it |
 
-The flame's two in particular were chosen by eye by the author over several
-iterations. Substituting a derivation for them without checking is how that work
-gets quietly undone.
+That is what a physical display does — one phosphor, driven harder or softer —
+so they are derived in `qml/Tokens.qml` rather than written down. A set that
+changes the lamp now gets its cap, its flame and its warning tier for free, and
+no set has to specify five values that are a function of one it already has.
 
-A fifth joined them: the ladder's `offColour` `#3A342C`, the unlit segment. It is
-close to `Qt.lighter(display-bg)` but not equal to it — the literal is warmer
-than any lightening of the well produces — so it is in the same category as the
-others rather than a substitution.
+Fitted rather than guessed, and verified twice. Against the literals they
+replace, the worst channel error over all five modes is **3/255**, which is below
+what the eye resolves — the flame's two in particular were tuned by eye by the
+author over several passes, and the point of fitting was to keep that work. And
+with the lamp temporarily set to VFD green, the peak tier moved from 39.3° to
+145.0° while the lamp moved from 36° to 142°: the offset is preserved, so the
+derivation follows rather than coincides.
 
-None of the five blocks the four sets that ship, because all of them keep the
-same amber lamp and the remaining literals are lamp-family. They would block a
-set that changed the readout colour, which is exactly what F-044's "VFD-green
-readout" is.
-
-**Trade-offs:** Doing it costs a SPEC.md palette change — the table is currently
-eight tokens and deliberately closed — or a tuning exercise against screenshots.
-Leaving it means F-044 ships a theme that visibly does not apply to a fifth of
-the panel, which is worse than not offering the theme. Best done *with* the
-first variant rather than before it, when there is a second palette to test the
-derivations against and the right answer is observable rather than guessed.
+**Trade-offs:** A variant can no longer tune the flame independently of the lamp.
+That is the intended constraint rather than a cost — the flame *is* the lamp, and
+a set that could disagree with itself about what colour its display is would be a
+set that eventually does. Where a future finish genuinely needs a second lamp
+colour — a two-colour ladder with real red over-segments, say — that is a palette
+token and a SPEC.md change, and it should be argued on its own rather than
+smuggled in as a default.

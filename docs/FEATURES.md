@@ -240,7 +240,9 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 - Variants are token sets over the same geometry, not separate asset packs
 **Status:** **Met** 2026-09-04 for the finishes. Four sets ship — `ferric`, `anodised`, `glacier`, `ember` — chosen from the settings drawer and exchanged while the panel is running. Each is the same file with a different palette, so the geometry and the type scale are shared by construction rather than copied and kept in step. `tests/tokens_test` holds every set to the same vocabulary and to contrast floors, which is BUG-020 turned into a check.
 
-The variants change the *chassis* and keep the amber lamp, which is how real equipment varies — the paint is the paint and the lamp is the lamp. A **VFD-green readout** is the remaining clause and is blocked by IMP-006: four pale tints in the meter shaders are still literal, and they are lamp-family, so a set that changed the lamp would change everything except the meters.
+The variants change the *chassis* and keep the amber lamp, which is how real equipment varies — the paint is the paint and the lamp is the lamp.
+
+A **VFD-green readout** is no longer blocked: IMP-006 was applied on 2026-09-05, and every colour the displays use is now derived from `readout` rather than written down. Set the lamp to green and the caps, the flame and the over-reference segments follow it, which was checked by doing exactly that — the peak tier tracked the lamp from 36° to 142° while keeping its 3° offset. No such set ships yet; what was missing was the mechanism, and that is there.
 
 ---
 

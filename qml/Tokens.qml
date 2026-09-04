@@ -146,6 +146,56 @@ QtObject {
     readonly property real faderTravel: readMetric("fader-travel") * scale
     readonly property real detent: readMetric("detent") * scale
 
+    // ---- lamp tiers -------------------------------------------------------
+    // The colours a lit display uses beyond the three the palette names, all
+    // derived from `readout` rather than written down.
+    //
+    // They were literal hexadecimal in the meter shaders until now (IMP-006),
+    // which meant a set that changed the lamp would have changed the whole
+    // panel except the meters — F-044's VFD-green readout would have arrived
+    // with amber caps and an amber flame.
+    //
+    // Derived rather than added to the palette, because that is what they are.
+    // Measured against the literals they replace, every one is the same lamp at
+    // a different hue and lightness: the cap is +3° and a fifth lighter, the
+    // flame's near rank is 11° redder, the ladder's over-segments 23° redder
+    // still. A physical display has one phosphor and shows it hotter or cooler,
+    // and that is exactly this arithmetic — so a green lamp gives a green cap
+    // and a green-shifted warning without anyone choosing them.
+    //
+    // The offsets were fitted to the literals and reproduce them to within
+    // 2/255 on the worst channel, which is below what the eye resolves and
+    // below what the display's own dithering does. The flame's two in
+    // particular were tuned by eye by the author over several passes; the point
+    // of fitting rather than guessing was to keep that work.
+    function lampShift(hueDegrees, saturationFactor, lightnessLift) {
+        return Qt.hsla((readout.hslHue + hueDegrees / 360 + 1) % 1,
+                       Math.max(0, Math.min(1, readout.hslSaturation * saturationFactor)),
+                       Math.max(0, Math.min(1, readout.hslLightness + lightnessLift)),
+                       1)
+    }
+
+    // The hot tier: a peak cap, a VU needle. Brighter than the lamp and very
+    // slightly further round the hue, which is what a segment driven harder
+    // actually does.
+    readonly property color readoutPeak: lampShift(3, 1.00, 0.21)
+
+    // The flame's near and far ranks. The near one is redder and barely
+    // lighter; the far one is the hot tier a shade further still.
+    readonly property color flameFront: lampShift(-11, 0.91, 0.05)
+    readonly property color flameBack: lampShift(4.5, 1.16, 0.23)
+
+    // Over reference. Redder again — the direction a warning goes on a lamp
+    // that has only one colour to say it with.
+    readonly property color segmentOver: lampShift(-22.6, 0.92, 0.02)
+
+    // An unlit segment: the well with a little of the lamp bled into it, which
+    // is what an LED that is off but sitting behind the same window looks like.
+    // Not black — a segment that vanishes when unlit reads as a gap in the
+    // display rather than as a segment.
+    readonly property color segmentOff: Qt.tint(displayBg,
+                                                Qt.rgba(readout.r, readout.g, readout.b, 0.075))
+
     // ---- type -------------------------------------------------------------
     // Four faces, one per role, fixed for the project by D-012. SPEC.md §Typography
     // makes the division between them a hard rule and not a preference: values
