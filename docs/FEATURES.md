@@ -220,7 +220,7 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 ### F-042 Compact mode
 **Priority:** Should
 **Acceptance:**
-- Collapses to a single transport-and-display strip, equivalent to Winamp's window shade
+- Collapses to a single transport-and-display strip, equivalent to Winamp's window shade. The strip carries volume as well as the transport: it is the control reached for most often while listening, and a shade that cannot change the volume sends you back to the full panel for the one thing you folded it away to stop needing
 - Toggling preserves playback state and window position
 **Status:** **Met** 2026-09-04. Driven under XTest rather than judged by eye: 780 to 175 to 780, window position identical at all three points, and the engine still playing across both toggles. Playback survives by construction — the folded sections are hidden, not unloaded, and nothing in the fold reaches the engine.
 

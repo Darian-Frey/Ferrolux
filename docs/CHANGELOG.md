@@ -213,7 +213,32 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 - The equaliser drawer has its own open state, so folding the panel hides it
   without closing it and unfolding returns it to how it was left.
 
+- Volume moved from the mixing section to the transport row, so compact mode
+  has it: it is the control reached for most often while listening, and a shade
+  that cannot change the volume sends you back to the full panel for the one
+  thing you folded it away to stop needing. Moved rather than duplicated — two
+  instances bound to one property is the arrangement that drifts.
+
+- The display carries the album and a technical readout — sample rate, channel
+  count, codec and bitrate — beside the title. Two thirds of that surface was
+  empty, on the largest lit area of the panel.
+- `Engine.streamFormat` assembles that line from three sources reporting at
+  three different moments: the rate from the spectrum element's caps, the
+  channel count from the filter bin's own sink pad, and the codec and bitrate
+  from tags on the bus. It prints what is known rather than waiting for a
+  complete set that some streams never supply. The channel count is read
+  upstream of the capsfilter that pins stereo, or every stream would report
+  back the format we imposed and call a mono recording stereo.
+- `PlaylistModel` exposes the playing entry's tags, notified both when the
+  cursor moves and when metadata arrives for a row that is already playing —
+  the second being the one that is easy to miss and the more visible, since
+  without it a track starts showing a file name and never stops.
+
 ### Fixed
+- The display showed the file name while the playlist row beneath it showed
+  the tags — `01 - Carousel.mp3` under `Blink-182 — Carousel`, the same fact in
+  its least useful form. The engine is handed a URL and never sees a tag, so
+  the reader had them and the display did not.
 - `tests/frame_bench` could not render the meter display after the mode label
   was tokenised: the file it deliberately loads had gained a dependency on the
   `Tokens` singleton, and the bench supplied no tokens. Every run failed with a

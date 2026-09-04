@@ -30,6 +30,11 @@ void shuffleRange(QList<int> &order, int first, int last)
 PlaylistModel::PlaylistModel(QObject *parent)
     : QAbstractListModel(parent)
 {
+    // Chained once here rather than emitted beside each of the nine places that
+    // move the cursor. A signal that has to be remembered at every call site is
+    // one that will be missed at the tenth.
+    connect(this, &PlaylistModel::currentRowChanged,
+            this, &PlaylistModel::nowPlayingChanged);
 }
 
 int PlaylistModel::rowCount(const QModelIndex &parent) const
@@ -518,8 +523,38 @@ void PlaylistModel::applyMetadata(const QList<PlaylistEntry> &results)
         lastChanged = row;
     }
 
-    if (firstChanged >= 0)
+    if (firstChanged >= 0) {
         emit dataChanged(index(firstChanged), index(lastChanged));
+
+        // The display reads the playing entry's tags, and this is the moment
+        // they arrive for a row that is already playing. Without it a track
+        // starts showing its file name and never stops.
+        const int playing = currentRow();
+        if (playing >= firstChanged && playing <= lastChanged)
+            emit nowPlayingChanged();
+    }
+}
+
+// The playing entry, or empty where there is none. `displayTitle()` already
+// falls back to the file name when a tag is missing, which is the behaviour the
+// playlist rows use — the display should not invent a second answer to the same
+// question.
+QString PlaylistModel::currentTitle() const
+{
+    const int row = currentRow();
+    return row < 0 ? QString() : m_entries.at(row).displayTitle();
+}
+
+QString PlaylistModel::currentArtist() const
+{
+    const int row = currentRow();
+    return row < 0 ? QString() : m_entries.at(row).artist;
+}
+
+QString PlaylistModel::currentAlbum() const
+{
+    const int row = currentRow();
+    return row < 0 ? QString() : m_entries.at(row).album;
 }
 
 void PlaylistModel::setAuthoritativeDuration(const QUrl &url, qint64 durationNs)

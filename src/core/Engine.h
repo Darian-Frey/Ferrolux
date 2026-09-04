@@ -73,6 +73,14 @@ class Engine : public QObject
     Q_PROPERTY(double balance READ balance WRITE setBalance NOTIFY balanceChanged)
     Q_PROPERTY(QString errorText READ errorText NOTIFY errorTextChanged)
 
+    // What the stream actually is: sample rate, channel count, codec and
+    // bitrate, assembled into one line for the display. Empty until the
+    // pipeline has negotiated and the tags have arrived, which is not at the
+    // same moment — the caps are known at ASYNC_DONE and the tags turn up on
+    // the bus whenever the demuxer gets to them, so this is rebuilt from
+    // whatever is known each time either changes rather than composed once.
+    Q_PROPERTY(QString streamFormat READ streamFormat NOTIFY streamFormatChanged)
+
 public:
     enum State { Stopped, Loading, Playing, Paused, Error };
     Q_ENUM(State)
@@ -90,6 +98,7 @@ public:
     QUrl source() const { return m_source; }
     bool isSeekable() const { return m_seekable; }
     QString errorText() const { return m_errorText; }
+    QString streamFormat() const { return m_streamFormat; }
 
     // Cached values. Invariant 4: these are refreshed only by poll(), so every
     // consumer reads the same number within a frame and no consumer triggers a
@@ -160,6 +169,7 @@ signals:
     void volumeChanged();
     void balanceChanged();
     void errorTextChanged();
+    void streamFormatChanged();
 
     void endOfStream();
     void previousTrackRequested();
@@ -201,6 +211,7 @@ private:
 
     GstElement *m_pipeline = nullptr;   // playbin3
     GstElement *m_balanceElement = nullptr; // audiomixmatrix inside the filter bin
+    GstElement *m_filterBin = nullptr;  // for the negotiated input caps
     GstElement *m_levelElement = nullptr;
     GstElement *m_spectrumElement = nullptr;
     int m_analysisRate = 0;                 // cached from negotiated caps
@@ -214,6 +225,12 @@ private:
     double m_volume = 0.7;              // SPEC.md §Settings default
     double m_balance = 0.0;
     QString m_errorText;
+
+    // Rebuilt from these whenever any of them changes; see streamFormat.
+    void refreshStreamFormat();
+    QString m_streamFormat;
+    QString m_codec;
+    int m_bitrateKbps = 0;
     bool m_playRequested = false;
 
     // Written on the main thread, read on a streaming thread.

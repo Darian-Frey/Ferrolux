@@ -69,6 +69,12 @@ Rectangle {
     property string counter: ""
     property string error: ""
 
+    // The album, and what the stream actually is. Both are annotation beside
+    // the title rather than things a reader works through, which is what
+    // `readout-dim` is for — see SPEC.md §Design tokens and BUG-020.
+    property string album: ""
+    property string format: ""
+
     implicitHeight: titleRow.implicitHeight + statusRow.implicitHeight
                     + Tokens.padSection * 2 + Tokens.padRow
 
@@ -134,24 +140,45 @@ Rectangle {
         anchors.topMargin: Tokens.padRow
         anchors.leftMargin: Tokens.padSection
         anchors.rightMargin: Tokens.padSection
-        implicitHeight: statusReadout.implicitHeight
+        implicitHeight: albumReadout.implicitHeight
         height: implicitHeight
 
+        // Album on the left, what the stream is in the middle, and where we are
+        // in the list on the right. Two thirds of this line used to be empty:
+        // the display is the largest surface on the panel and it was reporting
+        // three short fields.
         Readout {
-            id: statusReadout
+            id: albumReadout
             anchors.left: parent.left
-            anchors.right: counterReadout.left
+            anchors.right: formatReadout.left
             anchors.rightMargin: Tokens.gapControl
             height: implicitHeight
             face: Tokens.readoutText
             size: Tokens.sizeReadout
 
-            // An error takes this line rather than getting one of its own. It
-            // is brighter than the state it replaces because it is the more
-            // urgent report, and there is no red on this display to make it
-            // with — brightness is the only emphasis a single-colour lamp has.
+            // An error takes this line rather than getting one of its own, and
+            // takes it at full brightness: it is the more urgent report, and
+            // there is no red on this display to say so with, so brightness is
+            // the only emphasis a single-colour lamp has.
             colour: display.error !== "" ? Tokens.readout : Tokens.readoutDim
-            text: display.error !== "" ? display.error : display.status
+            text: display.error !== "" ? display.error : display.album
+        }
+
+        Readout {
+            id: formatReadout
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: implicitWidth
+            height: implicitHeight
+            face: Tokens.readoutText
+            size: Tokens.sizeReadout
+            colour: Tokens.readoutDim
+            alignment: Text.AlignHCenter
+
+            // Hidden until the pipeline has something to say. An empty field
+            // in the middle of the display is a gap; a field that appears when
+            // a track starts is the machine reporting what it found.
+            visible: display.error === "" && text !== ""
+            text: display.format
         }
 
         Readout {
@@ -163,7 +190,9 @@ Rectangle {
             size: Tokens.sizeReadout
             colour: Tokens.readoutDim
             alignment: Text.AlignRight
-            text: display.counter
+            text: display.status !== "" && display.counter !== ""
+                  ? display.status + "  ·  " + display.counter
+                  : display.status + display.counter
         }
     }
 }

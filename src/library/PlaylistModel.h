@@ -47,6 +47,23 @@ class PlaylistModel : public QAbstractListModel
     Q_PROPERTY(RepeatMode repeat READ repeat WRITE setRepeat NOTIFY repeatChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY canUndoChanged)
 
+    // The playing entry's tags, for the panel's display.
+    //
+    // The display was showing the file name, because that is all the engine
+    // knows — it is handed a URL and never sees a tag. The playlist row
+    // directly beneath it showed `Blink-182 — Carousel` from TagLib while the
+    // largest readout on the panel showed `01 - Carousel.mp3`, which is the
+    // same fact in its least useful form. The reader is here, so these are too.
+    //
+    // They change on two occasions and not one: when the current row moves, and
+    // when metadata for the row that is already current arrives from the reader
+    // pool. The second is the easier to forget and the more visible — a track
+    // starts, the display shows a file name, and a moment later the tags land
+    // and it does not change.
+    Q_PROPERTY(QString currentTitle READ currentTitle NOTIFY nowPlayingChanged)
+    Q_PROPERTY(QString currentArtist READ currentArtist NOTIFY nowPlayingChanged)
+    Q_PROPERTY(QString currentAlbum READ currentAlbum NOTIFY nowPlayingChanged)
+
 public:
     enum Roles {
         UrlRole = Qt::UserRole + 1,
@@ -80,6 +97,10 @@ public:
     bool canUndo() const { return m_undo.valid; }
 
     const PlaylistEntry &entryAt(int row) const { return m_entries.at(row); }
+
+    QString currentTitle() const;
+    QString currentArtist() const;
+    QString currentAlbum() const;
 
     // Applies metadata read on a worker thread. Rows are addressed by URL rather
     // than index because the playlist may have been sorted or edited while the
@@ -161,6 +182,11 @@ public slots:
 signals:
     void countChanged();
     void currentRowChanged();
+
+    // Emitted when the playing entry changes *or* when its tags arrive. Named
+    // for what it reports rather than for the row, because the row can stay put
+    // while what is known about it changes.
+    void nowPlayingChanged();
     void shuffleChanged();
     void repeatChanged();
     void canUndoChanged();

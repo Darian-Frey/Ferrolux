@@ -150,8 +150,17 @@ ApplicationWindow {
         // lit. This and the two rows below it are what compact mode keeps.
         DisplayPanel {
             Layout.fillWidth: true
-            title: Engine.source == "" ? qsTr("no disc")
-                                       : Engine.source.toString().split("/").pop()
+            // The tags, not the file name. TagLib has already read them for the
+            // playlist row directly beneath this, and the display showing
+            // `01 - Carousel.mp3` under a list showing `Blink-182 — Carousel`
+            // was the same fact in its least useful form.
+            title: Playlist.currentRow < 0
+                   ? qsTr("no disc")
+                   : (Playlist.currentArtist !== ""
+                      ? Playlist.currentArtist + " — " + Playlist.currentTitle
+                      : Playlist.currentTitle)
+            album: Playlist.currentAlbum
+            format: Engine.streamFormat
             position: Engine.position
             duration: Engine.duration
             status: window.stateNames[Engine.state].toLowerCase()
@@ -160,6 +169,16 @@ ApplicationWindow {
                      : ""
             error: Engine.errorText
         }
+
+        // Position and volume share a row, and volume lives here rather than
+        // down in the mixing section because it is the control reached for
+        // most often while listening — and because compact mode keeps this row
+        // and folds that section away. One control that is present in both
+        // modes beats two instances bound to the same property, which is the
+        // arrangement that drifts.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Tokens.gapControl
 
         Slot {
             id: positionBar
@@ -185,6 +204,32 @@ ApplicationWindow {
             // frame of the drag, which stutters the audio for the whole of it.
             onMoved: function(to) { positionBar.value = to }
             onReleased: Engine.seek(positionBar.value)
+        }
+
+            // The value is lit because it is a value; the unit beside it is
+            // printed because it names what the value is in. The seven-segment
+            // face has no per-cent sign — digits and separators and nothing
+            // else — so the sign is silkscreened, which is what a deck does.
+            Legend { text: qsTr("vol") }
+            Slot {
+                Layout.preferredWidth: Tokens.controlHeight * 3
+                Layout.preferredHeight: Tokens.controlHeight
+                from: 0; to: 1
+                ticks: 5
+                value: Engine.volume
+                onMoved: function(to) { Engine.volume = to }
+            }
+            Readout {
+                Layout.preferredWidth: Tokens.sizeLegend * 3
+                face: Tokens.readoutNumeric
+                size: Tokens.sizeLegend
+                ghost: "888"
+                alignment: Text.AlignRight
+                text: String(Math.round(Engine.volume * 100))
+                ground: Tokens.displayBg
+                inset: Tokens.hairline * 4
+            }
+            Legend { text: qsTr("%") }
         }
 
         // ---- transport ---------------------------------------------------
@@ -748,34 +793,11 @@ ApplicationWindow {
                 }
             }
             Item { Layout.fillWidth: true }
-            // Volume and balance: the two continuous controls that are set
-            // rather than watched, so both carry a printed scale. The value
-            // beside each is lit, because it is a value; the unit beside that
-            // is printed, because it names what the value is in. The seven-
-            // segment face has no per-cent sign — it has digits and separators
-            // and nothing else — so the sign is silkscreened, which is what a
-            // deck does anyway.
-            Legend { text: qsTr("vol") }
-            Slot {
-                Layout.preferredWidth: Tokens.controlHeight * 3
-                Layout.preferredHeight: Tokens.controlHeight
-                from: 0; to: 1
-                ticks: 5
-                value: Engine.volume
-                onMoved: function(to) { Engine.volume = to }
-            }
-            Readout {
-                Layout.preferredWidth: Tokens.sizeLegend * 3
-                face: Tokens.readoutNumeric
-                size: Tokens.sizeLegend
-                ghost: "888"
-                alignment: Text.AlignRight
-                text: String(Math.round(Engine.volume * 100))
-                ground: Tokens.displayBg
-                inset: Tokens.hairline * 4
-            }
-            Legend { text: qsTr("%") }
 
+            // Balance is set once and left, so it stays in the mixing section
+            // with the play-order switches. Volume is not, and has moved up to
+            // the transport row. Both are continuous controls that are set
+            // rather than watched, so both carry a printed scale.
             Legend { text: qsTr("bal") }
             Slot {
                 Layout.preferredWidth: Tokens.controlHeight * 3

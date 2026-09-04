@@ -238,6 +238,12 @@ GstElement *Engine::buildAudioFilter()
         return nullptr;
     }
 
+    // Kept so the negotiated input format can be read back. The bin's sink is
+    // upstream of the capsfilter that pins stereo F32LE, so it carries the
+    // stream's own rate and channel count; anything downstream of that filter
+    // would report the format we imposed rather than the one we were given.
+    m_filterBin = bin;
+
     GstPad *sinkPad = gst_element_get_static_pad(convertIn, "sink");
     gst_element_add_pad(bin, gst_ghost_pad_new("sink", sinkPad));
     gst_object_unref(sinkPad);
@@ -288,6 +294,14 @@ void Engine::setSource(const QUrl &url)
     m_playRequested = false;
     m_handoverPending.storeRelease(0);
     m_analysisRate = 0;
+
+    // Cleared with the rest of the per-stream state. Tags are not re-sent for a
+    // track that has none, so a stream without a codec tag would otherwise
+    // report the previous track's — which is the kind of wrong that looks
+    // entirely plausible.
+    m_codec.clear();
+    m_bitrateKbps = 0;
+    refreshStreamFormat();
 
     if (!m_errorText.isEmpty()) {
         m_errorText.clear();
@@ -571,6 +585,56 @@ void Engine::handleAnalysisMessage(GstMessage *message)
     }
 }
 
+// One line describing the stream, from three sources that report at three
+// different moments: the sample rate from the spectrum element's caps, the
+// channel count from the filter bin's own sink pad, and the codec and bitrate
+// from tags on the bus. None of them is guaranteed to have arrived, so this
+// prints what is known and leaves out what is not rather than waiting for a
+// complete set that some streams never provide.
+//
+// The channel count is read at the bin's sink, upstream of the capsfilter that
+// pins stereo. Downstream of it every stream is stereo by construction, so a
+// readout taken there would report our own imposition back to us and call a
+// mono recording stereo.
+void Engine::refreshStreamFormat()
+{
+    QStringList parts;
+
+    if (m_analysisRate > 0) {
+        const double kHz = m_analysisRate / 1000.0;
+        parts << (qFuzzyCompare(kHz, qRound(kHz))
+                      ? QStringLiteral("%1 kHz").arg(qRound(kHz))
+                      : QStringLiteral("%1 kHz").arg(kHz, 0, 'f', 1));
+    }
+
+    if (m_filterBin) {
+        if (GstPad *pad = gst_element_get_static_pad(m_filterBin, "sink")) {
+            if (GstCaps *caps = gst_pad_get_current_caps(pad)) {
+                gint channels = 0;
+                const GstStructure *structure = gst_caps_get_structure(caps, 0);
+                if (structure && gst_structure_get_int(structure, "channels", &channels)) {
+                    parts << (channels == 1   ? QStringLiteral("mono")
+                              : channels == 2 ? QStringLiteral("stereo")
+                                              : QStringLiteral("%1 ch").arg(channels));
+                }
+                gst_caps_unref(caps);
+            }
+            gst_object_unref(pad);
+        }
+    }
+
+    if (!m_codec.isEmpty())
+        parts << m_codec;
+    if (m_bitrateKbps > 0)
+        parts << QStringLiteral("%1 kbps").arg(m_bitrateKbps);
+
+    const QString line = parts.join(QStringLiteral("  ·  "));
+    if (line == m_streamFormat)
+        return;
+    m_streamFormat = line;
+    emit streamFormatChanged();
+}
+
 void Engine::handleMessage(GstMessage *message)
 {
     switch (GST_MESSAGE_TYPE(message)) {
@@ -595,9 +659,40 @@ void Engine::handleMessage(GstMessage *message)
         emit endOfStream();
         break;
 
+    case GST_MESSAGE_TAG: {
+        // Codec and bitrate come from the demuxer as tags rather than from
+        // caps, and they arrive whenever it gets to them — often after the
+        // stream is already playing, and sometimes more than once.
+        GstTagList *tags = nullptr;
+        gst_message_parse_tag(message, &tags);
+        if (tags) {
+            gchar *codec = nullptr;
+            if (gst_tag_list_get_string(tags, GST_TAG_AUDIO_CODEC, &codec) && codec) {
+                m_codec = QString::fromUtf8(codec);
+                g_free(codec);
+            }
+
+            // Nominal is the one a variable-bitrate stream declares; the plain
+            // bitrate on such a stream is whatever the last frame happened to
+            // be, which would make the readout flicker.
+            guint bitrate = 0;
+            if (gst_tag_list_get_uint(tags, GST_TAG_NOMINAL_BITRATE, &bitrate)
+                || gst_tag_list_get_uint(tags, GST_TAG_BITRATE, &bitrate)) {
+                if (bitrate > 0)
+                    m_bitrateKbps = int(bitrate / 1000);
+            }
+
+            gst_tag_list_unref(tags);
+            refreshStreamFormat();
+        }
+        break;
+    }
+
     case GST_MESSAGE_ASYNC_DONE:
-        // Preroll complete: duration and seekability are answerable now.
+        // Preroll complete: duration, seekability and the negotiated caps are
+        // all answerable now.
         refreshSeekable();
+        refreshStreamFormat();
         if (m_state == Loading)
             setState(m_playRequested ? Playing : Paused);
         break;
@@ -620,6 +715,14 @@ void Engine::handleMessage(GstMessage *message)
                 m_source = QUrl(QString::fromUtf8(handedTo));
                 emit sourceChanged();
             }
+
+            // A gapless handover never goes through setSource(), so the
+            // per-stream tags have to be cleared here as well. The next track's
+            // own tags follow on the bus; until they do, showing nothing is
+            // right and showing the previous track's is not.
+            m_codec.clear();
+            m_bitrateKbps = 0;
+            refreshStreamFormat();
 
             m_position = 0;
             m_duration = -1;
