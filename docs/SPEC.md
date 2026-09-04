@@ -342,7 +342,8 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `equaliser/user/<name>` | list\<double\> | — | One key per user preset, the name being the key. Eleven values: ten band gains in band order, then the preamp. A name containing `/` is rejected, since it would open a settings subgroup rather than name a preset. A user preset shadows a built-in of the same name. |
 | `meters/mode` | string | `spectrum` | Identifier from the display mode table |
 | `meters/reference-level` | double | −9.0 | dBFS for 0 VU. Not the −18 broadcast figure — see §Meters and BUG-014 |
-| `ui/theme` | string | `ferric` | Token set name |
+| `ui/theme` | string | `ferric` | Token set name. A name that no longer resolves falls back to the default and says so — a set renamed or removed since it was chosen is a stale setting, not a reason to start with no appearance |
+| `ui/display-inverted` | bool | false | Draws the display well lit-ground with dark text rather than dark-ground with lit text. A different instrument rather than the same one recoloured, so it is a setting and not a token |
 | `ui/compact` | bool | false | F-042 |
 | `ui/geometry` | bytearray | — | Window position and size |
 | `session/playlist` | string | — | Path to the auto-saved session playlist |

@@ -29,6 +29,7 @@
 #include <QGuiApplication>
 #include <QStringList>
 
+#include <cmath>
 #include <cstdio>
 
 using ferrolux::ui::ThemeTokens;
@@ -47,6 +48,11 @@ void check(bool ok, const char *what, const QString &detail = {})
 
 // SPEC.md §Design tokens, transcribed. If this table and the document disagree,
 // the document wins and this is the bug.
+//
+// Only `ferric` is checked against these values. A variant is a different set
+// of *values* under the same set of *names* (F-044), so what the others are
+// held to is the vocabulary, the six-digit form, and the contrast floors below
+// — not this table.
 struct PaletteEntry
 {
     const char *token;
@@ -194,6 +200,68 @@ void testMetricsAndType(const ThemeTokens &tokens)
               .arg(tokens.metric(QStringLiteral("bevel-shadow"))));
 }
 
+// Relative luminance and contrast ratio, WCAG 2.1. Transcribed rather than
+// pulled in, because the alternative is a dependency for twenty lines of
+// arithmetic that has not changed since 2008.
+double channel(int value)
+{
+    const double c = value / 255.0;
+    return c <= 0.03928 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+}
+
+double luminance(const QColor &colour)
+{
+    return 0.2126 * channel(colour.red())
+         + 0.7152 * channel(colour.green())
+         + 0.0722 * channel(colour.blue());
+}
+
+double contrast(const QColor &a, const QColor &b)
+{
+    const double x = luminance(a), y = luminance(b);
+    return (std::max(x, y) + 0.05) / (std::min(x, y) + 0.05);
+}
+
+// The floors every set has to clear, whoever wrote it.
+//
+// This is BUG-020 turned into a check. That defect shipped because a colour was
+// chosen for how it looked beside its neighbours rather than for whether it
+// could be read, and it took a report from use to find. A palette is eight
+// numbers and it is very easy to write eight plausible numbers that fail, so
+// the arithmetic is done here rather than by eye.
+//
+// `readout` carries body text on the well and `ink` carries legends on the
+// chassis, so both want the 4.5:1 that normal text needs. `readout-dim` is
+// annotation beside something else and is held to 3:1 — the large-text floor —
+// which is what SPEC.md says it is for and no more.
+void testContrast(const QString &set, const ThemeTokens &tokens)
+{
+    const QColor well = tokens.colour(QStringLiteral("display-bg"));
+    const QColor shell = tokens.colour(QStringLiteral("shell"));
+    const QColor recess = tokens.colour(QStringLiteral("shell-recess"));
+    const QColor readout = tokens.colour(QStringLiteral("readout"));
+    const QColor dim = tokens.colour(QStringLiteral("readout-dim"));
+    const QColor ink = tokens.colour(QStringLiteral("ink"));
+
+    const double lit = contrast(readout, well);
+    check(lit >= 4.5, qPrintable(set + QStringLiteral(": lit text is readable on the well")),
+          QStringLiteral("%1:1").arg(lit, 0, 'f', 2));
+
+    const double annotation = contrast(dim, well);
+    check(annotation >= 3.0,
+          qPrintable(set + QStringLiteral(": annotation clears the large-text floor")),
+          QStringLiteral("%1:1").arg(annotation, 0, 'f', 2));
+
+    const double printed = std::min(contrast(ink, shell), contrast(ink, recess));
+    check(printed >= 4.5,
+          qPrintable(set + QStringLiteral(": legends are readable on the chassis and on a control")),
+          QStringLiteral("%1:1").arg(printed, 0, 'f', 2));
+
+    // A lamp brighter than its own annotation, or the hierarchy is inverted.
+    check(luminance(readout) > luminance(dim),
+          qPrintable(set + QStringLiteral(": the primary readout is brighter than the secondary")));
+}
+
 void testFaces(const ThemeTokens &tokens, const QString &fontDir)
 {
     std::printf("\nfaces (D-012, SPEC.md §Typography)\n");
@@ -254,6 +322,53 @@ int main(int argc, char *argv[])
     testPalette(tokens);
     testMetricsAndType(tokens);
     testFaces(tokens, root + QStringLiteral("/resources/fonts"));
+
+    // Every set that ships, not just the default. A variant is a token set over
+    // the same geometry (F-044), so each one has to carry the same vocabulary
+    // and clear the same contrast floors — and a set is a file, so the list
+    // comes from the directory rather than from a table here that could forget
+    // one.
+    std::printf("\nevery set that ships\n");
+    const QDir themes(root + QStringLiteral("/resources/themes"));
+    const QStringList files = themes.entryList({ QStringLiteral("*.json") }, QDir::Files, QDir::Name);
+    check(files.size() >= 2, "there is more than one set, so the token names are exercised",
+          QStringLiteral("%1 sets").arg(files.size()));
+
+    for (const QString &file : files) {
+        ThemeTokens set;
+        const QString path = themes.filePath(file);
+        if (!set.load(path)) {
+            check(false, qPrintable(file), set.lastError());
+            continue;
+        }
+
+        QStringList missing;
+        for (const QString &token : { QStringLiteral("shell"), QStringLiteral("shell-recess"),
+                                      QStringLiteral("shell-edge"), QStringLiteral("display-bg"),
+                                      QStringLiteral("readout"), QStringLiteral("readout-dim"),
+                                      QStringLiteral("readout-floor"), QStringLiteral("ink") }) {
+            if (!set.palette().contains(token))
+                missing.append(token);
+        }
+        for (const QString &token : kMetricTokens)
+            if (!set.metrics().contains(token))
+                missing.append(token);
+        for (const QString &token : kTypeTokens)
+            if (!set.type().contains(token))
+                missing.append(token);
+
+        check(missing.isEmpty(),
+              qPrintable(set.name() + QStringLiteral(": carries the whole vocabulary")),
+              missing.isEmpty() ? QString() : QStringLiteral("missing: %1").arg(missing.join(u", ")));
+
+        bool opaque = true;
+        const QVariantMap palette = set.palette();
+        for (auto it = palette.constBegin(); it != palette.constEnd(); ++it)
+            opaque = opaque && it.value().toString().size() == 7;
+        check(opaque, qPrintable(set.name() + QStringLiteral(": every colour is six-digit hexadecimal")));
+
+        testContrast(set.name(), set);
+    }
 
     std::printf("\n%s (%d failure%s)\n", failures == 0 ? "PASSED" : "FAILED",
                 failures, failures == 1 ? "" : "s");

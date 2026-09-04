@@ -1,0 +1,61 @@
+{
+  "name": "glacier",
+  "description": "Faded blue-grey chassis, amber readouts. A case that has seen some sun.",
+
+  "palette": {
+    "shell":           "#A3B0B4",
+    "shell-recess":    "#C2CCCE",
+    "shell-edge":      "#7C888B",
+    "display-bg":      "#262C2E",
+    "readout":         "#EF9F27",
+    "readout-dim":     "#BA7517",
+    "readout-floor":   "#854F0B",
+    "ink":             "#232A2C"
+  },
+
+  "metrics": {
+    "reference-width": 720,
+    "scale-min": 0.75,
+    "scale-max": 3.0,
+
+    "radius-panel":   12,
+    "radius-section":  6,
+    "radius-control":  4,
+    "radius-slot":     2,
+
+    "hairline":        0.5,
+    "bevel":           1.5,
+    "bevel-light":     1.16,
+    "bevel-shadow":    1.14,
+
+    "travel":          2.0,
+    "travel-ms":      40,
+
+    "recess":          3,
+
+    "gap-panel":      14,
+    "gap-section":    12,
+    "gap-control":     6,
+    "pad-section":    12,
+    "pad-row":         3,
+
+    "control-height":  34,
+    "slot-width":       4,
+    "thumb-width":     20,
+    "thumb-height":     7,
+    "fader-travel":    64,
+    "detent":           7
+  },
+
+  "type": {
+    "readout-numeric": "DSEG7 Classic",
+    "readout-text":    "Handjet Circle Single",
+    "readout-segment": "DSEG14 Classic",
+    "legend":          "IBM Plex Sans Condensed",
+
+    "size-readout-large": 20,
+    "size-readout":       16,
+    "size-legend":        11,
+    "size-legend-small":  10
+  }
+}

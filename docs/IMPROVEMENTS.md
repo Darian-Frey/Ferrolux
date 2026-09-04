@@ -177,7 +177,7 @@ guesses about them would be worse than the refactor it saves. Phase 6 should
 open by building it, not by discovering it is needed.
 
 ### IMP-006 The meter shaders carry literal colours, so a theme cannot reach them
-**Status:** suggested
+**Status:** partly applied
 **Effort:** small
 **Noticed:** 2026-09-04, while making the meter well a `PanelSection`
 **Related:** F-044, D-004, SPEC.md §Design tokens, CLAUDE.md §Conventions
@@ -194,11 +194,14 @@ Its root was the same until this commit — `color: "#2C2C2A"`, `radius: 3`, bot
 predating the token set — so the well the meters sit in could not be themed
 either. That part is fixed; the shader properties are not.
 
-Five of the nine are exact matches for tokens that already exist and are a
-straight substitution: `barColour` and `overColour` are `readout`, `barColourLow`
-and `inkColour` are `readout-dim`, `faceColour` is `display-bg`.
+Six of them were exact matches for tokens that already exist, and those are
+**done**: `barColour`, `overColour` and the ladder's `onColour` are `readout`,
+`barColourLow` and `inkColour` are `readout-dim`, and `faceColour` — the face the
+VU needle swings against — is `display-bg`. That last one mattered most: without
+it a dark chassis would have arrived with one component still painted for the
+light one.
 
-The other four are the problem, and the reason this is logged rather than done.
+**Four remain**, and they are the reason this is not closed.
 `capColour` and `needleColour` (`#F6D08A`) and the flame's two are pale, partly
 desaturated tints with no token behind them, and they are not `Qt.lighter()` of
 `readout` either — the nearest factor lands on `#FFB950`, which is more saturated
@@ -210,6 +213,16 @@ current appearance and verified by pixel comparison.
 The flame's two in particular were chosen by eye by the author over several
 iterations. Substituting a derivation for them without checking is how that work
 gets quietly undone.
+
+A fifth joined them: the ladder's `offColour` `#3A342C`, the unlit segment. It is
+close to `Qt.lighter(display-bg)` but not equal to it — the literal is warmer
+than any lightening of the well produces — so it is in the same category as the
+others rather than a substitution.
+
+None of the five blocks the four sets that ship, because all of them keep the
+same amber lamp and the remaining literals are lamp-family. They would block a
+set that changed the readout colour, which is exactly what F-044's "VFD-green
+readout" is.
 
 **Trade-offs:** Doing it costs a SPEC.md palette change — the table is currently
 eight tokens and deliberately closed — or a tuning exercise against screenshots.

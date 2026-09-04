@@ -36,6 +36,15 @@ ApplicationWindow {
     // and restored — the sections are hidden, not unloaded.
     property bool compact: false
 
+    // Lit-on-dark or dark-on-lit for the display. Persisted under
+    // `ui/display-inverted`; see SPEC.md §Settings.
+    property bool displayInverted: false
+
+    // Whether the settings drawer is pulled out. Like the equaliser's, this
+    // is separate from whether it can be *seen*, so folding the panel away
+    // and opening it again leaves the drawer as it was.
+    property bool settingsOpen: false
+
     // The height to come back to, kept up to date rather than snapshotted when
     // the panel folds. A window the user has resized should come back the size
     // they left it, and a snapshot taken at the toggle is only right if nothing
@@ -161,6 +170,7 @@ ApplicationWindow {
                       : Playlist.currentTitle)
             album: Playlist.currentAlbum
             format: Engine.streamFormat
+            inverted: window.displayInverted
             position: Engine.position
             duration: Engine.duration
             status: window.stateNames[Engine.state].toLowerCase()
@@ -306,9 +316,19 @@ ApplicationWindow {
                     TransportGlyph { anchors.fill: parent; mark: TransportGlyph.Next }
                 }
 
-                // The shade. Narrower than the transport controls and not stretched
-                // with them: it is not one of the transport, and a control that
-                // looked like one would be reached for by mistake.
+                    // The settings key and the shade. Both narrower than the
+                // transport controls and not stretched with them: neither is
+                // one of the transport, and a control that looked like one
+                // would be reached for by mistake.
+                PanelButton {
+                    Layout.preferredWidth: Tokens.controlHeight
+                    Layout.preferredHeight: Tokens.controlHeight
+                    text: qsTr("set")
+                    activated: window.settingsOpen
+                    visible: !window.compact
+                    onClicked: window.settingsOpen = !window.settingsOpen
+                }
+
                 PanelButton {
                     Layout.preferredWidth: Tokens.controlHeight
                     Layout.preferredHeight: Tokens.controlHeight
@@ -323,33 +343,23 @@ ApplicationWindow {
             }
         }
 
+        SettingsPanel {
+            visible: window.settingsOpen && !window.compact
+            Layout.fillWidth: true
+        }
+
         // ---- playlist ---------------------------------------------------
         RowLayout {
             visible: !window.compact
             Layout.fillWidth: true
-            spacing: 6
+            spacing: Tokens.gapControl
 
-            Legend { text: qsTr("filter") }
-            EntryField {
-                Layout.fillWidth: true
-                Layout.preferredHeight: Tokens.controlHeight
-                placeholder: qsTr("all entries")
-                onTextChanged: PlaylistView.filterText = text
-            }
-            Readout {
-                // How many of the list the filter leaves, which is a value and
-                // so is lit. Shown only while a filter is in force: an unlit
-                // window sitting there permanently would be a lamp that never
-                // comes on.
-                visible: PlaylistView.filterText !== ""
-                Layout.preferredHeight: Tokens.controlHeight
-                face: Tokens.readoutNumeric
-                size: Tokens.sizeLegend
-                ground: Tokens.displayBg
-                inset: Tokens.gapControl
-                alignment: Text.AlignRight
-                text: qsTr("%1:%2").arg(PlaylistView.count).arg(Playlist.count)
-            }
+            // The filter field was here and has been taken out. `PlaylistView`
+            // is still the filter proxy and still the model the list is bound
+            // to, so nothing about play order or the drag-reorder guard below
+            // changes — what is gone is the way to set `filterText`, not the
+            // filtering. F-014 records that its live-filter clause currently
+            // has no interface.
             PanelButton { text: qsTr("add files"); onClicked: addFilesDialog.open() }
             PanelButton { text: qsTr("add folder"); onClicked: addFolderDialog.open() }
             PanelButton {

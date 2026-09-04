@@ -93,6 +93,7 @@ qt_add_qml_module(ferrolux
         qml/SlideSwitch.qml
         qml/PanelMenu.qml
         qml/EntryField.qml
+        qml/SettingsPanel.qml
 )
 
 # The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),
@@ -115,6 +116,9 @@ qt_add_resources(ferrolux "ferrolux_panel_assets"
         resources/fonts/OFL-Handjet.txt
         resources/fonts/OFL-IBMPlexSansCondensed.txt
         resources/themes/ferric.json
+        resources/themes/anodised.json
+        resources/themes/glacier.json
+        resources/themes/ember.json
 )
 
 target_include_directories(ferrolux PRIVATE src)

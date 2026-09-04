@@ -36,7 +36,7 @@ Rectangle {
     property real position: 0
     property real duration: 0
 
-    color: Tokens.displayBg
+    color: display.ground
     radius: Tokens.radiusSection
     border.width: Tokens.hairline
     border.color: Tokens.shellEdge
@@ -54,8 +54,8 @@ Rectangle {
         height: Tokens.recess
         radius: Tokens.radiusSlot
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.darker(Tokens.displayBg, Tokens.bevelShadow * 1.3) }
-            GradientStop { position: 1.0; color: Tokens.displayBg }
+            GradientStop { position: 0.0; color: Qt.darker(display.ground, Tokens.bevelShadow * 1.3) }
+            GradientStop { position: 1.0; color: display.ground }
         }
     }
 
@@ -95,6 +95,27 @@ Rectangle {
     property string album: ""
     property string format: ""
 
+    // Lit-on-dark, or dark-on-lit. Inverted, the well *is* the lamp and the
+    // text is the part that is not lit — which is how a filled indicator cell
+    // works, and is a different instrument rather than the same one recoloured.
+    //
+    // The secondary tier cannot simply be `readout-dim` here: that is a lamp
+    // colour and this ground is already the lamp. It is the primary ink at
+    // reduced opacity instead, which stays a fixed distance from the ground
+    // whatever the ground is, and so survives a change of theme without a
+    // second value having to be chosen for every set.
+    property bool inverted: false
+
+    readonly property color ground: inverted ? Tokens.readout : Tokens.displayBg
+    readonly property color lit: inverted ? Tokens.displayBg : Tokens.readout
+    readonly property color annotation: inverted ? Tokens.displayBg : Tokens.readoutDim
+    readonly property real annotationFade: inverted ? 0.72 : 1.0
+
+    // Unlit segments still sit between the ground and the live value, so the
+    // ghost darkens the lamp rather than dimming a dark well.
+    readonly property color ghostInk: inverted ? Qt.darker(Tokens.readout, 1.22)
+                                               : Tokens.readoutFloor
+
     implicitHeight: titleRow.implicitHeight + statusRow.implicitHeight
                     + Tokens.padSection * 2 + Tokens.padRow
 
@@ -121,8 +142,8 @@ Rectangle {
 
             face: Tokens.readoutNumeric
             size: Tokens.sizeReadoutLarge
-            colour: Tokens.readout
-            ghostColour: Tokens.readoutFloor
+            colour: display.lit
+            ghostColour: display.ghostInk
             alignment: Text.AlignRight
 
             // Elapsed, against a ghost built from the *duration* — the field is
@@ -142,7 +163,7 @@ Rectangle {
 
             face: Tokens.readoutText
             size: Tokens.sizeReadoutLarge
-            colour: Tokens.readout
+            colour: display.lit
             ghost: ""   // no all-lit glyph in the dot-matrix face; see above
             text: display.title
         }
@@ -180,7 +201,8 @@ Rectangle {
             // takes it at full brightness: it is the more urgent report, and
             // there is no red on this display to say so with, so brightness is
             // the only emphasis a single-colour lamp has.
-            colour: display.error !== "" ? Tokens.readout : Tokens.readoutDim
+            colour: display.error !== "" ? display.lit : display.annotation
+            opacity: display.error !== "" ? 1.0 : display.annotationFade
             text: display.error !== "" ? display.error : display.album
         }
 
@@ -191,7 +213,8 @@ Rectangle {
             height: implicitHeight
             face: Tokens.readoutText
             size: Tokens.sizeReadout
-            colour: Tokens.readoutDim
+            colour: display.annotation
+            opacity: display.annotationFade
             alignment: Text.AlignHCenter
 
             // Hidden until the pipeline has something to say. An empty field
@@ -208,7 +231,8 @@ Rectangle {
             height: implicitHeight
             face: Tokens.readoutText
             size: Tokens.sizeReadout
-            colour: Tokens.readoutDim
+            colour: display.annotation
+            opacity: display.annotationFade
             alignment: Text.AlignRight
             text: display.status !== "" && display.counter !== ""
                   ? display.status + "  ·  " + display.counter

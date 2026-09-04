@@ -3,6 +3,7 @@
 
 #include "ui/ThemeTokens.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -55,7 +56,41 @@ bool ThemeTokens::load(const QString &path)
     m_metrics = root.value(QStringLiteral("metrics")).toObject().toVariantMap();
     m_type = root.value(QStringLiteral("type")).toObject().toVariantMap();
     m_error.clear();
+    emit changed();
     return true;
+}
+
+// The bundled sets, by name. Listed from the resource directory rather than
+// from a table here: a set is a file, and a table would be a second place to
+// forget to update.
+QStringList ThemeTokens::available()
+{
+    QStringList names;
+    const QDir directory(QStringLiteral(":/resources/themes"));
+    for (const QString &file : directory.entryList({ QStringLiteral("*.json") }, QDir::Files,
+                                                   QDir::Name)) {
+        names.append(file.left(file.size() - 5));
+    }
+
+    // The default first, then the rest in the order the directory gives them.
+    // A chooser that puts the set the panel was designed around wherever the
+    // alphabet happens to place it is a chooser that reads as arbitrary.
+    if (names.removeOne(defaultName()))
+        names.prepend(defaultName());
+    return names;
+}
+
+bool ThemeTokens::loadNamed(const QString &name)
+{
+    if (load(QStringLiteral(":/resources/themes/%1.json").arg(name)))
+        return true;
+
+    // A name that no longer resolves is a stale setting — a set renamed or
+    // removed since it was chosen — and not a reason to run with no
+    // appearance. Say so and fall back, rather than leaving the panel black.
+    qCWarning(log) << "no token set named" << name << "-" << m_error
+                   << "; falling back to" << defaultName();
+    return load(QStringLiteral(":/resources/themes/%1.json").arg(defaultName()));
 }
 
 QColor ThemeTokens::colour(const QString &token) const

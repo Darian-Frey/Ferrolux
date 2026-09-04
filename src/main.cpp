@@ -238,13 +238,15 @@ int main(int argc, char *argv[])
                          qPrintable(face));
         }
 
-        // The token set, resolved at load per SPEC.md §Design tokens. Refusing to
-        // start is deliberate: a half-loaded set draws the chassis in whatever a
-        // missing colour resolves to, which is black, and black chrome under a
-        // black readout is not a visible failure. F-044 will select the set from
-        // settings; until there is a second one, there is nothing to select.
+        // The token set named by `ui/theme`, per SPEC.md §Settings and F-044.
+        // Refusing to start on a set that will not load at all is deliberate: a
+        // half-loaded set draws the chassis in whatever a missing colour
+        // resolves to, which is black, and black chrome under a black readout
+        // is not a visible failure. A *name* that no longer resolves is a
+        // different thing — a stale setting — and loadNamed falls back for it.
         ThemeTokens theme;
-        if (!theme.load(QStringLiteral(":/resources/themes/ferric.json"))) {
+        if (!theme.loadNamed(settings.value(QStringLiteral("ui/theme"),
+                                            ThemeTokens::defaultName()).toString())) {
             qCritical("%s", qPrintable(theme.lastError()));
             return 1;
         }
@@ -292,10 +294,16 @@ int main(int argc, char *argv[])
             if (settings.value(QStringLiteral("ui/compact"), false).toBool())
                 window->setProperty("compact", true);
 
-            QObject::connect(&app, &QGuiApplication::aboutToQuit, window, [window] {
+            QObject::connect(&app, &QGuiApplication::aboutToQuit, window, [window, &theme] {
                 QSettings out;
                 out.setValue(QStringLiteral("ui/compact"), window->property("compact"));
+                out.setValue(QStringLiteral("ui/theme"), theme.name());
+                out.setValue(QStringLiteral("ui/display-inverted"),
+                             window->property("displayInverted"));
             });
+
+            window->setProperty("displayInverted",
+                                settings.value(QStringLiteral("ui/display-inverted"), false).toBool());
 
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");

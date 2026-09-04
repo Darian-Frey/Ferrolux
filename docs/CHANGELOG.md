@@ -257,7 +257,46 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   the same way; logged as IMP-006 rather than guessed at, because four of them
   are tints the author tuned by eye and no derivation reproduces them.
 
+- Four finishes (F-044): `ferric`, `anodised`, `glacier` and `ember`, chosen
+  from a new settings drawer and exchanged while the panel is running. Each set
+  is the same file with a different palette, so the geometry and the type scale
+  are shared by construction rather than copied and kept in step. The variants
+  change the chassis and keep the amber lamp, which is how real equipment
+  varies — the paint is the paint and the lamp is the lamp.
+- The display can be inverted: lit ground, dark text, the way a filled indicator
+  cell works. Persisted under `ui/display-inverted`. The secondary tier is the
+  primary ink at reduced opacity rather than a second colour, so it stays a
+  fixed distance from the ground whatever the ground is and needs no value
+  chosen per set.
+- `tests/tokens_test` now holds *every* set that ships to the same vocabulary
+  and to contrast floors — BUG-020 turned into a check. A palette is eight
+  numbers and it is very easy to write eight plausible numbers that fail; two
+  of the three new sets did, by a little, and were tuned until they did not.
+- `ThemeTokens` loads by name, lists what ships from the resource directory
+  rather than from a table, and falls back with a warning on a name that no
+  longer resolves — a set renamed since it was chosen is a stale setting, not a
+  reason to start with no appearance.
+
+- The filter field is out of the file toolbar, at the author's request. The
+  proxy behind it is untouched — `PlaylistView` is still the model the list is
+  bound to and still tested, and the drag-reorder guard that depends on it still
+  reads correctly — so what went is the control that set `filterText`, not the
+  filtering. F-014 records that its live-filter clause now has no interface
+  rather than staying marked Complete: a feature reachable only from a test is
+  not a feature the player has. `qml/EntryField.qml` is kept for when that
+  clause gets a new home.
+
 ### Fixed
+- `qml/Tokens.qml` read its tokens through method calls, which a binding does
+  not track, so a theme could never have been exchanged at runtime — the panel
+  would have kept whatever it resolved on the first evaluation. It reads the
+  maps instead: a property read is tracked, so every component that used a token
+  re-evaluates together. The same trap as `mapToItem` in `PanelMenu`, and it
+  fails the same way — silently, looking like it works right up until it has to.
+- Six literal colours in the meter shaders became tokens, the important one
+  being the face the VU needle swings against: without it a dark chassis would
+  have arrived with one component still painted for the light one. Four remain
+  and are still IMP-006.
 - The display showed the file name while the playlist row beneath it showed
   the tags — `01 - Carousel.mp3` under `Blink-182 — Carousel`, the same fact in
   its least useful form. The engine is handed a URL and never sees a tag, so

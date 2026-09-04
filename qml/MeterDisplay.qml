@@ -46,8 +46,8 @@ PanelSection {
         property real gap: 0.18
         property real capThickness: 0.035
         property real mirrored: Meters.mode === "spectrum-mirror" ? 1.0 : 0.0
-        property color barColour: "#EF9F27"
-        property color barColourLow: "#BA7517"
+        property color barColour: Tokens.readout
+        property color barColourLow: Tokens.readoutDim
         property color capColour: "#F6D08A"
 
         fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/spectrum.frag.qsb"
@@ -98,10 +98,15 @@ PanelSection {
                 property real deflection: Meters.vu[index]
                 property real peakIndicator: Meters.peakIndicators[index]
                 property real aspect: width / Math.max(1, height)
-                property color faceColour: "#2C2C2A"
-                property color inkColour: "#BA7517"
+                // The face the needle swings against is the well it sits in,
+                        // so it follows the theme. Literal hexadecimal here
+                        // meant a dark chassis would have arrived with one
+                        // component still painted for the light one. Four
+                        // pale tints remain literal; see IMP-006.
+                        property color faceColour: Tokens.displayBg
+                property color inkColour: Tokens.readoutDim
                 property color needleColour: "#F6D08A"
-                property color overColour: "#EF9F27"
+                property color overColour: Tokens.readout
 
                 fragmentShader: "qrc:/qt/qml/Ferrolux/qml/shaders/vu.frag.qsb"
             }
@@ -130,7 +135,7 @@ PanelSection {
         property real segments: 28
         property real overFrom: 0.8
         property color offColour: "#3A342C"
-        property color onColour: "#EF9F27"
+        property color onColour: Tokens.readout
         property color overOnColour: "#E8613A"
         property color capColour: "#F6D08A"
 

@@ -74,6 +74,15 @@ playing, keeping the window position and the playback:
 
 ![Compact mode](docs/images/compact.png)
 
+Four finishes ship, exchanged from the settings drawer while the panel is
+running, and the display can be inverted to run dark-on-lit. Each finish is the
+same file with a different palette — the geometry and the type scale are shared
+by construction rather than copied — and every one is held to the same contrast
+floors by `tests/tokens_test`, because a palette is eight numbers and it is very
+easy to write eight plausible numbers that cannot be read.
+
+![The anodised finish with the display inverted](docs/images/themes.png)
+
 The static mockup the design started from is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
 
@@ -85,6 +94,7 @@ The static mockup the design started from is at
 | **Playlist** | 20,000 entries at 60 fps. Multi-select, drag reorder, undo. Shuffle as a permutation, not a per-track dice roll. M3U, M3U8 and PLS. |
 | **Equaliser** | Ten bands at the classic centre frequencies, ±12 dB, with preamp and headroom management. Winamp `.eqf` preset import. |
 | **Displays** | Spectrum bars, mirrored spectrum, flame, stereo VU needles and an LED peak ladder, all shader-rendered from a shared meter source. |
+| **Finishes** | Four chassis palettes, switched live, plus an inverted display. Token sets over one geometry, not asset packs. |
 | **Desktop** | MPRIS2, media keys under X11 and Wayland, single-instance enqueue, session restore. |
 
 Deliberately **not** in scope: Winamp skin compatibility, streaming services,
