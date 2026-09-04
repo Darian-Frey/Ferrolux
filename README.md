@@ -6,13 +6,13 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 to 4 built, Phase 5 under way.** Transport, a 20,000-entry
-> playlist, shuffle, repeat, playlist file I/O, gapless playback, a ten-band
-> equaliser and five shader-rendered meter displays all work, behind a
-> deliberately plain harness. Every display holds 60 fps at 3840×2160 with at
-> least 46% of the frame budget spare — measured, not assumed. There is no panel
-> yet — that is Phase 5, and it is the reason the project exists. Its token set
-> and its first lit readouts are in. See [Status](#status) below.
+> **Status: Phases 1 to 5 built. Phase 6, desktop integration, is next.**
+> Transport, a 20,000-entry playlist, shuffle, repeat, playlist file I/O,
+> gapless playback, a ten-band equaliser, five shader-rendered displays and the
+> cassette futurism panel itself all work. Nothing in the window is drawn from a
+> desktop theme. Every display holds 60 fps at 3840×2160 with at least 46% of
+> the frame budget spare, and the panel is correct at 1×, 1.5×, 2× and 3× device
+> pixel ratio — both measured rather than asserted. See [Status](#status) below.
 
 ---
 
@@ -55,11 +55,27 @@ whatever the compositor's pacing allows it to look like. That measurement caught
 the flame display running at 37 fps at 4K, where it had passed every test that
 could only reach 1080p.
 
-A static mockup of the intended layout is at
+![The Ferrolux panel](docs/images/panel.png)
+
+Every element above is drawn. There are no bitmap assets in the control surface:
+the mouldings are gradients and hairlines, the transport marks are half-plane
+intersections in a fragment shader, and the readouts are two layers of text —
+the lit value over an unlit ghost of the whole field, because a segmented
+display that shows only its lit segments reads as text in a segmented font,
+which is what it is.
+
+| | |
+|---|---|
+| ![Flame display](docs/images/meters.png) | ![Equaliser](docs/images/equaliser.png) |
+| Five display modes over one texture and one meter source, cycled by clicking. Every mode holds 60 fps at 3840×2160 with at least 46% of the frame budget spare — measured, not assumed. | Ten bands and a preamp, with lit gain readouts over unlit ghosts and silkscreened band centres. Values are lit; legends are printed; the two are never confused. |
+
+Compact mode folds the panel to the strip that reports and controls what is
+playing, keeping the window position and the playback:
+
+![Compact mode](docs/images/compact.png)
+
+The static mockup the design started from is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).
-There are no screenshots of the panel because it does not exist yet; what runs
-today is a plain Qt Quick window: transport buttons, a position bar and a
-playlist in the default style, which is exactly what a harness should be.
 
 ## What it will do
 
@@ -93,8 +109,8 @@ The reasoning for each of these, and the alternatives rejected, is in
 | 2 | Playlist | Feature-complete 2026-09-02 |
 | 3 | Equaliser | Feature-complete 2026-09-02 |
 | 4 | Meters | **Complete** 2026-09-03 |
-| 5 | The panel | In progress |
-| 6 | Desktop integration | Not started |
+| 5 | The panel | Feature-complete 2026-09-04 |
+| 6 | Desktop integration | Next |
 | 7 | RS-1 release | Not started |
 
 Audio correctness comes before appearance. The panel is the point of the

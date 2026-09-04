@@ -19,7 +19,35 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-*None.*
+### BUG-019 The equaliser preset name is saved but never restored
+**Status:** open
+**Severity:** low
+**Found:** 2026-09-04, while taking screenshots for the README
+**Related:** SPEC.md §Settings, F-021
+
+`equaliser/preset` is written on exit and never read on start. `src/main.cpp`
+restores `equaliser/bands`, `equaliser/preamp` and `equaliser/enabled`, and stops
+there, so the preset field always reports `flat` after a restart — including when
+the restored band values are exactly some other preset's.
+
+SPEC.md is the reason this is only a display fault and not a correctness one:
+"the preset name is recorded, but the band values are what is authoritative on
+restore — a preset may have been edited, or its definition may have changed since
+it was chosen." The curve that is restored is right. What is wrong is the label
+over it, which claims a preset the bands are not.
+
+It was invisible until the panel had a lit field to show the name in. The Phase 3
+harness displayed the same wrong value in a combo box and nobody looked.
+
+**Candidate resolutions**, for the author to choose:
+1. Restore the name after the bands, purely as a label, without re-applying the
+   preset. Matches SPEC.md exactly: values authoritative, name descriptive.
+2. Restore the name and check it against the bands, showing `edited` when they
+   have diverged. Truthful in the case SPEC.md's sentence is about, at the cost
+   of a comparison whose tolerance has to be defined.
+3. Stop writing the key. Honest, and loses the only record of what the user
+   chose.
+
 
 ## Fixed
 
