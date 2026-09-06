@@ -130,7 +130,7 @@ cmake --build build
 
 ## Tests
 
-Six suites, 311 checks. Four are self-contained and need nothing but the build;
+Six suites, 321 checks. Four are self-contained and need nothing but the build;
 `tokens_test` takes the source directory, because it reads the token sets and
 the faces from the tree:
 

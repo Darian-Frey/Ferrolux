@@ -19,9 +19,93 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-*None.*
+### BUG-022 `PanelMenu` measures its width in a binding that writes to what it measures
+**Status:** open
+**Severity:** low
+**Found:** 2026-09-06, in the log of the BUG-021 shutdown investigation
+**Related:** BUG-020, D-012
+
+Every menu opened logs `Binding loop detected for property "contentWidth"`, tens
+of times per opening, from both call sites in `Main.qml` — the sort menu and the
+preset menu.
+
+The cause is the measurement itself. `contentWidth` loops over the options
+*assigning* `metrics.text` and reading `metrics.width`, so the binding writes to
+the object it depends on: each assignment invalidates `metrics.width`, which
+notifies the binding, which runs again and reassigns. Qt breaks the cycle after a
+bounded number of passes, which is why the menu is nevertheless the right width
+and the defect shows only as log noise and wasted measurement on every opening.
+
+This is the *third* incarnation of PanelMenu's width. The first sized the rows
+from the column and the column from the rows and elided every entry to `loud…`;
+the second resolved to nothing and drew no menu; this one is correct but is still
+circular, merely with the cycle moved out of the layout and into `TextMetrics`.
+The lesson the first two should have taught is that a menu's width has no
+business being a binding at all: it depends on the options, on `Tokens`, and on
+nothing that changes while the menu is on screen.
+
+**Suggested fix,** unapplied per Maintenance Rule 8: compute the width in a
+function and assign it imperatively from `onAboutToShow`, exactly as the flip
+decision was moved there when `mapToItem` proved untrackable in a binding. That
+removes the cycle rather than tolerating it, and it recomputes on the only two
+things that can change the answer — the options and the panel's scale.
 
 ## Fixed
+
+### BUG-021 A refused close on the settings window stopped the entire application quitting
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-06, reported by the author — "the song is still playing even
+though the player closed again, it sounds like there is two or three instances
+playing"
+**Fixed:** 2026-09-06
+**Related:** BUG-012, SPEC.md §Settings
+
+Once the settings window had been opened even once, closing the player left the
+process running, windowless and audible. Opening the player again started a
+second one, and the instances stacked up — three were found running with no
+windows at all, which is how the defect was reported.
+
+`SettingsWindow` was declared with a handler that refused its own close, on the
+reasoning that hiding it rather than destroying it would preserve the scroll
+position:
+
+```qml
+onClosing: function (close) {
+    close.accepted = false
+    settingsWindow.visible = false
+}
+```
+
+**`Qt.quit()` sends a closing event to every top-level window, and a single
+refusal cancels the quit.** Reduced to a thirty-line program with no Ferrolux
+code in it, on Qt 6.4.2: a second window with no closing handler quits; one that
+accepts quits; one that is *present but empty* quits; one that sets
+`accepted = false` hangs forever. Instrumenting both windows shows the order —
+the root window receives its closing event and goes, the second refuses, and the
+quit is abandoned with the main window already gone. There is then no window
+left to close and no way to ask the process to quit again.
+
+That also explains the two observations that looked contradictory during the
+investigation. `onClosing: Qt.quit()` on the main window demonstrably *fired*,
+yet `aboutToQuit` never did and `app.exec()` never returned — because the quit
+was begun and then refused. And hiding the settings window again before closing
+the player did not help, because a hidden window is still a top-level window and
+still receives the closing event.
+
+**Fixed by deleting the handler.** The premise was wrong: closing a QML `Window`
+already only hides it, leaving the object and all its state alive, so nothing had
+to be refused to get the behaviour that was wanted. The window still reopens on
+the settings key with its state intact after being closed by the window manager,
+and closing it still does not quit the player.
+
+Note the symptom is identical to BUG-012 and the cause is unrelated — that one
+was `quitOnLastWindowClosed` never being reached because the window was hidden
+rather than closed. A player that keeps playing after its window is gone is worth
+treating as a class of fault rather than a single bug: **verify shutdown against
+every window the application can own, not just the main one.** The check is now
+four scenarios — settings never opened, left open, toggled shut, and closed by
+the window manager — and all four must reach `aboutToQuit`.
 
 ### BUG-019 The equaliser preset name is saved but never restored
 **Status:** fixed

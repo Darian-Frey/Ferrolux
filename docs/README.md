@@ -6,7 +6,7 @@
 > **Why this status:** Phases 1 to 5 are built. Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 311 checks across six suites pass in Debug and Release.
+> invertible. 321 checks across six suites pass in Debug and Release.
 >
 > Two acceptance criteria are measured rather than asserted, and both are the
 > reason the project exists. AV-002: every display holds 60 fps at 3840×2160
@@ -23,8 +23,10 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> No open bugs and no suggested improvements. Twenty bugs found, nineteen fixed
-> and one won't-fix upstream. Phase 6, desktop integration, is next.
+> One open bug and no suggested improvements. Twenty-two bugs found, twenty
+> fixed, one won't-fix upstream and BUG-022 open — a binding loop in the menu
+> width that costs log noise rather than correctness. Phase 6, desktop
+> integration, is next.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.
 

@@ -43,6 +43,7 @@
 #include "meters/FrameTimer.h"
 #include "meters/MeterTexture.h"
 #include "ui/ThemeTokens.h"
+#include "ui/VisualSettings.h"
 
 using ferrolux::core::Engine;
 using ferrolux::core::Equaliser;
@@ -53,6 +54,7 @@ using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
 using ferrolux::ui::ThemeTokens;
+using ferrolux::ui::VisualSettings;
 
 int main(int argc, char *argv[])
 {
@@ -202,6 +204,18 @@ int main(int argc, char *argv[])
         meters.setReferenceLevel(
             settings.value(QStringLiteral("meters/reference-level"),
                            MeterSource::kDefaultReferenceDb).toDouble());
+        meters.setBandCount(settings.value(QStringLiteral("meters/bands"),
+                                           MeterSource::kSpectrumBands).toInt());
+
+        // The proportions of the displays, as distinct from the colours of the
+        // panel. A finish cannot reach these and they survive a change of one:
+        // a preference for a coarse ladder is not a preference about paint.
+        VisualSettings visuals;
+        visuals.load();
+
+        QObject::connect(&app, &QGuiApplication::aboutToQuit, &visuals, [&visuals] {
+            visuals.save();
+        });
 
         QObject::connect(&app, &QGuiApplication::aboutToQuit, &engine, [&engine, &playlist, &meters] {
             QSettings out;
@@ -226,6 +240,7 @@ int main(int argc, char *argv[])
             out.setValue(QStringLiteral("equaliser/preset"), eq->preset());
             out.setValue(QStringLiteral("meters/mode"), meters.mode());
             out.setValue(QStringLiteral("meters/reference-level"), meters.referenceLevel());
+            out.setValue(QStringLiteral("meters/bands"), meters.bandCount());
         });
 
         // The texture item is instantiated from QML so it joins the scene graph and
@@ -266,6 +281,7 @@ int main(int argc, char *argv[])
         qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
         qml.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
         qml.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
+        qml.rootContext()->setContextProperty(QStringLiteral("Visuals"), &visuals);
 
         // A path on the command line fills the playlist and selects the first
         // track, but does not start it. Handing over a directory of several

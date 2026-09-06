@@ -40,10 +40,19 @@ ApplicationWindow {
     // `ui/display-inverted`; see SPEC.md §Settings.
     property bool displayInverted: false
 
-    // Whether the settings drawer is pulled out. Like the equaliser's, this
-    // is separate from whether it can be *seen*, so folding the panel away
-    // and opening it again leaves the drawer as it was.
-    property bool settingsOpen: false
+    // The settings live in a window of their own rather than in a drawer. A
+    // dozen controls pushed the playlist down every time they opened, and
+    // adjusting a display meant covering the display being adjusted.
+    SettingsWindow {
+        id: settingsWindow
+        inverted: window.displayInverted
+        onInvertRequested: function (wanted) { window.displayInverted = wanted }
+
+        // No `onClosing` handler, deliberately. Closing a QML Window already
+        // hides it and leaves the object alive, so the state is kept without
+        // anyone asking — and refusing the close to "keep" it is what stopped
+        // the application quitting at all. See BUG-021.
+    }
 
     // The height to come back to, kept up to date rather than snapshotted when
     // the panel folds. A window the user has resized should come back the size
@@ -324,9 +333,13 @@ ApplicationWindow {
                     Layout.preferredWidth: Tokens.controlHeight
                     Layout.preferredHeight: Tokens.controlHeight
                     text: qsTr("set")
-                    activated: window.settingsOpen
+                    activated: settingsWindow.visible
                     visible: !window.compact
-                    onClicked: window.settingsOpen = !window.settingsOpen
+                    onClicked: {
+                        settingsWindow.visible = !settingsWindow.visible
+                        if (settingsWindow.visible)
+                            settingsWindow.raise()
+                    }
                 }
 
                 PanelButton {
@@ -341,11 +354,6 @@ ApplicationWindow {
             }
 
             }
-        }
-
-        SettingsPanel {
-            visible: window.settingsOpen && !window.compact
-            Layout.fillWidth: true
         }
 
         // ---- playlist ---------------------------------------------------

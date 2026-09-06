@@ -43,8 +43,8 @@ PanelSection {
 
         property variant source: meterTexture
         property real bandCount: Meters.bandCount
-        property real gap: 0.18
-        property real capThickness: 0.035
+        property real gap: Visuals.spectrumGap
+        property real capThickness: Visuals.spectrumCap
         property real mirrored: Meters.mode === "spectrum-mirror" ? 1.0 : 0.0
         property color barColour: Tokens.readout
         property color barColourLow: Tokens.readoutDim
@@ -63,11 +63,11 @@ PanelSection {
 
         property variant source: meterTexture
         property real bandCount: Meters.bandCount
-        property real ranks: 9
-        property real frontHeight: 0.52
-        property real backHeight: 1.15
-        property real parallax: 2.2
-        property real softness: 0.9
+        property real ranks: Visuals.flameRanks
+        property real frontHeight: Visuals.flameFront
+        property real backHeight: Visuals.flameBack
+        property real parallax: Visuals.flameParallax
+        property real softness: Visuals.flameSoftness
         // A bound, not a look: it lets the shader dismiss an empty
         // pixel without sampling the texture. See BUG-016.
         property real ceiling: Meters.ceiling
@@ -132,8 +132,8 @@ PanelSection {
         property real levelRight: Math.min(1, Meters.vu[1] / 1.25)
         property real peakLeft: Math.min(1, Meters.channelPeaks[0] / 1.25)
         property real peakRight: Math.min(1, Meters.channelPeaks[1] / 1.25)
-        property real segments: 28
-        property real overFrom: 0.8
+        property real segments: Visuals.ladderSegments
+        property real overFrom: Visuals.ladderOver
         property color offColour: Tokens.segmentOff
         property color onColour: Tokens.readout
         property color overOnColour: Tokens.segmentOver

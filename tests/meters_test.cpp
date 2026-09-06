@@ -14,9 +14,14 @@
 
 #include "meters/MeterSource.h"
 #include "meters/MeterTexture.h"
+#include "ui/VisualSettings.h"
+
+#include <QSettings>
+#include <QStandardPaths>
 
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
+using ferrolux::ui::VisualSettings;
 
 namespace {
 
@@ -547,10 +552,91 @@ void testCeiling()
           QStringLiteral("%1").arg(meters.ceiling(), 0, 'f', 4));
 }
 
+// The display proportions the settings window drives.
+//
+// Every one of these ends up as a uniform in a shader that runs per pixel, per
+// frame, and a shader does not raise. A flame with zero ranks divides by zero
+// in `depth`; a ladder with zero segments does the same; an over-threshold of
+// exactly one puts the warning tier out of reach without saying so. None of
+// those would fail — they would draw something wrong sixty times a second.
+//
+// So the values are clamped, and clamped in the *setter* rather than beside the
+// slider, because the settings file is the other way in and it can be edited by
+// hand.
+void testVisualSettings()
+{
+    std::printf("\ndisplay proportions (SPEC.md §Settings)\n");
+
+    VisualSettings v;
+    check(v.flameRanks() == VisualSettings::kFlameRanks
+              && qFuzzyCompare(v.spectrumGap(), VisualSettings::kSpectrumGap),
+          "a fresh instance carries the values the shaders shipped with");
+
+    v.setFlameRanks(0);
+    check(v.flameRanks() >= VisualSettings::kMinFlameRanks,
+          "zero ranks is refused — the flame shader divides by rank count",
+          QString::number(v.flameRanks()));
+
+    v.setFlameRanks(9999);
+    check(v.flameRanks() == VisualSettings::kMaxFlameRanks,
+          "and the ceiling is the shader's own, above which it stops drawing them",
+          QString::number(v.flameRanks()));
+
+    v.setLadderSegments(0);
+    check(v.ladderSegments() >= VisualSettings::kMinLadderSegments,
+          "zero ladder segments is refused for the same reason",
+          QString::number(v.ladderSegments()));
+
+    v.setLadderOver(1.0);
+    check(v.ladderOver() < 1.0,
+          "an over-threshold of one is refused, or the warning tier is unreachable",
+          QString::number(v.ladderOver()));
+    v.setLadderOver(0.0);
+    check(v.ladderOver() > 0.0,
+          "and one of zero is refused, or every segment is an over-segment",
+          QString::number(v.ladderOver()));
+
+    v.setSpectrumGap(-5.0);
+    check(v.spectrumGap() >= 0.0, "a negative bar gap is refused",
+          QString::number(v.spectrumGap()));
+
+    // The way in that is not a slider. A file written by hand, or by an older
+    // version with a different range, has to be held to the same bounds.
+    {
+        QSettings out;
+        out.setValue(QStringLiteral("meters/flame-ranks"), 500);
+        out.setValue(QStringLiteral("meters/ladder-segments"), -3);
+        out.setValue(QStringLiteral("meters/spectrum-gap"), 99.0);
+    }
+    VisualSettings loaded;
+    loaded.load();
+    check(loaded.flameRanks() == VisualSettings::kMaxFlameRanks
+              && loaded.ladderSegments() >= VisualSettings::kMinLadderSegments
+              && loaded.spectrumGap() <= 0.6,
+          "a settings file out of range is clamped on load, not trusted",
+          QStringLiteral("ranks %1, segments %2, gap %3")
+              .arg(loaded.flameRanks()).arg(loaded.ladderSegments())
+              .arg(loaded.spectrumGap()));
+
+    loaded.reset();
+    check(loaded.flameRanks() == VisualSettings::kFlameRanks
+              && qFuzzyCompare(loaded.ladderOver(), VisualSettings::kLadderOver),
+          "reset returns every proportion to what the displays shipped with");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
 {
+    // Redirect QSettings before anything can touch a real configuration file.
+    // testVisualSettings writes out-of-range values deliberately, and a test
+    // that reaches the user's own settings to do that is a test that ruins
+    // their panel to prove a point.
+    QStandardPaths::setTestModeEnabled(true);
+    QCoreApplication::setOrganizationName(QStringLiteral("ferrolux"));
+    QCoreApplication::setApplicationName(QStringLiteral("ferrolux-test"));
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+
     QCoreApplication app(argc, argv);
 
     testBandMapping();
@@ -562,6 +648,7 @@ int main(int argc, char *argv[])
     testRestAndHold();
     testTexturePacking();
     testCeiling();
+    testVisualSettings();
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
                 failures, failures == 1 ? "" : "s");

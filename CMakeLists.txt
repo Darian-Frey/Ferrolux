@@ -42,6 +42,8 @@ qt_add_executable(ferrolux
     src/meters/FrameTimer.h
     src/ui/ThemeTokens.cpp
     src/ui/ThemeTokens.h
+    src/ui/VisualSettings.cpp
+    src/ui/VisualSettings.h
     src/library/PlaylistEntry.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
@@ -93,7 +95,8 @@ qt_add_qml_module(ferrolux
         qml/SlideSwitch.qml
         qml/PanelMenu.qml
         qml/EntryField.qml
-        qml/SettingsPanel.qml
+        qml/SettingsWindow.qml
+        qml/SettingRow.qml
 )
 
 # The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),
@@ -240,6 +243,8 @@ add_test(NAME equaliser COMMAND equaliser_test)
 
 qt_add_executable(meters_test
     tests/meters_test.cpp
+    src/ui/VisualSettings.cpp
+    src/ui/VisualSettings.h
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp

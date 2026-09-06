@@ -238,7 +238,7 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 **Acceptance:**
 - Alternative panel finishes (brushed aluminium, black anodised, VFD-green readout) selected from settings
 - Variants are token sets over the same geometry, not separate asset packs
-**Status:** **Met** 2026-09-04 for the finishes. Four sets ship — `ferric`, `anodised`, `glacier`, `ember` — chosen from the settings drawer and exchanged while the panel is running. Each is the same file with a different palette, so the geometry and the type scale are shared by construction rather than copied and kept in step. `tests/tokens_test` holds every set to the same vocabulary and to contrast floors, which is BUG-020 turned into a check.
+**Status:** **Met** 2026-09-04 for the finishes. Four sets ship — `ferric`, `anodised`, `glacier`, `ember` — chosen from the settings window and exchanged while the panel is running. Each is the same file with a different palette, so the geometry and the type scale are shared by construction rather than copied and kept in step. `tests/tokens_test` holds every set to the same vocabulary and to contrast floors, which is BUG-020 turned into a check.
 
 The variants change the *chassis* and keep the amber lamp, which is how real equipment varies — the paint is the paint and the lamp is the lamp.
 

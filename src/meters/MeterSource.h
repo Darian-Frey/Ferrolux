@@ -35,7 +35,11 @@ class MeterSource : public QObject
 {
     Q_OBJECT
 
-    Q_PROPERTY(int bandCount READ bandCount NOTIFY bandCountChanged)
+    // Writable: the settings panel offers 24 or 48. Changing it rebuilds the
+    // frequency mapping and the texture, which is why it is a property rather
+    // than a constant — see SPEC.md §Frequency mapping for what 24 and 48 mean
+    // and AV-011 for what the low bands do at either.
+    Q_PROPERTY(int bandCount READ bandCount WRITE setBandCount NOTIFY bandCountChanged)
     // The display mode lives here rather than in the view because it decides
     // the band count: a mirrored spectrum wants twice the resolution of an
     // upright one at the same width. Identifiers are those in SPEC.md §Meters.

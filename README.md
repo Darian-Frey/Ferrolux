@@ -75,7 +75,7 @@ playing, keeping the window position and the playback:
 ![Compact mode](docs/images/compact.png)
 
 Four finishes ship — `ferric`, `anodised`, `ember` and `glacier` — exchanged
-from the settings drawer while the panel is running, and the display can be
+from the settings window while the panel is running, and the display can be
 inverted to run dark-on-lit.
 
 ![The four finishes](docs/images/finishes.png)
@@ -159,7 +159,7 @@ Dependencies, per-distribution package lists and troubleshooting are in
 intention. Everything built so far needs Qt 6 Base, Declarative and Shader
 Tools, GStreamer 1.20 with its base, good and bad plugin sets, and TagLib.
 
-Six test suites, 311 checks:
+Six test suites, 321 checks:
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \

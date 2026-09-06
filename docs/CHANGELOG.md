@@ -312,7 +312,32 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   finish latched, which shows both what the finishes look like and that they are
   selected rather than built.
 
+- Settings moved out of the panel and into a window of their own, and gained the
+  nine display *proportions* the meter shaders previously carried as literals:
+  the bar gap and cap thickness, the flame's ranks, front and back height,
+  parallax and softness, and the ladder's segment count and over-reference. Each
+  was chosen by eye and is a preference rather than a fact, so it belongs to the
+  user. `ui/VisualSettings` clamps every one on the way in — from the sliders
+  and from a hand-edited settings file alike — because a flame with zero ranks
+  or a ladder with zero segments is a division by zero in a shader, which does
+  not throw but draws something wrong sixty times a second. Eleven keys added to
+  SPEC.md §Settings; nine new checks in `meters_test`. A second window rather
+  than a drawer because a drawer pushed the playlist down and covered the very
+  display being adjusted, and these are settings that can only be judged by
+  watching the meter move while they change.
+
 ### Fixed
+- BUG-021: once the settings window had been opened, closing the player left the
+  process running, windowless and still playing — and opening the player again
+  stacked another one behind it. `Qt.quit()` asks every top-level window to
+  close and abandons the quit if any one of them refuses, by which point the
+  main window has already gone and nothing is left to close. The settings window
+  refused, in order to preserve its scroll position. The premise was wrong:
+  closing a QML `Window` only hides it and keeps the object and its state alive,
+  so the handler bought nothing and cost the shutdown. Reduced to a thirty-line
+  program to confirm the mechanism rather than the symptom. Shutdown is now
+  verified against four scenarios rather than one — settings never opened, left
+  open, toggled shut, and closed by the window manager.
 - The `ember` and `glacier` finishes were both wrong, reported from use.
   `ember` read as pink rather than burnt orange, which is what 42% saturation
   at 50% lightness on a warm hue *is* — it is now 60% at 34%, and its ink
