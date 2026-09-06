@@ -13,18 +13,14 @@
 // Qt initialisation, the fonts, the token set, the QML context, the command
 // line, and AV-002's measurement mode.
 //
-// Settings persistence lives here rather than in core/ so that core/ keeps no
-// dependency on the desktop; platform/Settings takes it over later in Phase 6.
-// Keys and defaults are those in SPEC.md §Settings and are never invented
-// locally.
+// Settings persistence is `platform/Settings`, which owns every key in SPEC.md
+// §Settings. It is constructed here and asked to restore and to save; what it
+// remembers and in what order is its business, not this function's.
 
-#include <QDir>
-#include <QDirIterator>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QQmlEngine>
 #include <QFontDatabase>
 #include <QQuickWindow>
 #include <QSurfaceFormat>
@@ -39,6 +35,7 @@
 #include <gst/gst.h>
 
 #include "app/Player.h"
+#include "platform/Settings.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
 #include "meters/FrameTimer.h"
@@ -47,11 +44,9 @@
 #include "ui/VisualSettings.h"
 
 using ferrolux::app::Player;
-using ferrolux::core::Equaliser;
-using ferrolux::library::PlaylistModel;
 using ferrolux::meters::FrameTimer;
-using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
+using ferrolux::platform::Settings;
 using ferrolux::ui::ThemeTokens;
 using ferrolux::ui::VisualSettings;
 
@@ -95,90 +90,24 @@ int main(int argc, char *argv[])
         // them. Declared inside this scope so that all of it is destroyed
         // before gst_deinit() below.
         Player player;
-        auto &engine = *player.engine();
-        auto &playlist = *player.playlist();
-        auto &meters = *player.meters();
-
-        QSettings settings;
-        engine.setVolume(settings.value(QStringLiteral("playback/volume"), 0.7).toDouble());
-        engine.setBalance(settings.value(QStringLiteral("playback/balance"), 0.0).toDouble());
-        playlist.setShuffle(settings.value(QStringLiteral("playback/shuffle"), false).toBool());
-        const QString repeat = settings.value(QStringLiteral("playback/repeat"),
-                                              QStringLiteral("off")).toString();
-        playlist.setRepeat(repeat == QLatin1String("all")   ? PlaylistModel::RepeatAll
-                           : repeat == QLatin1String("one") ? PlaylistModel::RepeatOne
-                                                            : PlaylistModel::RepeatOff);
-
-        Equaliser *equaliser = engine.equaliser();
-        {
-            // Band gains are restored before the enabled flag, so that switching on
-            // applies the stored curve in one step rather than ramping to flat and
-            // then to the real values.
-            QList<double> storedBands;
-            for (const QVariant &value : settings.value(QStringLiteral("equaliser/bands")).toList())
-                storedBands.append(value.toDouble());
-            if (storedBands.size() == Equaliser::kBandCount)
-                equaliser->setBands(storedBands);
-
-            equaliser->setPreamp(settings.value(QStringLiteral("equaliser/preamp"), 0.0).toDouble());
-            equaliser->setEnabled(settings.value(QStringLiteral("equaliser/enabled"), false).toBool());
-
-            // Last, and only as a label. The curve is already loaded; this asks
-            // the equaliser whether that curve is still the preset it was saved
-            // under, and takes the name only if it is. Written on exit and never
-            // read, the key left the panel reporting `flat` over somebody else's
-            // curve — which nobody noticed until the panel had a lit field to
-            // show it in. See BUG-019.
-            equaliser->adoptPreset(settings.value(QStringLiteral("equaliser/preset")).toString());
-        }
-
-        meters.setMode(settings.value(QStringLiteral("meters/mode"),
-                                      QStringLiteral("spectrum")).toString());
-        meters.setReferenceLevel(
-            settings.value(QStringLiteral("meters/reference-level"),
-                           MeterSource::kDefaultReferenceDb).toDouble());
-        meters.setBandCount(settings.value(QStringLiteral("meters/bands"),
-                                           MeterSource::kSpectrumBands).toInt());
-
-        // The proportions of the displays, as distinct from the colours of the
-        // panel. A finish cannot reach these and they survive a change of one:
-        // a preference for a coarse ladder is not a preference about paint.
         VisualSettings visuals;
-        visuals.load();
+        ThemeTokens theme;
 
-        QObject::connect(&app, &QGuiApplication::aboutToQuit, &visuals, [&visuals] {
-            visuals.save();
-        });
+        // Refusing to start on a token set that will not load at all is
+        // deliberate: a half-loaded set draws the chassis in whatever a missing
+        // colour resolves to, which is black, and black chrome under a black
+        // readout is not a visible failure.
+        Settings persisted(&player, &visuals, &theme);
+        if (!persisted.restore()) {
+            qCritical("%s", qPrintable(persisted.lastError()));
+            return 1;
+        }
+        QObject::connect(&app, &QGuiApplication::aboutToQuit,
+                         &persisted, &Settings::save);
 
-        QObject::connect(&app, &QGuiApplication::aboutToQuit, &engine, [&engine, &playlist, &meters] {
-            QSettings out;
-            out.setValue(QStringLiteral("playback/volume"), engine.volume());
-            out.setValue(QStringLiteral("playback/balance"), engine.balance());
-            out.setValue(QStringLiteral("playback/shuffle"), playlist.shuffle());
-            out.setValue(QStringLiteral("playback/repeat"),
-                         playlist.repeat() == PlaylistModel::RepeatAll   ? QStringLiteral("all")
-                         : playlist.repeat() == PlaylistModel::RepeatOne ? QStringLiteral("one")
-                                                                         : QStringLiteral("off"));
-
-            // SPEC.md §Settings: the preset name is recorded, but the band values
-            // are what is authoritative on restore — a preset may have been edited,
-            // or its definition may have changed since it was chosen.
-            Equaliser *eq = engine.equaliser();
-            QVariantList bands;
-            for (double gain : eq->bands())
-                bands.append(gain);
-            out.setValue(QStringLiteral("equaliser/enabled"), eq->isEnabled());
-            out.setValue(QStringLiteral("equaliser/preamp"), eq->preamp());
-            out.setValue(QStringLiteral("equaliser/bands"), bands);
-            out.setValue(QStringLiteral("equaliser/preset"), eq->preset());
-            out.setValue(QStringLiteral("meters/mode"), meters.mode());
-            out.setValue(QStringLiteral("meters/reference-level"), meters.referenceLevel());
-            out.setValue(QStringLiteral("meters/bands"), meters.bandCount());
-        });
-
-        // The texture item is instantiated from QML so it joins the scene graph and
-    // can be named as a ShaderEffect source.
-    qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
+        // The texture item is instantiated from QML so it joins the scene graph
+        // and can be named as a ShaderEffect source.
+        qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
 
         // The panel's four faces, from the binary rather than from the system
         // (D-012, SPEC.md §Typography). A missing face does not fail: Qt
@@ -194,36 +123,19 @@ int main(int argc, char *argv[])
                          qPrintable(face));
         }
 
-        // The token set named by `ui/theme`, per SPEC.md §Settings and F-044.
-        // Refusing to start on a set that will not load at all is deliberate: a
-        // half-loaded set draws the chassis in whatever a missing colour
-        // resolves to, which is black, and black chrome under a black readout
-        // is not a visible failure. A *name* that no longer resolves is a
-        // different thing — a stale setting — and loadNamed falls back for it.
-        ThemeTokens theme;
-        if (!theme.loadNamed(settings.value(QStringLiteral("ui/theme"),
-                                            ThemeTokens::defaultName()).toString())) {
-            qCritical("%s", qPrintable(theme.lastError()));
-            return 1;
-        }
-
-    QQmlApplicationEngine qml;
-        qml.rootContext()->setContextProperty(QStringLiteral("Engine"), &engine);
-        qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), &playlist);
+        QQmlApplicationEngine qml;
+        qml.rootContext()->setContextProperty(QStringLiteral("Engine"), player.engine());
+        qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), player.playlist());
         qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), player.view());
-        qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
-        qml.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
+        qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), player.equaliser());
+        qml.rootContext()->setContextProperty(QStringLiteral("Meters"), player.meters());
         qml.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
         qml.rootContext()->setContextProperty(QStringLiteral("Visuals"), &visuals);
 
-        // A path on the command line fills the playlist and selects the first
-        // track, but does not start it. Handing over a directory of several
-        // hundred files and having audio begin unbidden is a surprise, and
-        // F-052's explicit --play form only means something if the bare default
-        // is not that. See BUG-015.
-        //
-        // The --enqueue / --play / --replace forms themselves arrive with
-        // single-instance handling in Phase 6.
+        // Paths fill the playlist and select the first without starting it;
+        // `Player::Open` is where that rule and its reasons live. The
+        // --enqueue / --play / --replace forms arrive with single-instance
+        // handling later in this phase (F-052).
         QList<QUrl> arguments;
         for (const QString &argument : app.arguments().mid(1))
             arguments.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
@@ -239,24 +151,10 @@ int main(int argc, char *argv[])
         if (auto *window = qobject_cast<QQuickWindow *>(qml.rootObjects().first())) {
             frameTimer.attach(window);
 
-            // F-042. Set directly rather than through setCompact(), which
-            // animates the window down from whatever it was: at startup there
-            // is nothing to come down from, and the height the panel would be
-            // told to return to would be the default rather than the one the
-            // user last had. SPEC.md §Settings owns this key.
-            if (settings.value(QStringLiteral("ui/compact"), false).toBool())
-                window->setProperty("compact", true);
-
-            QObject::connect(&app, &QGuiApplication::aboutToQuit, window, [window, &theme] {
-                QSettings out;
-                out.setValue(QStringLiteral("ui/compact"), window->property("compact"));
-                out.setValue(QStringLiteral("ui/theme"), theme.name());
-                out.setValue(QStringLiteral("ui/display-inverted"),
-                             window->property("displayInverted"));
-            });
-
-            window->setProperty("displayInverted",
-                                settings.value(QStringLiteral("ui/display-inverted"), false).toBool());
+            // Everything the panel itself remembers. It could not be applied
+            // any earlier than this: QML builds the window, so there was
+            // nothing to apply it to until `qml.load` returned.
+            persisted.attachWindow(window);
 
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");

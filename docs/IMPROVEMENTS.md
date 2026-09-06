@@ -22,7 +22,30 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
-*None.*
+### IMP-007 SPEC.md's settings table does not say which keys exist
+**Status:** open
+**Effort:** small
+**Found:** 2026-09-06, gathering the keys into `platform/Settings`
+**Related:** F-015, F-042, SPEC.md §Settings
+
+The table lists twenty-seven keys with a type, a default and a note. Three of
+them are not read or written by any code in the tree — `ui/geometry`,
+`session/playlist` and `session/position` — and nothing in the table
+distinguishes them from the twenty-four that are.
+
+Two of the three are honestly pending: `session/playlist` and `session/position`
+are F-015, which is still to come in this phase. `ui/geometry` belongs to no
+feature entry at all, which is why it is worth recording rather than assuming
+somebody has it in hand — a documented setting that nothing implements and
+nothing is committed to implementing is a promise the file is making on the
+application's behalf.
+
+Gathering the keys into one class is what made this visible: every string in
+SPEC.md §Settings is now in `platform/Settings` except those three, so the gap
+is a diff rather than a memory. It also makes the table checkable, which is the
+suggestion — a status column, or a check that walks the table and asserts each
+key appears in `Settings`. The second would have caught BUG-019, where a key was
+written on exit and never read on start.
 
 ## Applied
 

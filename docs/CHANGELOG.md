@@ -342,6 +342,20 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   still belongs to the engine. Verified by driving the panel under XTest, since
   no suite covers the wiring and the wiring is all that moved.
 
+- Settings persistence becomes `platform/Settings`, which is what ARCHITECTURE.md
+  had promised since before that directory existed. Every key in SPEC.md
+  §Settings now lives in one class, restored onto the objects and written back on
+  `aboutToQuit` through a single connection instead of three. `main.cpp` falls to
+  205 lines from the 378 it began the phase with and holds neither a `connect`
+  nor a settings key. The window is taken as a plain `QObject` and read by
+  property name, so `platform/` needs no Qt Quick dependency to remember whether
+  the panel was folded. Verified by round trip: an existing settings file
+  survives a launch and a close byte for byte, which is the property BUG-019
+  broke — a key written on exit and never read on start comes back as its
+  default, and a diff shows it.
+- IMP-007 logged, not applied: SPEC.md's settings table gives no way to tell its
+  twenty-four implemented keys from its three unimplemented ones.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

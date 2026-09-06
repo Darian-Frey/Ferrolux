@@ -35,8 +35,12 @@ across six suites** pass in both Debug and Release.
   offers the transport surface the desktop services need. `app/` is the only
   module allowed to depend on several peers; the other four still include
   nothing from one another, which is what keeps each testable alone
-- `src/main.cpp` — entry point, settings persistence, QML context, fonts, the
-  token set and the command line. No longer contains a single `connect`
+- `src/platform/Settings.{h,cpp}` — every key in SPEC.md §Settings, restored
+  onto the objects and written back on `aboutToQuit`. The window is taken as a
+  plain `QObject` and read by property name, so `platform/` needs no Qt Quick
+  dependency to remember a fold
+- `src/main.cpp` — entry point, QML context, fonts and the command line. 205
+  lines, down from 378, and it no longer contains a `connect` or a settings key
 - `qml/` — fifteen components and `shaders/`. `Main.qml` is the window's
   layout; everything it draws with is panel chrome. `SettingsWindow.qml` is a
   second top-level window rather than a panel drawer, so that a display stays
@@ -48,7 +52,8 @@ across six suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
-- Not yet present: `platform/`, which is the rest of Phase 6
+- `platform/` exists now but holds only `Settings`; MPRIS2, media keys and
+  single-instance coordination are the rest of Phase 6
 
 **No open bugs and no suggested improvements.** Twenty-two bugs found so far,
 twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
@@ -76,11 +81,10 @@ into it. What remains is MPRIS2 (F-050), media keys under X11 and Wayland
 (F-051), single-instance enqueue (F-052), session restore (F-015), keyboard
 control (F-043) and the desktop entry.
 
-`platform/` does not exist yet and is where all of it goes — the point of that
-directory is that nothing else acquires a dependency on D-Bus or on the session
-type, and it reaches the player through `app/Player` rather than through `core/`.
-Settings persistence still lives in `main.cpp` and moves there next; ARCHITECTURE.md
-has promised that move since before the directory existed.
+`platform/` now exists and holds `Settings`; the rest of the phase goes in
+beside it. The point of that directory is that nothing else acquires a
+dependency on D-Bus or on the session type, and it reaches the player through
+`app/Player` rather than through `core/`.
 
 Phase 5's last acceptance clause is the author's to judge and cannot be
 measured: whether a viewer shown the panel without context reads it as

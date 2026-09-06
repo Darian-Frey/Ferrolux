@@ -236,6 +236,7 @@ has an unlit ghost and the title does not.
 **Features delivered:** F-015, F-043, F-050, F-051, F-052
 **Deliverables:**
 - [x] `app/Player`, the facade the rest of the phase is built on (IMP-005) — the engine, the playlist, the metadata reader and the meter source, with all fifteen arrows between them, moved out of `main()` before four more consumers were added to it. `app/` is a new module and is the only one permitted to depend on several peers; `core/`, `library/`, `meters/` and `ui/` still include nothing from one another. `platform/` will call into `Player` rather than into `core/`, which is what keeps D-Bus out of everything that makes sound
+- [x] `platform/Settings`, which ARCHITECTURE.md had promised since before the directory existed — every key in SPEC.md §Settings in one class, restored onto the objects and written back on `aboutToQuit`. `main.cpp` falls from 378 lines to 205 across the two moves and now does only what starting a process needs. The window arrives as a plain `QObject` read by property name, so `platform/` carries no Qt Quick dependency to remember a fold
 - [ ] MPRIS2 service
 - [ ] Media key handling under X11 and Wayland
 - [ ] Single-instance with enqueue semantics and CLI arguments
