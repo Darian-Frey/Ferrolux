@@ -394,6 +394,7 @@ void Engine::seek(qint64 positionNs)
     // the old value for the frames before the flush completes.
     m_position = positionNs;
     emit positionChanged();
+    emit seeked(positionNs);
 }
 
 void Engine::previous()

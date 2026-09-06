@@ -164,6 +164,13 @@ signals:
     void stateChanged();
     void sourceChanged();
     void positionChanged();
+
+    // A discontinuity, as distinct from ordinary progress. `positionChanged`
+    // fires every frame and says nothing about how the position got there, so a
+    // consumer that has to redraw a timeline only when it jumps — MPRIS's
+    // `Seeked`, per F-050 — cannot use it. Carries the new position in
+    // nanoseconds.
+    void seeked(qint64 positionNs);
     void durationChanged();
     void seekableChanged();
     void volumeChanged();

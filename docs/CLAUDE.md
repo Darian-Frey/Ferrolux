@@ -35,6 +35,9 @@ across six suites** pass in both Debug and Release.
   offers the transport surface the desktop services need. `app/` is the only
   module allowed to depend on several peers; the other four still include
   nothing from one another, which is what keeps each testable alone
+- `src/platform/MprisService.{h,cpp}` — MPRIS2 (F-050). Both interfaces, talking
+  only to `app::Player`. Qt does **not** emit `PropertiesChanged` for an
+  adaptor's properties, so every one is built and sent by hand
 - `src/platform/Settings.{h,cpp}` — every key in SPEC.md §Settings, restored
   onto the objects and written back on `aboutToQuit`. The window is taken as a
   plain `QObject` and read by property name, so `platform/` needs no Qt Quick
@@ -52,8 +55,9 @@ across six suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
-- `platform/` exists now but holds only `Settings`; MPRIS2, media keys and
-  single-instance coordination are the rest of Phase 6
+- `platform/` holds `Settings` and `MprisService`; media keys, single-instance
+  coordination and the desktop entry are the rest of Phase 6. `Qt6::DBus` is
+  linked by the application target alone
 
 **No open bugs and no suggested improvements.** Twenty-two bugs found so far,
 twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
@@ -77,9 +81,10 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
 which is done: the wiring is out of `main()` before four more consumers went
-into it. What remains is MPRIS2 (F-050), media keys under X11 and Wayland
-(F-051), single-instance enqueue (F-052), session restore (F-015), keyboard
-control (F-043) and the desktop entry.
+into it. `platform/Settings` and `platform/MprisService` (F-050) are done. What
+remains is media keys under X11 and Wayland (F-051), single-instance enqueue
+(F-052), session restore (F-015), keyboard control (F-043) and the desktop
+entry. F-051 delegates to MPRIS under Wayland, so most of it is already there.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
@@ -113,6 +118,13 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **Qt emits no `PropertiesChanged` for a D-Bus adaptor's properties.** An
+  adaptor is a passive view onto a `Q_PROPERTY`, so a service can be perfectly
+  correct to a client that polls and permanently stale to one that subscribes,
+  which is most of them. Every such signal in `MprisService` is constructed by
+  hand, and `Metadata` is coalesced to one per event-loop turn because a track
+  change arrives as three signals and the first of them describes a state that
+  never existed.
 - **SIGTERM does not reach `aboutToQuit`.** Anything verifying persistence has
   to close the window rather than kill the process; `wmctrl -c` does.
 - **`Qt.quit()` asks every top-level window to close, and one refusal cancels

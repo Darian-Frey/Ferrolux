@@ -65,9 +65,10 @@ ferrolux/
 │   ├── core/          # Playback engine, GStreamer pipeline, EQ control
 │   ├── meters/        # Acquisition, ballistics, GPU upload, frame timing
 │   ├── library/       # Playlist model, metadata, playlist file I/O
-│   ├── ui/            # ThemeTokens — a named token set loaded from JSON
-│   ├── platform/      # MPRIS, media keys, single-instance — Phase 6, absent
-│   └── main.cpp       # Wiring and settings; both move to platform/ in Phase 6
+│   ├── ui/            # Token sets, and the display proportions of F-036
+│   ├── app/           # Player — the wiring, and the only module joining peers
+│   ├── platform/      # Settings and MPRIS2; media keys and CLI still to come
+│   └── main.cpp       # Process startup, QML context, fonts, command line
 ├── qml/               # Panel components, flat — Main, PanelSection, Slot, …
 │   └── shaders/       # .frag sources, compiled by qsb at build time
 ├── resources/

@@ -277,7 +277,13 @@ A **VFD-green readout** is no longer blocked: IMP-006 was applied on 2026-09-05,
 **Acceptance:**
 - Exposes playback state, metadata and transport actions over D-Bus
 - Desktop media controls and lock-screen widgets operate the player correctly
-**Status:** Not started (Phase 6)
+**Status:** **Met** 2026-09-06 (Phase 6). `platform/MprisService` exports `org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player` at the specified object path and claims `org.mpris.MediaPlayer2.ferrolux`, qualifying the name with the process id if a first instance already holds it. Every property, every method and both signals were exercised with a bus client: transport, `Seek`, `SetPosition`, `OpenUri`, `Raise`, `Quit`, and writes to `Volume`, `Shuffle` and `LoopStatus`.
+
+**The second criterion is evidenced rather than assumed.** With the player running under Cinnamon, the shell called `GetAll` on both interfaces without being asked — the desktop discovered the player and populated its controls from it. What has not been done is watching a lock screen on every shell, and the entry does not claim it.
+
+**`PropertiesChanged` is the part that is easy to ship broken.** Qt does not emit it for an adaptor's properties — an adaptor is a passive view onto a `Q_PROPERTY` — so a player can be entirely correct to a client that polls and entirely stale to one that subscribes, which is most of them. Every signal is constructed and sent by hand, and `Metadata` is coalesced to one emission per turn of the event loop: a track change arrives as three separate signals, and publishing on the first gave a map holding the new title against the previous track's URL. It settled a moment later, which is what would have made it the kind of defect nobody reports.
+
+`Position` is deliberately not notified, per the specification — it changes continuously and clients extrapolate. What cannot be extrapolated is a jump, so `Engine` gained a `seeked` signal that distinguishes a discontinuity from ordinary progress, and `Seeked` is emitted from it. Without that, a seek made on the panel would leave every lock screen showing a position that never happened.
 
 ### F-051 Media key handling
 **Priority:** Should

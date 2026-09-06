@@ -35,6 +35,7 @@
 #include <gst/gst.h>
 
 #include "app/Player.h"
+#include "platform/MprisService.h"
 #include "platform/Settings.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
@@ -46,6 +47,7 @@
 using ferrolux::app::Player;
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterTexture;
+using ferrolux::platform::MprisService;
 using ferrolux::platform::Settings;
 using ferrolux::ui::ThemeTokens;
 using ferrolux::ui::VisualSettings;
@@ -105,6 +107,11 @@ int main(int argc, char *argv[])
         QObject::connect(&app, &QGuiApplication::aboutToQuit,
                          &persisted, &Settings::save);
 
+        // F-050. Constructed before the window because the adaptors are built
+        // with it; the bus name is claimed in `attach` once there is a window
+        // to raise.
+        MprisService mpris(&player);
+
         // The texture item is instantiated from QML so it joins the scene graph
         // and can be named as a ShaderEffect source.
         qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
@@ -155,6 +162,11 @@ int main(int argc, char *argv[])
             // any earlier than this: QML builds the window, so there was
             // nothing to apply it to until `qml.load` returned.
             persisted.attachWindow(window);
+
+            // Losing the desktop controls is not a reason to refuse to play
+            // music, so a session with no bus is a warning rather than an exit.
+            if (!mpris.attach(window))
+                qWarning("%s", qPrintable(mpris.lastError()));
 
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");

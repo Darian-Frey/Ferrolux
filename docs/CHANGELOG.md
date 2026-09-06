@@ -356,6 +356,32 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 - IMP-007 logged, not applied: SPEC.md's settings table gives no way to tell its
   twenty-four implemented keys from its three unimplemented ones.
 
+- MPRIS2 (F-050): `platform/MprisService` exports `org.mpris.MediaPlayer2` and
+  `org.mpris.MediaPlayer2.Player`, which is what makes the media keys work, puts
+  a track title on a lock screen and gives a panel applet its transport buttons.
+  It talks only to `app::Player`, so a lock screen and a button on the chassis go
+  down the same path and cannot diverge — which is the reason the facade was
+  built first. Every property, method and signal was exercised with a bus client,
+  and Cinnamon was observed calling `GetAll` on both interfaces unprompted.
+
+  Two things about MPRIS are easy to ship broken and are handled explicitly.
+  **Qt does not emit `PropertiesChanged` for an adaptor's properties**, so a
+  service can be correct to a client that polls and stale to one that subscribes;
+  every signal is built and sent by hand. And **`Metadata` is coalesced to one
+  emission per turn of the event loop**: a track change arrives as three separate
+  signals, and publishing on the first sent a map holding the new title against
+  the previous track's URL. It corrected itself a moment later, which is what
+  would have made it the kind of defect nobody reports.
+
+  `Engine` gains a `seeked` signal, because `positionChanged` fires every frame
+  and says nothing about how the position got there. MPRIS's `Seeked` needs the
+  discontinuity and not the progress; without it, a seek made on the panel would
+  leave every lock screen showing a position that never happened.
+
+  `Qt6::DBus` is linked by the application target alone — no test suite acquires
+  a dependency on a session bus. A machine without one warns and plays on, since
+  losing the desktop's media controls is not a reason to refuse to play music.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

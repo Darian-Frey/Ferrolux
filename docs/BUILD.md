@@ -65,10 +65,16 @@ early only lengthens the first build.
 sudo apt install libtag1-dev qt6-shadertools-dev
 ```
 
-Qt 6's OpenGL module is wanted too. It comes with `qt6-base-dev` on these
-distributions, so there is nothing extra to install, but it is a named
-component in `CMakeLists.txt` — `tests/frame_bench` renders through
-`QQuickRenderControl` on the OpenGL RHI and links it directly.
+Qt 6's OpenGL and D-Bus modules are wanted too. Both come with `qt6-base-dev`
+on these distributions, so there is nothing extra to install, but each is a
+named component in `CMakeLists.txt`. `tests/frame_bench` renders through
+`QQuickRenderControl` on the OpenGL RHI and links OpenGL directly; D-Bus
+carries the MPRIS2 service of F-050, and only the application target links it —
+no test suite does, which is the point of keeping it inside `platform/`.
+
+A machine with no session bus still builds and still plays. The service says so
+and carries on: losing the desktop's media controls is not a reason to refuse
+to play music.
 
 **The two measurement tools need more, and none of it is needed to build or
 run the player.** `tools/measure-frames.sh` and `tools/verify-scaling.sh` drive

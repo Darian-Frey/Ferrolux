@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL ShaderTools)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL ShaderTools DBus)
 qt_standard_project_setup()
 
 find_package(PkgConfig REQUIRED)
@@ -30,6 +30,8 @@ pkg_check_modules(GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.20)
 
 qt_add_executable(ferrolux
     src/main.cpp
+    src/platform/MprisService.cpp
+    src/platform/MprisService.h
     src/platform/Settings.cpp
     src/platform/Settings.h
     src/app/Player.cpp
@@ -132,6 +134,9 @@ target_include_directories(ferrolux PRIVATE src)
 
 target_link_libraries(ferrolux PRIVATE
     Qt6::Quick
+    # MPRIS2 (F-050). Only the application links it: the point of platform/ is
+    # that nothing else acquires a dependency on D-Bus, and no test suite does.
+    Qt6::DBus
     PkgConfig::GStreamer
     PkgConfig::TagLib
 )
