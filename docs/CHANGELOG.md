@@ -327,6 +327,18 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   watching the meter move while they change.
 
 ### Fixed
+- BUG-022: every menu opening logged tens of binding-loop warnings. The width
+  binding assigned `metrics.text` and read `metrics.width`, writing to the object
+  it depended on; Qt broke the cycle after a bounded number of passes, so the
+  width was right and the cost was noise and repeated measurement. Moving the
+  measurement into a function — the obvious cure, and the one this was first
+  logged with — removes the loop and breaks the menu instead: a `Popup`'s content
+  is not laid out until something asks for its width, so the flip's
+  `implicitHeight` reads zero and the preset menu unrolls off the bottom of the
+  window, hiding four of its nine presets. Fixed by measuring without writing,
+  through `FontMetrics.advanceWidth`, keeping the eager evaluation that turns out
+  to be load-bearing. The two token reads that establish the binding's
+  dependencies look removable and are not; the comment says so.
 - BUG-021: once the settings window had been opened, closing the player left the
   process running, windowless and still playing — and opening the player again
   stacked another one behind it. `Qt.quit()` asks every top-level window to

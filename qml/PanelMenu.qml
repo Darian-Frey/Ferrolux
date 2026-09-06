@@ -63,24 +63,45 @@ Popup {
     }
 
     // The width is measured from the options rather than derived from the
-    // layout, and that is the second attempt. Sizing a row from the column and
-    // the column from its rows is circular: the first version resolved to
-    // something narrow and elided every entry to `loud…`, and the second
-    // resolved to nothing at all and drew no menu. Measuring the strings has no
-    // cycle in it, and the answer does not depend on when it is asked.
-    TextMetrics {
+    // layout, and this is the third attempt at it.
+    //
+    // Sizing a row from the column and the column from its rows is circular:
+    // that version resolved to something narrow and elided every entry to
+    // `loud…`, and the one after it resolved to nothing at all and drew no
+    // menu. Measuring the strings removed that cycle, but measuring them with
+    // `TextMetrics` introduced a quieter one — assigning `metrics.text` writes
+    // to the very object the binding reads `metrics.width` from, so each pass
+    // invalidated the next. Qt cut the cycle off after a bounded number of
+    // passes, which is why the width came out right and the only symptom was a
+    // log full of binding-loop warnings on every opening (BUG-022).
+    //
+    // `FontMetrics` measures through a function instead, and a function call
+    // writes nothing, so there is no cycle left to break. It stays a binding
+    // deliberately, and that is not merely tidiness: `onAboutToShow` reads
+    // `implicitHeight` to decide which way to unroll, and the content is not
+    // laid out — `implicitContentHeight` is flatly zero — until something has
+    // asked for this width. Computing it in a function called from the opening
+    // is too late by exactly one frame, and the menu opens downward off the
+    // bottom of the window every time.
+    FontMetrics {
         id: metrics
         font.family: Tokens.readoutText
         font.pixelSize: Tokens.sizeReadout
     }
 
     contentWidth: {
+        // Read so the binding depends on them. `advanceWidth` is a function
+        // call and therefore not a tracked read, so nothing here would
+        // otherwise notice a change of finish or of scale — which is the
+        // `Theme.colour(x)` versus `Theme.palette[x]` trap in another costume.
+        const face = Tokens.readoutText
+        const scale = Tokens.sizeReadout
+
         let widest = 0
-        for (let i = 0; i < options.length; ++i) {
-            metrics.text = options[i]
-            widest = Math.max(widest, metrics.width)
-        }
-        // A unit of slack past the measurement. TextMetrics and the
+        for (let i = 0; i < options.length; ++i)
+            widest = Math.max(widest, metrics.advanceWidth(options[i]))
+
+        // A unit of slack past the measurement. The metrics and the
         // distance-field renderer that actually draws the row do not agree to
         // the last fraction of a pixel, and a field sized to exactly its
         // content elides on the rounding — which is how the longest option

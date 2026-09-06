@@ -19,38 +19,61 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-022 `PanelMenu` measures its width in a binding that writes to what it measures
-**Status:** open
-**Severity:** low
-**Found:** 2026-09-06, in the log of the BUG-021 shutdown investigation
-**Related:** BUG-020, D-012
-
-Every menu opened logs `Binding loop detected for property "contentWidth"`, tens
-of times per opening, from both call sites in `Main.qml` — the sort menu and the
-preset menu.
-
-The cause is the measurement itself. `contentWidth` loops over the options
-*assigning* `metrics.text` and reading `metrics.width`, so the binding writes to
-the object it depends on: each assignment invalidates `metrics.width`, which
-notifies the binding, which runs again and reassigns. Qt breaks the cycle after a
-bounded number of passes, which is why the menu is nevertheless the right width
-and the defect shows only as log noise and wasted measurement on every opening.
-
-This is the *third* incarnation of PanelMenu's width. The first sized the rows
-from the column and the column from the rows and elided every entry to `loud…`;
-the second resolved to nothing and drew no menu; this one is correct but is still
-circular, merely with the cycle moved out of the layout and into `TextMetrics`.
-The lesson the first two should have taught is that a menu's width has no
-business being a binding at all: it depends on the options, on `Tokens`, and on
-nothing that changes while the menu is on screen.
-
-**Suggested fix,** unapplied per Maintenance Rule 8: compute the width in a
-function and assign it imperatively from `onAboutToShow`, exactly as the flip
-decision was moved there when `mapToItem` proved untrackable in a binding. That
-removes the cycle rather than tolerating it, and it recomputes on the only two
-things that can change the answer — the options and the panel's scale.
+*None.*
 
 ## Fixed
+
+### BUG-022 `PanelMenu` measured its width in a binding that wrote to what it measured
+**Status:** fixed
+**Severity:** low
+**Found:** 2026-09-06, in the log of the BUG-021 shutdown investigation
+**Fixed:** 2026-09-06
+**Related:** BUG-020, D-012
+
+Every menu opened logged `Binding loop detected for property "contentWidth"`,
+tens of times per opening, from both call sites in `Main.qml` — the sort menu and
+the preset menu.
+
+The `contentWidth` binding looped over the options *assigning* `metrics.text` and
+reading `metrics.width`, so it wrote to the object it depended on: each
+assignment invalidated `metrics.width`, which notified the binding, which ran
+again and reassigned. Qt breaks the cycle after a bounded number of passes, which
+is why the menus were nevertheless the right width and the defect showed only as
+log noise and repeated measurement.
+
+**The obvious fix was wrong, and wrong in a way worth recording.** Moving the
+measurement into a function called from `onAboutToShow` — exactly as the flip
+decision was moved there when `mapToItem` proved untrackable in a binding — is
+what this entry originally proposed. It removes the loop and breaks the menu: the
+preset menu, which sits at the bottom of the window, unrolled downward off the
+edge of it, hiding four of its nine presets.
+
+The flip reads `implicitHeight`, and a `Popup`'s content is not laid out until
+something asks for its width. Instrumented at `onAboutToShow`, the binding
+version reports `implicitContentHeight` 259.2 and the function version reports
+**0** — so `implicitHeight` is 2, the padding alone, `0 > roomBelow` is false, and
+every menu believes it has room below. Calling the function earlier does not
+help: measuring at `Component.onCompleted` sets the width (66 px, correct) and
+`implicitContentHeight` is still 0 one line later, because the layout has not
+been through a polish pass. It is late by a frame, and there is no point in the
+handler that is early enough.
+
+**Fixed by keeping it a binding and removing the write instead.** `FontMetrics`
+measures through `advanceWidth()`, which returns a width without storing a
+string, so there is no state for the binding to invalidate and no cycle to break.
+The eager evaluation that lays the content out is retained because that turns out
+to be load-bearing rather than incidental.
+
+That leaves one trap in place, and it is D-012's in another costume: a function
+call is not a tracked read, so a binding built on `advanceWidth()` would never
+notice a change of finish or of scale. `Tokens.readoutText` and
+`Tokens.sizeReadout` are therefore read into locals purely to establish the
+dependency, and the comment says so, because the two lines look removable and are
+not.
+
+Verified with the sort menu opening downward and the preset menu upward, both at
+full width with nothing elided, zero binding-loop warnings in the log, and
+`tools/verify-scaling.sh` holding at 1×, 1.5×, 2× and 3×.
 
 ### BUG-021 A refused close on the settings window stopped the entire application quitting
 **Status:** fixed

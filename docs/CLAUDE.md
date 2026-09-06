@@ -43,13 +43,10 @@ across six suites** pass in both Debug and Release.
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
 - Not yet present: `platform/`, which is Phase 6
 
-**One open bug and no suggested improvements.** Twenty-two bugs found so far,
-twenty fixed, one won't-fix upstream (BUG-006) and BUG-022 open — `PanelMenu`
-measures its width in a binding that writes to what it measures, which Qt breaks
-after a bounded number of passes, so it costs log noise and repeated measurement
-rather than a wrong width. Read BUGS.md before changing the equaliser, the
-meters or the palette — several entries record specification faults that looked
-entirely reasonable until they were measured.
+**No open bugs and no suggested improvements.** Twenty-two bugs found so far,
+twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
+changing the equaliser, the meters or the palette — several entries record
+specification faults that looked entirely reasonable until they were measured.
 
 Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 **not** all need the same instrument, which is easy to assume and wrong.
@@ -83,6 +80,13 @@ Things established the hard way, which will cost time if forgotten:
   resolves once and never again; `Theme.palette[x]` re-evaluates. The same shape
   of error made `PanelMenu`'s flip decision a no-op and would have made theme
   switching repaint nothing. Both looked as though they worked.
+- **A binding is not only a value, it is also what causes the layout to happen.**
+  `PanelMenu`'s width looks like a pure calculation and moving it into a function
+  is the obvious cure for its binding loop — but a `Popup`'s content is not laid
+  out until something asks for its width, so the flip's `implicitHeight` then
+  reads zero and every menu opens downward off the edge of the window. Measure
+  without writing (`FontMetrics.advanceWidth`) rather than measure later.
+  BUG-022.
 - **The meter texture's alpha channel is not spare.** The scene graph
   premultiplies on upload, so any value but 255 scales R, G and B — and R and G
   are the magnitude. BUG-016.
