@@ -154,6 +154,18 @@ cmake --build build
 ./build/ferrolux ~/Music/some-album/track.flac
 ```
 
+Paths may be files or folders. With no option they are added and the first is
+selected, but **nothing starts playing** — handing over a folder of several
+hundred files and having audio begin unbidden is a surprise, and an explicit
+`--play` only means something if the default is not it. A second launch adds to
+the player already running rather than starting a second one:
+
+```bash
+ferrolux --enqueue track.flac    # add to the end, leave playback alone
+ferrolux --play track.flac       # add and start playing it
+ferrolux --replace album/        # clear the playlist, add, and play
+```
+
 Dependencies, per-distribution package lists and troubleshooting are in
 [BUILD.md](docs/BUILD.md), written from the first working build rather than from
 intention. Everything built so far needs Qt 6 Base, Declarative and Shader

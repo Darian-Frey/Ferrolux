@@ -30,6 +30,10 @@ pkg_check_modules(GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.20)
 
 qt_add_executable(ferrolux
     src/main.cpp
+    src/platform/CommandLine.cpp
+    src/platform/CommandLine.h
+    src/platform/SingleInstance.cpp
+    src/platform/SingleInstance.h
     src/platform/MediaKeys.cpp
     src/platform/MediaKeys.h
     src/platform/MprisService.cpp

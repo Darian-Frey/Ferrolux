@@ -423,6 +423,35 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   would fix it takes a key away from every application on the machine and could
   not be tested on the session it was developed on.
 
+- Single instance and the command line (F-052): `platform/CommandLine` parses
+  `--enqueue`, `--play` and `--replace`, and `platform/SingleInstance`
+  coordinates over a D-Bus name claimed **before the pipeline is built**. A
+  second launch has to reach the running player and exit without ever opening
+  the audio device: two processes briefly holding the same sink is audible, and
+  it would happen on every file opened from a file manager.
+
+  The two acceptance clauses that read as contradictory — "a second launch
+  enqueues" and "paths fill the playlist and select the first" — are the same
+  rule from two starting points. Appending to an empty list is filling it, and
+  selecting the first arrival is right only when there is no cursor to disturb.
+  The bare default therefore appends in both cases and selects only into an
+  empty playlist.
+
+  `--replace` starts playing, which F-052 does not say and is recorded in the
+  feature entry as a judgement: replacing the playlist removes whatever was
+  playing from it, so the alternative leaves the user in silence after an
+  explicit command. BUG-015's rule is untouched — it governs the bare default,
+  and the point of that entry is that an explicit form may do what the implicit
+  one must not.
+
+  With no session bus, every launch is its own player, the same way F-050 and
+  F-051 degrade. Verified both ways: one process across four launch forms with a
+  bus, two independent players without one.
+
+- IMP-010 logged, not applied: `platform/` is now five classes and no test suite
+  touches any of them. Each was verified by hand and none of those checks will
+  run again by themselves.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

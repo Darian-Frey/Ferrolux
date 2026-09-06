@@ -305,7 +305,16 @@ Registration is not permanent — the grab belongs to the D-Bus connection and l
 - A second launch with file arguments enqueues into the running instance
 - `--enqueue`, `--play`, `--replace` argument forms supported
 - Without a flag, paths fill the playlist and select the first entry without starting playback
-**Status:** Not started (Phase 6)
+**Status:** **Met** 2026-09-06 (Phase 6). `platform/CommandLine` parses the forms and `platform/SingleInstance` coordinates over a D-Bus name claimed before the pipeline is built — a second launch has to reach the running player and exit without ever opening the audio device, because two processes briefly holding the same sink is audible and this happens on every file opened from a file manager.
+
+Verified against a running player, one process throughout: a bare second launch enqueued and left a paused track paused (`1 of 2` → `1 of 3`); `--enqueue` appended without disturbing what was playing (`1 of 4`); `--play` started the file it was given; `--replace` cleared the list and played (`1 of 1`). Each secondary exited with status 0.
+
+**The first and third acceptance clauses only look contradictory.** One says a second launch enqueues, the other says paths fill the playlist and select the first without playing. They are the same rule seen from two starting points: appending to an empty list *is* filling it, and selecting the first arrival is right only when there was no cursor to disturb. So the bare default appends in both cases and selects only when the playlist was empty; `SingleInstance` applies that downgrade, being the part that knows whether anyone else is running.
+
+**`--replace` starts playing, and that is a judgement rather than a reading.** F-052 does not say. Replacing the playlist removes whatever was playing from it, so the alternative is to leave the user in silence after an explicit command — a worse surprise than starting the list they just asked for. BUG-015's rule is not violated: it governs the *bare* default, and the whole point of that entry is that an explicit form may do what the implicit one must not.
+
+**With no session bus, every launch is its own player.** That is the same way F-050 and F-051 degrade, and it was the behaviour before any of this existed. Confirmed: two launches without a bus produce two players.
+
 **Notes:** The bare default is recorded above rather than left implied. It was implied once, drifted to auto-play unnoticed during Phase 2, and had to be found by use — see BUG-015. An explicit `--play` only means something if the default is not it.
 
 ---

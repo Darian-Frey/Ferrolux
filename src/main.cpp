@@ -35,9 +35,11 @@
 #include <gst/gst.h>
 
 #include "app/Player.h"
+#include "platform/CommandLine.h"
 #include "platform/MediaKeys.h"
 #include "platform/MprisService.h"
 #include "platform/Settings.h"
+#include "platform/SingleInstance.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
 #include "meters/FrameTimer.h"
@@ -48,9 +50,11 @@
 using ferrolux::app::Player;
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterTexture;
+using ferrolux::platform::CommandLine;
 using ferrolux::platform::MediaKeys;
 using ferrolux::platform::MprisService;
 using ferrolux::platform::Settings;
+using ferrolux::platform::SingleInstance;
 using ferrolux::ui::ThemeTokens;
 using ferrolux::ui::VisualSettings;
 
@@ -80,6 +84,23 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("ferrolux"));
     QCoreApplication::setApplicationVersion(QStringLiteral("0.2.0"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
+
+    // F-052. Parsed and handed over before a pipeline exists: a second launch
+    // must reach the running player and exit without ever opening the audio
+    // device, because two processes briefly holding the same sink is audible
+    // and this happens every time a file is opened from a file manager.
+    const CommandLine::Result invocation = CommandLine::parse();
+
+    SingleInstance instance;
+    if (!instance.claim()) {
+        QStringList paths;
+        for (const QUrl &url : invocation.paths)
+            paths.append(url.toString());
+        if (instance.handOff(paths, CommandLine::name(invocation.mode)))
+            return 0;
+        // Nobody answered. Starting normally loses nothing; exiting would lose
+        // the files the user asked for.
+    }
 
     // Everything that owns a GStreamer object lives inside this scope, so that
     // all of it is destroyed before gst_deinit() runs. Calling gst_deinit()
@@ -148,14 +169,9 @@ int main(int argc, char *argv[])
         qml.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
         qml.rootContext()->setContextProperty(QStringLiteral("Visuals"), &visuals);
 
-        // Paths fill the playlist and select the first without starting it;
-        // `Player::Open` is where that rule and its reasons live. The
-        // --enqueue / --play / --replace forms arrive with single-instance
-        // handling later in this phase (F-052).
-        QList<QUrl> arguments;
-        for (const QString &argument : app.arguments().mid(1))
-            arguments.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
-        player.open(arguments, Player::AddAndSelect);
+        // `Player::Open` holds the rules; `CommandLine` holds which of them the
+        // user asked for.
+        player.open(invocation.paths, invocation.mode);
 
         qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));
         if (qml.rootObjects().isEmpty())
@@ -180,6 +196,10 @@ int main(int argc, char *argv[])
             // F-051, and after the window for the same reason: the keys are
             // claimed on activity rather than on existence, and one of the
             // things that counts as activity is the panel having focus.
+            // Published only now: a request arriving before the player and the
+            // window exist would have nowhere to go.
+            instance.serve(&player, window);
+
             if (keys.attach(window))
                 qInfo("media keys: %s answers; claimed while playing or focused",
                       qPrintable(keys.provider()));

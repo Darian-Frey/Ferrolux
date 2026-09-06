@@ -22,6 +22,40 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
+### IMP-010 `platform/` has four classes and no automated coverage
+**Status:** suggested
+**Effort:** medium
+**Found:** 2026-09-06, finishing F-052
+**Related:** F-015, F-050, F-051, F-052, IMP-004
+
+`Settings`, `MprisService`, `MediaKeys`, `SingleInstance` and `CommandLine` are
+between them most of Phase 6, and not one of them is touched by any of the six
+suites. Every one has been verified by hand — a bus client, synthesised keysyms,
+a settings round trip, four launch forms — and none of those checks will run
+again unless somebody remembers to run them.
+
+Some of it genuinely cannot be a unit test: a D-Bus service needs a session bus,
+and media keys need a settings daemon. That is the same argument that made
+`measure-frames.sh` and `verify-scaling.sh` tools rather than tests, and the
+same answer would serve — a script that starts the player, drives it over the
+bus, and asserts. The hand checks already written are most of such a script.
+
+But part of it needs no bus at all and is the part most likely to break
+silently. `CommandLine::name` and `CommandLine::mode` are a wire protocol
+between two processes: if they stop round-tripping, a `--replace` from a file
+manager silently becomes the bare default and the user's playlist is appended to
+instead of replaced. That is a pure function over four values and wants nothing
+but a test.
+
+**Trade-offs:** The pure part is cheap but pulls `app/Player.h` and therefore
+GStreamer's headers into a suite that needs neither, which is either an awkward
+link or a reason to move the mapping somewhere lighter — and moving it to suit a
+test is the tail wagging the dog. The scripted part costs a session bus in CI,
+which the project does not have and may not want; a check that cannot run on the
+build machine joins AV-002 and AV-005 as a thing people forget. Against both:
+`platform/` is the layer whose failures are least visible from inside the
+application, because every one of them looks like the desktop being odd.
+
 ### IMP-008 Media keys do nothing under a bare window manager
 **Status:** suggested
 **Effort:** medium

@@ -35,6 +35,11 @@ across six suites** pass in both Debug and Release.
   offers the transport surface the desktop services need. `app/` is the only
   module allowed to depend on several peers; the other four still include
   nothing from one another, which is what keeps each testable alone
+- `src/platform/SingleInstance.{h,cpp}` and `CommandLine.{h,cpp}` — F-052. The
+  name is claimed before the pipeline exists, so a second launch never opens the
+  audio device. `Q_CLASSINFO("D-Bus Interface", ...)` is **required** on an
+  object exported with `ExportAllSlots`, or Qt names the interface after the C++
+  class and every hand-off falls through to starting a second player
 - `src/platform/MediaKeys.{h,cpp}` — F-051. Registers with the desktop's
   settings daemon; the keys do **not** arrive over MPRIS on GNOME, Cinnamon or
   MATE
@@ -58,9 +63,10 @@ across six suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
-- `platform/` holds `Settings`, `MprisService` and `MediaKeys`; single-instance
-  coordination, session restore and the desktop entry are the rest of Phase 6.
-  `Qt6::DBus` is linked by the application target alone
+- `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`
+  and `CommandLine`; session restore and the desktop entry are the rest of
+  Phase 6. `Qt6::DBus` is linked by the application target alone, and none of
+  the five is covered by a test suite — IMP-010
 
 **No open bugs and no suggested improvements.** Twenty-two bugs found so far,
 twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
@@ -84,9 +90,10 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
 which is done: the wiring is out of `main()` before four more consumers went
-into it. `platform/Settings`, `platform/MprisService` (F-050) and `platform/MediaKeys`
-(F-051) are done. What remains is single-instance enqueue (F-052), session
-restore (F-015), keyboard control (F-043) and the desktop entry.
+into it. `platform/Settings`, `platform/MprisService` (F-050), `platform/MediaKeys`
+(F-051) and `platform/SingleInstance` with `platform/CommandLine` (F-052) are
+done. What remains is session restore (F-015), keyboard control (F-043) and the
+desktop entry.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
