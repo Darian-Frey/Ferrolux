@@ -2,8 +2,29 @@
 
 > **Status:** Active
 > **Provenance:** Shane Hartley (author, primary developer); Claude (documentation scaffolding, design review)
-> **Last reviewed:** 2026-09-02
-> **Why this status:** Project initialised 2026-09-02. Documentation set complete; Phase 1 (transport core) complete and verified on the same date. Phase 2 (playlist) feature-complete: model, play order, metadata, file I/O, filtering and gapless all implemented and tested. Two acceptance clauses — scroll frame time and an audible gapless join — remain unverified; see ROADMAP.md Phase 2. Phase 4 (meters) complete 2026-09-03: acquisition, ballistics, smoothing, peak-hold, the texture item and five shader displays, all measured to hold 60 fps at 3840x2160 with at least 46% of the frame budget spare. That measurement — `tools/measure-frames.sh`, in a window and offscreen through `QQuickRenderControl` — is AV-002's detection, and it found the flame display running at 37 fps at 4K; see BUG-016. Phase 5 (the panel) in progress from 2026-09-03: the design token set, the four bundled OFL faces and the first lit readouts are in, and rendering them found two faults in SPEC.md's own typography section — see BUG-017 and BUG-018. Phase 3 (equaliser) feature-complete: bands, preamp, headroom, bypass, gain ramping, presets and `.eqf` import all implemented and tested. Its two audible acceptance clauses — no denormal stalls, no zipper noise — remain unverified for the same reason Phase 2's do.
+> **Last reviewed:** 2026-09-06
+> **Why this status:** Phases 1 to 5 are built. Transport, a 20,000-entry
+> playlist, a ten-band equaliser, five shader-rendered displays and the
+> cassette futurism panel itself all work, in four finishes with the display
+> invertible. 311 checks across six suites pass in Debug and Release.
+>
+> Two acceptance criteria are measured rather than asserted, and both are the
+> reason the project exists. AV-002: every display holds 60 fps at 3840×2160
+> with at least 46% of the frame budget spare, by `tools/measure-frames.sh`.
+> AV-005: the panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio, by
+> `tools/verify-scaling.sh`. Both tools first reported defects that turned out
+> to be their own — a clamped window, a maximised one, an overheated GPU — and
+> each of those is recorded, because a measurement that cannot say what it
+> measured is worse than none.
+>
+> Five clauses remain unverified. Four are audible or need a harness that does
+> not exist: playlist scroll frame time, denormal stalls, the gapless join and
+> the absence of zipper noise. The fifth is Phase 5's second acceptance clause,
+> which asks whether a viewer reads the panel as photographed hardware, and is
+> a judgement for the author rather than a measurement.
+>
+> No open bugs and no suggested improvements. Twenty bugs found, nineteen fixed
+> and one won't-fix upstream. Phase 6, desktop integration, is next.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.
 
@@ -42,17 +63,18 @@ Full setup instructions, per-distribution package lists and troubleshooting are 
 ferrolux/
 ├── src/
 │   ├── core/          # Playback engine, GStreamer pipeline, EQ control
-│   ├── meters/        # Level and spectrum acquisition, ballistics, GPU upload
+│   ├── meters/        # Acquisition, ballistics, GPU upload, frame timing
 │   ├── library/       # Playlist model, metadata, playlist file I/O
-│   ├── platform/      # Settings, MPRIS, media keys, single-instance
-│   └── main.cpp
-├── qml/
-│   ├── panel/         # Panel chrome, transport, playlist, equaliser
-│   ├── meters/        # Display modes (spectrum, VU, ladder, oscilloscope)
-│   └── shaders/       # .frag / .vert sources, compiled by qsb
-├── resources/         # Fonts, panel art, presets
-├── tests/
-├── tools/
+│   ├── ui/            # ThemeTokens — a named token set loaded from JSON
+│   ├── platform/      # MPRIS, media keys, single-instance — Phase 6, absent
+│   └── main.cpp       # Wiring and settings; both move to platform/ in Phase 6
+├── qml/               # Panel components, flat — Main, PanelSection, Slot, …
+│   └── shaders/       # .frag sources, compiled by qsb at build time
+├── resources/
+│   ├── fonts/         # The four OFL faces of D-012, with their licences
+│   └── themes/        # Token sets: ferric, anodised, glacier, ember
+├── tests/             # Six suites, plus frame_bench which is a tool
+├── tools/             # Fixtures, fonts, and the AV-002 and AV-005 measurements
 └── docs/              # This documentation set
 ```
 

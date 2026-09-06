@@ -286,6 +286,27 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   not a feature the player has. `qml/EntryField.qml` is kept for when that
   clause gets a new home.
 
+- Documentation brought back into line with the tree after Phases 4 and 5.
+  ARCHITECTURE.md described a `qml/panel/` and `qml/meters/` that never existed,
+  display modes swapped by a `Loader` over a context property when they are
+  `ShaderEffect`s shown one at a time, a texture layout of one channel per
+  quantity when red and green together carry a 16-bit magnitude, and a
+  `platform/` directory that is still Phase 6. It gains `ui/` and the token
+  system, which it had never mentioned.
+- CLAUDE.md's state section still said Phase 4 was in progress with `resources/`,
+  `tools/` and every shader absent. It is the document a fresh session reads as
+  truth, so it now carries the current inventory, the six suites, and the half
+  dozen things that were established the hard way and would cost a day each to
+  rediscover.
+- BUILD.md gains what the measurement tools need — `wmctrl`, `x11-utils`,
+  ImageMagick, `python3-pil` — none of which is needed to build or run the
+  player, and a warning that `ctest` without the two audio-file paths runs four
+  suites of six and reports a pass.
+- IMP-004 and IMP-005 were both deferred against triggers that have since
+  fired: a fifth test suite arrived twice over, and Phase 6 is next. Recorded
+  rather than acted on, but recorded, because a deferred entry whose condition
+  has passed silently becomes a forgotten one.
+
 ### Fixed
 - BUG-019: the equaliser preset name was written on exit and never read, so the
   field reported `flat` after a restart over whatever curve had been restored.

@@ -59,6 +59,31 @@ Later phases add `libtag1-dev` (Phase 2, metadata) and `qt6-shadertools-dev`
 (Phase 4, meter shaders). Neither is needed to build Phase 1, and adding them
 early only lengthens the first build.
 
+**Everything through Phase 5 needs this much**, which is the list above plus:
+
+```bash
+sudo apt install libtag1-dev qt6-shadertools-dev
+```
+
+Qt 6's OpenGL module is wanted too. It comes with `qt6-base-dev` on these
+distributions, so there is nothing extra to install, but it is a named
+component in `CMakeLists.txt` — `tests/frame_bench` renders through
+`QQuickRenderControl` on the OpenGL RHI and links it directly.
+
+**The two measurement tools need more, and none of it is needed to build or
+run the player.** `tools/measure-frames.sh` and `tools/verify-scaling.sh` drive
+a real window and read back what was drawn, so they want a display, a window
+manager and:
+
+```bash
+sudo apt install wmctrl x11-utils imagemagick python3-pil
+```
+
+`tools/make-fonts.sh` additionally needs `curl`, `unzip` and `fonttools`. It
+builds a virtualenv for the last of these if it is not importable, so there is
+usually nothing to install — and it only needs running when the bundled faces
+are regenerated, which is rarely.
+
 `gstreamer1.0-plugins-bad` is required rather than optional: it carries several
 of the codecs in F-001's acceptance list, and it provides `audiomixmatrix`,
 which implements the balance control. `gstreamer1.0-libav` covers the remainder.
@@ -105,9 +130,24 @@ cmake --build build
 
 ## Tests
 
+Six suites, 311 checks. Four are self-contained and need nothing but the build;
+`tokens_test` takes the source directory, because it reads the token sets and
+the faces from the tree:
+
+```bash
+./build-debug/playlist_model_test
+./build-debug/equaliser_test
+./build-debug/meters_test
+./build-debug/tokens_test .
+```
+
+The other two need real audio files, and so are registered with CTest **only
+when both are named at configure time**. Without them `ctest` reports four
+suites passing rather than six, which reads as a pass and is not one — check the
+count, not the colour.
+
 The Phase 1 acceptance harness drives `core/Engine` headlessly against the
-criteria in ROADMAP.md Phase 1. It needs two real audio files and so is
-registered with CTest only when both are named at configure time:
+criteria in ROADMAP.md Phase 1:
 
 ```bash
 cmake -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug \
@@ -162,6 +202,36 @@ the first file without it.
 
 `lamemp3enc` comes from `gstreamer1.0-plugins-ugly`, which is a test-only
 dependency and is not required to build or run Ferrolux.
+
+### Measurements
+
+Two tools rather than tests, because each needs a display, a window manager and
+a GPU, and a machine with none of those would report a failure that says nothing
+about the code. Both are AV detections and both are run by hand.
+
+```bash
+./tools/measure-frames.sh 4      # AV-002: 60 fps, in a window and offscreen at 4K
+./tools/verify-scaling.sh        # AV-005: the panel at 1x, 1.5x, 2x and 3x
+```
+
+`measure-frames.sh` runs two passes. The window pass measures the whole
+application at the sizes the display can render; the offscreen pass renders the
+meter display alone through `QQuickRenderControl`, with a fence after each
+frame, which is the only way to reach 3840×2160 on a smaller screen and the only
+way to get a headroom figure that is not a lower bound.
+
+`verify-scaling.sh` captures the panel at each device pixel ratio and measures
+the 10–90% rise across a chassis-to-well edge in device pixels — the
+resampling-artefact check as a number — then reduces each capture back to 1× to
+confirm it is the same panel rather than a different layout that happens to fit.
+Set `FERROLUX_SCALING_SHOTS` to a directory to keep the captures; the numbers
+can tell crisp from soft and cannot tell a substituted face from a correct one.
+
+Both tools have reported defects that turned out to be their own: a window
+manager clamping a window to one monitor, a maximised window silently ignoring a
+resize, a GPU heated by the previous mode in the same sweep. Each is documented
+in the tool and in the attack vector it serves. A measurement that cannot say
+what it measured is worse than none, because it will be believed.
 
 ### Development environment settings
 

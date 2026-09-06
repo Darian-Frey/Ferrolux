@@ -104,9 +104,15 @@ exclusion is reasoned in [FEATURES.md](docs/FEATURES.md).
 ## Built on
 
 Qt 6.4 with QML for presentation, C++20 for the engine, GStreamer 1.20 with
-`playbin3` for audio, and TagLib for metadata from Phase 2. Linux only — X11 and
-Wayland both supported, with platform-specific code confined to one directory so
-a future port is bounded work rather than a rewrite.
+`playbin3` for audio, and TagLib for metadata. Four SIL Open Font License faces
+are bundled — one per type role — rather than depending on what a system happens
+to have installed, because a substituted font in the middle of a lit readout is
+a defect that has to be seen to be found.
+
+Linux only — X11 and Wayland both supported. Desktop-specific code will be
+confined to one directory so a future port is bounded work rather than a
+rewrite; that directory arrives with Phase 6, which is the first thing that
+needs it.
 
 The reasoning for each of these, and the alternatives rejected, is in
 [DECISIONS.md](docs/DECISIONS.md).
@@ -138,8 +144,28 @@ cmake --build build
 
 Dependencies, per-distribution package lists and troubleshooting are in
 [BUILD.md](docs/BUILD.md), written from the first working build rather than from
-intention. Phase 1 needs Qt 6 Base and Declarative, GStreamer 1.20 and its base,
-good and bad plugin sets; TagLib and Qt Shader Tools arrive with later phases.
+intention. Everything built so far needs Qt 6 Base, Declarative and Shader
+Tools, GStreamer 1.20 with its base, good and bad plugin sets, and TagLib.
+
+Six test suites, 311 checks:
+
+```bash
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DFERROLUX_TEST_FLAC=fixtures/test.flac -DFERROLUX_TEST_MP3=fixtures/test-vbr.mp3
+ctest --test-dir build --output-on-failure
+```
+
+Two of the six need real audio and are registered only when those paths are
+given — without them `ctest` runs four suites and reports a pass, which is not
+the same thing. `tools/make-test-fixtures.sh` generates the files.
+
+The two acceptance criteria the project exists for are measured rather than
+asserted, by tools rather than tests, because each needs a display and a GPU:
+
+```bash
+./tools/measure-frames.sh 4      # 60 fps at 3840×2160, in a window and offscreen
+./tools/verify-scaling.sh        # the panel at 1×, 1.5×, 2× and 3×
+```
 
 ## Documentation
 

@@ -9,10 +9,10 @@ Ferrolux RS-1 is planned rather than built. This document describes the target s
 ## System overview
 
 ```
-                         ┌──────────────────────────┐
-                         │        qml/ (UI)         │
-                         │  panel · meters · shaders│
-                         └─────┬──────────────┬─────┘
+                         ┌──────────────────────────┐   ┌─────────────────────┐
+                         │        qml/ (UI)         │◄──┤ ui/ThemeTokens      │
+                         │  components · shaders    │   │  a named token set  │
+                         └─────┬──────────────┬─────┘   └─────────────────────┘
                 properties &   │              │  texture
                 signals        │              │
                      ┌─────────▼──────┐  ┌────▼─────────────┐
@@ -30,9 +30,9 @@ Ferrolux RS-1 is planned rather than built. This document describes the target s
                         URIs   │
                      ┌─────────┴──────┐     ┌────────────────┐
                      │ library/       │     │ platform/      │
-                     │  PlaylistModel │     │  Settings      │
-                     │  Metadata      │     │  Mpris         │
-                     │  PlaylistIO    │     │  SingleInstance│
+                     │  PlaylistModel │     │  (Phase 6 —    │
+                     │  Metadata      │     │   not present) │
+                     │  PlaylistIO    │     │                │
                      └────────────────┘     └────────────────┘
 ```
 
@@ -63,7 +63,9 @@ Bus messages arrive on the application's main loop, not the streaming thread. `M
 3. Peak-hold caps are updated and decayed.
 4. RMS values are integrated through the VU ballistics filter.
 
-`MeterTexture` is a `QQuickItem` that owns an `N×1` two-channel texture. On each render pass it uploads the current band state — red channel current magnitude, green channel peak-hold cap — and exposes the texture as a property to the `ShaderEffect` instances in `qml/meters/`. Linear filtering on the texture gives interpolation between bars without any CPU cost.
+`MeterTexture` is a `QQuickItem` that owns an `N×1` RGBA8 texture. On each render pass it uploads the current band state and exposes the texture as a property to the `ShaderEffect` instances in `qml/MeterDisplay.qml`. Linear filtering on the texture gives interpolation between bars without any CPU cost.
+
+The layout is **not** one channel per quantity: red and green together carry a 16-bit magnitude, blue carries the 8-bit peak cap, and alpha is held at 255. SPEC.md §Meters is authoritative and records why — eight bits of magnitude stair-steps visibly on a large display, and alpha cannot carry data because the scene graph premultiplies on upload and would scale the two channels the magnitude lives in. See BUG-016.
 
 ### Oscilloscope path (candidate, F-034)
 
@@ -79,9 +81,15 @@ Time-domain display needs raw PCM, which the level/spectrum path does not carry.
 
 **`library/`** owns the list of things to play. `PlaylistModel` is the single source of truth for playlist contents and play order; `Engine` is told what to play, it does not decide. Metadata extraction runs on a worker thread and populates rows by signal, so adding ten thousand files never blocks the interface. `PlaylistIO` handles M3U and PLS serialisation.
 
-**`platform/`** contains everything that is about the desktop rather than about audio: settings persistence, the MPRIS2 D-Bus service, media key handling, single-instance coordination and command-line parsing. Isolating it means the rest of the application has no direct dependency on D-Bus or on the session type.
+**`platform/`** will contain everything that is about the desktop rather than about audio: the MPRIS2 D-Bus service, media key handling, single-instance coordination and command-line parsing. Isolating it means the rest of the application has no direct dependency on D-Bus or on the session type. **It does not exist yet** — that is Phase 6. Settings persistence, which will move there, is currently in `main.cpp` so that `core/` keeps no dependency on the desktop.
 
-**`qml/`** is presentation only. `panel/` holds the chrome and controls, `meters/` holds one component per display mode, `shaders/` holds the GLSL sources compiled by `qsb` at build time. Display modes are swapped by a `Loader` over a common `MeterData` context property, so adding a mode means adding one component and one shader, with no change anywhere else.
+**`ui/`** holds `ThemeTokens`, which loads a named token set from JSON and exposes it as three maps — palette, metrics, type. It knows nothing about what any token means; a component asks for `readout` and gets a colour, and which amber that is belongs to the file. This is what makes F-044 a token swap rather than an asset pack.
+
+**`qml/`** is presentation only, and is flat rather than divided into subdirectories: fourteen components and a `shaders/` directory of GLSL sources compiled by `qsb` at build time. The flat layout reflects how they are used — `PanelSection`, `PanelButton`, `Slot`, `SlideSwitch`, `Readout`, `Legend` and the rest are a vocabulary drawn on by every part of the panel, not a set of screens.
+
+Two of them carry rules rather than only appearance. `Tokens.qml` is the singleton that names every token once and applies the panel's scale, and it reads the token *maps* rather than calling `ThemeTokens`' lookup methods — a QML binding tracks a property read and not a method call, so reading through a method would resolve each token once at startup and never repaint on a theme change. `Readout.qml` is the lit-over-unlit arrangement SPEC.md §Typography requires, and the colours a display uses beyond the palette's three are derived from `readout` in `Tokens.qml` rather than written down, so a set that changes the lamp changes the meters with it.
+
+Display modes are **not** swapped by a `Loader`. `MeterDisplay.qml` instantiates every mode's `ShaderEffect` over one `MeterTexture` and shows one at a time, which is why switching cannot drop a frame or interrupt anything. Adding a mode is a shader, a block in that file, and an entry in `MeterSource::modes()`.
 
 ---
 

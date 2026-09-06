@@ -125,26 +125,31 @@ up in a profile, which would require it to cost something it currently does not.
 
 ## Deferred
 
-### IMP-004 The `check()` test helper is duplicated across all four suites
+### IMP-004 The `check()` test helper is duplicated across every suite
 **Status:** deferred
 **Effort:** trivial
 **Found:** 2026-09-02, review after Phase 3
 **Related:** BUILD.md §Tests
 
-`acceptance_transport`, `playlist_model_test`, `metadata_reader_test` and
-`equaliser_test` each define their own identical `check()` and failure counter,
-about fifteen lines apiece.
+`acceptance_transport`, `playlist_model_test`, `metadata_reader_test`,
+`equaliser_test`, `meters_test` and `tokens_test` each define their own identical
+`check()` and failure counter, about fifteen lines apiece. It was four suites
+when this was written.
 
-**Trade-offs:** A shared `tests/Check.h` removes the duplication but couples the
-four suites to one header, and each is currently a single self-contained file
+**Trade-offs:** A shared `tests/Check.h` removes the duplication but couples
+every suite to one header, and each is currently a single self-contained file
 that can be read start to finish without following an include. Fifteen lines
-repeated four times is cheap; the coupling is permanent. Worth doing only if a
-fifth suite appears or the helper grows beyond printing a line.
+repeated a few times is cheap; the coupling is permanent. Worth doing only if
+more suites appear or the helper grows beyond printing a line.
 
-**Deferred 2026-09-02.** Trigger: a fifth test suite. Phase 4 adds meter
-ballistics tests, which will be it. Doing the extraction then means the shared
-header is shaped by five real callers rather than four, and the marginal case
-for it becomes an actual one.
+**Deferred 2026-09-02.** Trigger: a fifth test suite.
+
+**The trigger has fired, twice.** `meters_test` arrived in Phase 4 and
+`tokens_test` in Phase 5, so the helper is now copied six times rather than
+four, and the shared header would be shaped by six real callers. The condition
+this was deferred against no longer holds; whether to act on that is still the
+author's, but it should be decided rather than left to drift — the count only
+goes up.
 
 
 ### IMP-005 `main.cpp` owns all inter-module wiring and will not scale to Phase 6
@@ -168,6 +173,12 @@ does not yet need one, and the right seams are not visible until the Phase 6
 features exist to shape them — building the facade early risks designing it for
 the wrong four consumers. Leaving it means Phase 6 begins with a refactor
 instead of a feature. The decision is when, not whether.
+
+**The trigger has arrived: Phase 6 is next.** `main()` has also grown since this
+was written — it now restores and saves the theme, the compact state and the
+inverted display alongside everything it already did. The question this entry
+poses is due now rather than deferred, and the honest answer is probably that
+the first Phase 6 feature should be the facade rather than MPRIS2.
 
 **Deferred 2026-09-02.** Trigger: Phase 6, once MPRIS2 (F-050), media keys
 (F-051), single-instance enqueue (F-052) and session restore (F-015) exist.
