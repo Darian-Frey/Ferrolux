@@ -188,6 +188,24 @@ People who keep a local music library on Linux and want a player with the charac
 
 The contour steps are the point rather than a stylisation. A continuous gradient reads as an airbrush; the steps read as flame, because a real flame's luminosity falls off in visible layers.
 
+### F-036 Adjustable display proportions
+**Priority:** Could
+**Acceptance:**
+- Every proportion the meter shaders would otherwise carry as a literal is adjustable, and the change is visible on the running display rather than on the next launch
+- The values persist across restart
+- Every value is clamped to a range that cannot reach a shader failure mode, on the way in from the controls and from a hand-edited settings file alike
+- The proportions are independent of the finish: changing the chassis leaves them as they were
+- One action returns all of them to the values the displays shipped with
+**Status:** **Met** 2026-09-06 (Phase 5). Nine proportions are the user's: the spectrum's bar gap and cap thickness, the flame's ranks, front height, back height, parallax and softness, and the ladder's segment count and over-reference. `src/ui/VisualSettings` holds them, `qml/SettingsWindow.qml` is where they are set, and SPEC.md §Settings owns the eleven keys they persist under. `tests/meters_test` adds nine checks, one of which loads deliberately out-of-range values and asserts they arrive clamped.
+
+**Every value is clamped in the setter rather than at the point of use**, so the settings file cannot be the one route into the program that skips its own validation. This is not defensive habit: a flame with zero ranks or a ladder with zero segments is a division by zero inside a shader, and a shader does not throw. It draws something wrong sixty times a second, on a display whose whole purpose is to be believed.
+
+**They are deliberately not design tokens, and the distinction is the feature.** A token set is what the panel is *made of* — a finish, per SPEC.md §Design tokens — which is why `tests/tokens_test` holds every set to the same vocabulary. These are what the user has *set the displays to*, and they survive a change of finish because a preference for a coarse ladder is not a preference about paint. Keeping them apart also stops a finish being able to redefine them, which would make choosing a chassis silently change the meaning of a setting someone chose (F-044).
+
+**Ranks is the one with a cost attached.** Each rank is up to five texture taps per pixel, and BUG-016 is what happened when nine of them went unmeasured at 2160p. The control stops at sixteen because that is the shader's own ceiling, above which it silently stops drawing them — a slider that can reach a failure mode is a bug with a handle on it.
+
+**Notes:** The controls live in a window of their own rather than in a panel drawer, and that follows from the acceptance criteria rather than from taste. A drawer pushed the playlist down on every opening and covered the display being adjusted, and a proportion can only be judged by watching the meter move while it changes. Where they live is not part of this feature; that they can be changed at all, and by whom, is.
+
 ### F-034 Oscilloscope mode
 **Priority:** Could
 **Acceptance:**

@@ -312,8 +312,8 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   finish latched, which shows both what the finishes look like and that they are
   selected rather than built.
 
-- Settings moved out of the panel and into a window of their own, and gained the
-  nine display *proportions* the meter shaders previously carried as literals:
+- F-036, adjustable display proportions: settings move out of the panel and into
+  a window of their own, and gain the nine display *proportions* the meter shaders previously carried as literals:
   the bar gap and cap thickness, the flame's ranks, front and back height,
   parallax and softness, and the ladder's segment count and over-reference. Each
   was chosen by eye and is a preference rather than a fact, so it belongs to the
@@ -321,7 +321,10 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   and from a hand-edited settings file alike — because a flame with zero ranks
   or a ladder with zero segments is a division by zero in a shader, which does
   not throw but draws something wrong sixty times a second. Eleven keys added to
-  SPEC.md §Settings; nine new checks in `meters_test`. A second window rather
+  SPEC.md §Settings; nine new checks in `meters_test`. The explanatory note
+  under those keys had been left *between two rows* of the settings table, which
+  ends the table and leaves everything after it without a header; it now sits
+  below the table. A second window rather
   than a drawer because a drawer pushed the playlist down and covered the very
   display being adjusted, and these are settings that can only be judged by
   watching the meter move while they change.

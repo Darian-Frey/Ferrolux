@@ -343,7 +343,7 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `meters/mode` | string | `spectrum` | Identifier from the display mode table |
 | `meters/reference-level` | double | −9.0 | dBFS for 0 VU. Not the −18 broadcast figure — see §Meters and BUG-014 |
 | `meters/bands` | int | 24 | Display bands: 24 or 48. See §Frequency mapping |
-| `meters/spectrum-gap` | double | 0.18 | Space between bars, in band widths |
+| `meters/spectrum-gap` | double | 0.18 | Space between bars, in band widths. F-036 |
 | `meters/spectrum-cap` | double | 0.035 | Peak cap thickness, as a fraction of height |
 | `meters/flame-ranks` | int | 9 | Receding silhouettes. Capped at 16, the shader's own limit. Each rank costs up to five texture taps per pixel — see BUG-016 |
 | `meters/flame-front` | double | 0.52 | Height of the nearest rank, as a fraction |
@@ -352,14 +352,14 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `meters/flame-softness` | double | 0.9 | Horizontal blur, in band widths |
 | `meters/ladder-segments` | int | 28 | Segments in the peak ladder |
 | `meters/ladder-over` | double | 0.8 | Fraction of the ladder above which segments read as over reference |
-
-The nine `meters/` keys below `reference-level` are the *proportions of the displays*, and they are settings rather than tokens on purpose. A token set is what the panel is made of and every set must carry every token; these are what the user has set the displays to, and they survive a change of finish because a preference for a coarse ladder is not a preference about paint. Keeping them apart also stops a finish redefining them, which would make choosing a chassis silently change a setting the user chose. Every one is clamped on load as well as on write, because a settings file can be edited by hand and a flame with zero ranks is a division by zero in a shader — which does not throw, it draws something wrong sixty times a second.
 | `ui/theme` | string | `ferric` | Token set name. A name that no longer resolves falls back to the default and says so — a set renamed or removed since it was chosen is a stale setting, not a reason to start with no appearance |
 | `ui/display-inverted` | bool | false | Draws the display well lit-ground with dark text rather than dark-ground with lit text. A different instrument rather than the same one recoloured, so it is a setting and not a token |
 | `ui/compact` | bool | false | F-042 |
 | `ui/geometry` | bytearray | — | Window position and size |
 | `session/playlist` | string | — | Path to the auto-saved session playlist |
 | `session/position` | int64 | 0 | Nanoseconds into the current track |
+
+The nine `meters/` keys below `reference-level` are the *proportions of the displays*, and they are settings rather than tokens on purpose. A token set is what the panel is made of and every set must carry every token; these are what the user has set the displays to, and they survive a change of finish because a preference for a coarse ladder is not a preference about paint. Keeping them apart also stops a finish redefining them, which would make choosing a chassis silently change a setting the user chose. Every one is clamped on load as well as on write, because a settings file can be edited by hand and a flame with zero ranks is a division by zero in a shader — which does not throw, it draws something wrong sixty times a second.
 
 Keys are append-only in the same sense as document IDs: a key that changes meaning gets a new name and a migration step, rather than being silently reinterpreted.
 
