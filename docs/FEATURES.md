@@ -289,8 +289,15 @@ A **VFD-green readout** is no longer blocked: IMP-006 was applied on 2026-09-05,
 **Priority:** Should
 **Acceptance:**
 - Hardware media keys work under both X11 and Wayland
-**Status:** Not started (Phase 6)
-**Notes:** Under Wayland this is delegated to MPRIS rather than a global grab.
+**Status:** **Met** 2026-09-06 (Phase 6) on every desktop that has a media-key mechanism, which the note below did not correctly describe. `platform/MediaKeys` registers with the settings daemon; F-050 covers the desktops that route the keys through MPRIS instead. Verified by synthesising real `XF86Audio` keysyms with XTest against a running player: play toggles, next and previous move through the list — previous going back a track rather than restarting, because it was inside F-002's three-second window — and stop stops.
+
+**What is left over is X11 under a bare window manager**, where there is neither a daemon nor an MPRIS consumer. That is IMP-008, logged rather than written: a global grab takes a key from every other application on the machine and could not be tested here. Wayland without a daemon cannot be fixed at all, by design — there is no global grab to make, and the compositor decides.
+
+**Notes:** The original note said this would be "delegated to MPRIS rather than a global grab" under Wayland, implying a grab under X11. Both halves are wrong, and the second is the expensive one: **the major desktops do not route media keys through MPRIS on either display server.** GNOME, Cinnamon and MATE run a settings daemon that owns the keys and gives them to whichever application last registered over `org.gnome.SettingsDaemon.MediaKeys` — an interface that predates MPRIS and has outlived several attempts to retire it. Measured rather than assumed: with F-050 running and correct, a synthesised `XF86AudioPlay` left the player exactly where it was. The daemon had the key and nothing had asked it for one. The split is by desktop, not by display server.
+
+Registration is not permanent — the grab belongs to the D-Bus connection and lapses when the daemon restarts — so each daemon name is watched and re-registered. That path is written but not exercised, because exercising it means restarting a live session's settings daemon.
+
+**The keys are claimed on activity rather than on existence** (IMP-009). They are a single global thing only one application can hold, and the daemon gives them to whoever registered last, so a player that registers at startup and holds until it exits takes them from a browser that is actually playing and never gives them back. Ferrolux holds them while its window has focus, and while it is a session that has played and still has something to resume — a pause counts, because pause is the state a player is left in when the user means to come back. Idle and unfocused, it hands them back.
 
 ### F-052 Single instance and CLI
 **Priority:** Should

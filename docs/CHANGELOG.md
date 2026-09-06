@@ -382,6 +382,47 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   a dependency on a session bus. A machine without one warns and plays on, since
   losing the desktop's media controls is not a reason to refuse to play music.
 
+- Media keys (F-051): `platform/MediaKeys` registers with the desktop's settings
+  daemon, and the feature note it was written against turned out to be wrong in
+  the expensive direction. It said the keys would be "delegated to MPRIS rather
+  than a global grab" under Wayland, implying a grab under X11 — but **the major
+  desktops do not route media keys through MPRIS on either display server**.
+  GNOME, Cinnamon and MATE own them in a daemon and hand them to whichever
+  application last registered over `org.gnome.SettingsDaemon.MediaKeys`, an
+  interface that predates MPRIS and has outlived several attempts to retire it.
+  Measured rather than reasoned: with F-050 running and correct, a synthesised
+  `XF86AudioPlay` left the player exactly where it was. The split is by desktop,
+  not by display server.
+
+  Verified with real `XF86Audio` keysyms against a running player: play toggles,
+  next and previous move through the list, stop stops. Registration is watched
+  and renewed, because the grab belongs to the D-Bus connection and lapses when
+  the daemon restarts — a player that registers once at startup and then quietly
+  stops answering the keys is the failure that avoids.
+
+- IMP-009 applied, from the author noticing that the F-051 testing had paused a
+  browser video: the media keys are claimed on activity rather than on
+  existence. They are a single global thing only one application can hold, and
+  the daemon gives them to whoever registered last — so registering at startup
+  and holding until exit takes them from a browser that is actually playing.
+  Ferrolux now holds them while its window has focus, and while it is a session
+  that has played and has something to resume; a pause keeps them, a stop hands
+  them back.
+
+  Reading the engine's state was not enough, and put the defect straight back:
+  a track loaded from the command line sits at `Paused` on row 0 having never
+  made a sound, which is the same state as a session paused halfway through, so
+  "playing, or paused with a track" claimed the keys at launch. What is
+  remembered instead is whether playback has happened since the last stop.
+  Verified by watching the grab and release calls on the bus rather than by
+  pressing keys, so the test could not disturb whatever else was playing —
+  which is how the original defect was found.
+
+- IMP-008 logged, not applied: X11 under a bare window manager has neither a
+  daemon nor an MPRIS consumer, so the keys do nothing there. The `XGrabKey` that
+  would fix it takes a key away from every application on the machine and could
+  not be tested on the session it was developed on.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

@@ -35,6 +35,7 @@
 #include <gst/gst.h>
 
 #include "app/Player.h"
+#include "platform/MediaKeys.h"
 #include "platform/MprisService.h"
 #include "platform/Settings.h"
 #include "core/Equaliser.h"
@@ -47,6 +48,7 @@
 using ferrolux::app::Player;
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterTexture;
+using ferrolux::platform::MediaKeys;
 using ferrolux::platform::MprisService;
 using ferrolux::platform::Settings;
 using ferrolux::ui::ThemeTokens;
@@ -112,6 +114,13 @@ int main(int argc, char *argv[])
         // to raise.
         MprisService mpris(&player);
 
+        // F-051. Registered with the desktop's settings daemon rather than
+        // grabbed: GNOME, Cinnamon and MATE own the media keys and hand them to
+        // whoever asked last, and none of them routes them through MPRIS. A
+        // desktop with no such daemon — KDE, for one — delivers them over MPRIS
+        // instead, so there is nothing to report when this finds nobody.
+        MediaKeys keys(&player);
+
         // The texture item is instantiated from QML so it joins the scene graph
         // and can be named as a ShaderEffect source.
         qmlRegisterType<MeterTexture>("Ferrolux", 1, 0, "MeterTexture");
@@ -167,6 +176,15 @@ int main(int argc, char *argv[])
             // music, so a session with no bus is a warning rather than an exit.
             if (!mpris.attach(window))
                 qWarning("%s", qPrintable(mpris.lastError()));
+
+            // F-051, and after the window for the same reason: the keys are
+            // claimed on activity rather than on existence, and one of the
+            // things that counts as activity is the panel having focus.
+            if (keys.attach(window))
+                qInfo("media keys: %s answers; claimed while playing or focused",
+                      qPrintable(keys.provider()));
+            else
+                qInfo("media keys: no settings daemon; relying on MPRIS");
 
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");

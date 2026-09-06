@@ -22,8 +22,47 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
+### IMP-008 Media keys do nothing under a bare window manager
+**Status:** suggested
+**Effort:** medium
+**Found:** 2026-09-06, implementing F-051
+**Related:** F-051, F-050, AV-005
+
+`platform/MediaKeys` registers with a desktop settings daemon, and F-050 covers
+the desktops that route media keys through MPRIS instead. Between them that is
+GNOME, Cinnamon, MATE, KDE and anything built on them, on X11 and Wayland
+alike. What is left over is X11 with a bare window manager — i3, openbox,
+awesome and their like — where there is no daemon to register with and nothing
+listening on MPRIS, so the keys do nothing at all.
+
+The fix is the `XGrabKey` that F-051's note originally assumed, on the four
+`XF86Audio` keysyms, repeated across the modifier combinations that Num Lock and
+Scroll Lock produce, with an event filter to match. It is not written, and the
+reason is worth stating: a global grab takes a key away from every other
+application on the machine, and this one could not be tested here — the session
+that would exercise it is exactly the session this was not developed on. A grab
+that is wrong in a way nobody noticed does not lose a feature, it eats somebody's
+keyboard.
+
+Wayland with no daemon cannot be fixed at all: there is no global grab to make,
+by design. That case is MPRIS or nothing, and it is the compositor's decision.
+
+**Trade-offs:** A global grab is the only mechanism available, and it takes the
+key from every other application on the machine for as long as Ferrolux runs —
+including from a player that would have handled it better. It cannot be made
+polite the way the daemon registration can, because there is nobody to hand the
+key back to and no way to know who wanted it. Against that, the case it fixes
+is a real one: on a bare window manager the keys currently do nothing at all.
+The deciding factor is that the fix cannot be tested on any machine available
+here, and an untested global grab fails by swallowing a key silently rather
+than by not working.
+
+**Worth doing when** there is a bare-WM session to test in, or a user reports it.
+Not before: the failure it prevents is invisible on the machines available, and
+the failure it could introduce is not.
+
 ### IMP-007 SPEC.md's settings table does not say which keys exist
-**Status:** open
+**Status:** suggested
 **Effort:** small
 **Found:** 2026-09-06, gathering the keys into `platform/Settings`
 **Related:** F-015, F-042, SPEC.md §Settings
@@ -40,6 +79,14 @@ somebody has it in hand — a documented setting that nothing implements and
 nothing is committed to implementing is a promise the file is making on the
 application's behalf.
 
+**Trade-offs:** A status column adds a field that has to be kept true, and a
+document that lies about its own status column is worse than one that says
+nothing — SPEC.md currently claims nothing, which is at least honest. A test
+that walks the table cannot be fooled that way, but it couples the document's
+formatting to a test, so reflowing a table breaks a build. The cheaper half is
+that both fixes are small; the real cost of neither is that a reader takes the
+table as a description of the program when three of its rows are a plan.
+
 Gathering the keys into one class is what made this visible: every string in
 SPEC.md §Settings is now in `platform/Settings` except those three, so the gap
 is a diff rather than a memory. It also makes the table checkable, which is the
@@ -48,6 +95,74 @@ key appears in `Settings`. The second would have caught BUG-019, where a key was
 written on exit and never read on start.
 
 ## Applied
+
+### IMP-009 Ferrolux keeps the media keys even when it is not the player being used
+**Status:** applied
+**Effort:** small
+**Found:** 2026-09-06, reported by the author from watching the F-051 testing
+**Related:** F-051, F-050
+
+`MediaKeys::attach()` is called once at startup and the registration is renewed
+only when the settings daemon restarts. The daemon gives the media keys to
+whichever application registered *last*, so launching Ferrolux takes them from
+whatever had them and does not hand them back until Ferrolux exits — including
+when Ferrolux is idle with nothing loaded and the other application is the one
+actually playing. Press play expecting the video in the browser and the silent
+music player answers instead.
+
+The convention this misses is that a media player re-registers when its window
+is activated, so the most recently *used* player holds the keys rather than the
+most recently *started* one. That is why the daemon takes a timestamp at all —
+the ordering is meant to be maintained, not established once.
+
+**The fix is small**: re-register on window activation, which means `MediaKeys`
+needs the window it already refuses to know about. `MprisService` and `Settings`
+both take one as a plain `QObject`, so the shape exists; a connection to the
+window's `activeChanged` calling `attach()` again is most of it. Worth deciding
+whether an idle player should re-register at all, or only one that has something
+loaded — the second is friendlier and is a condition rather than a signal.
+
+**Trade-offs:** Holding the keys unconditionally is simpler and has one
+advantage worth naming — the keys always reach Ferrolux while it runs, so they
+never appear to break. Claiming on activity means there are moments when a
+press does not reach the player, and a user who does not know the rule will read
+that as unreliable rather than as polite. The rule therefore has to be one that
+can be stated in a sentence, or it is worse than the blunt version. Against
+that: taking a key from an application that is actively using it is a fault the
+user notices immediately and cannot diagnose, which is exactly how this was
+found.
+
+Not applied inline when first logged, per Maintenance Rule 8: it is a change to
+how the application behaves towards other applications, which is the author's
+call rather than a defect to be quietly corrected.
+
+**Applied 2026-09-06**, with the author choosing that a paused Ferrolux should
+keep the keys: pause is the state a player is left in when the user means to
+come back, so Play should resume the music rather than something else. In
+practice a browser re-registers the moment its own video starts, so this only
+decides who wins when nothing else is playing.
+
+The keys are now claimed on activity rather than on existence. `MediaKeys` takes
+the window — read by property name, as `Settings` and `MprisService` already
+do — and re-evaluates on three things: the engine's state, the current row, and
+the window's focus.
+
+**Reading the engine's state turned out to be insufficient, in a way that put
+the original defect straight back.** A track loaded from the command line sits
+at `Engine::Paused` on row 0 having never made a sound, which is the same state
+as a session paused halfway through. A rule written as "playing, or paused with
+a track" therefore claimed the keys at launch — the exact behaviour this entry
+exists to stop. It was caught by instrumenting the decision rather than by
+reasoning about it. What is remembered instead is whether playback has actually
+happened since the last stop.
+
+Verified by watching `GrabMediaPlayerKeys` and `ReleaseMediaPlayerKeys` on the
+bus rather than by pressing keys, so the test could not disturb whatever else
+was playing — which is how the defect was found in the first place. The
+sequence: grab on launch while focused; **release** when focus moves away and
+nothing has played; grab when playback starts even though still unfocused; keep
+through a pause; **release** on stop.
+
 
 ### IMP-005 `main.cpp` owns all inter-module wiring and will not scale to Phase 6
 **Status:** applied
