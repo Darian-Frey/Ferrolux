@@ -329,6 +329,19 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   display being adjusted, and these are settings that can only be judged by
   watching the meter move while they change.
 
+- Phase 6 opens with `app/Player` (IMP-005). The engine, the playlist, the
+  metadata reader and the meter source, and all fifteen arrows between them,
+  move out of `main()` — which drops from 378 lines to 307 and no longer holds a
+  single `connect`. `app/` is a new module and is declared to be the only one
+  allowed to depend on several peers: `core/`, `library/`, `meters/` and `ui/`
+  include nothing from one another, and each is testable alone because of it, so
+  putting the facade in `core/` would have turned "core owns the pipeline" into
+  "core owns everything". `platform/` will call into `Player` rather than into
+  `core/`, so the desktop code couples one way. The facade adds no policy: play
+  order still belongs to the playlist and the three-second rule on `previous`
+  still belongs to the engine. Verified by driving the panel under XTest, since
+  no suite covers the wiring and the wiring is all that moved.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

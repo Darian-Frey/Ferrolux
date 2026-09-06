@@ -3,16 +3,20 @@
 //
 // Ferrolux RS-1 — entry point.
 //
-// Wires the engine, the playlist and the metadata reader together and hands
-// them to a throwaway QML harness. The connections below are the whole of the
-// application's control flow, and they are deliberately all in one place:
-// ARCHITECTURE.md gives the playlist ownership of play order and leaves the
-// engine to be told what to play, so the arrows between them should be
-// readable at a glance rather than scattered through both classes.
+// Starts the process and hands `app/Player` to the panel.
+//
+// The arrows between the engine, the playlist, the metadata reader and the
+// meters used to be a screenful of lambdas here. They are `Player` now, because
+// Phase 6 adds four more consumers of the same objects and this function would
+// have stopped being readable well before the last of them landed — IMP-005.
+// What is left is what genuinely belongs to starting a process: GStreamer and
+// Qt initialisation, the fonts, the token set, the QML context, the command
+// line, and AV-002's measurement mode.
 //
 // Settings persistence lives here rather than in core/ so that core/ keeps no
-// dependency on the desktop; platform/Settings takes it over in Phase 6. Keys
-// and defaults are those in SPEC.md §Settings and are never invented locally.
+// dependency on the desktop; platform/Settings takes it over later in Phase 6.
+// Keys and defaults are those in SPEC.md §Settings and are never invented
+// locally.
 
 #include <QDir>
 #include <QDirIterator>
@@ -34,21 +38,16 @@
 
 #include <gst/gst.h>
 
-#include "core/Engine.h"
+#include "app/Player.h"
 #include "core/Equaliser.h"
-#include "library/MetadataReader.h"
-#include "library/PlaylistFilter.h"
 #include "library/PlaylistModel.h"
-#include "meters/MeterSource.h"
 #include "meters/FrameTimer.h"
 #include "meters/MeterTexture.h"
 #include "ui/ThemeTokens.h"
 #include "ui/VisualSettings.h"
 
-using ferrolux::core::Engine;
+using ferrolux::app::Player;
 using ferrolux::core::Equaliser;
-using ferrolux::library::MetadataReader;
-using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
@@ -92,79 +91,13 @@ int main(int argc, char *argv[])
     // still going.
     int status = 0;
     {
-        Engine engine;
-        PlaylistModel playlist;
-        MetadataReader metadata;
-        PlaylistFilter view;
-        view.setSourceModel(&playlist);
-
-        // Meters. The analysis elements run ahead of the sink, so their figures are
-        // queued against the running time they carry and released when the clock
-        // reaches them — applying on arrival would put the display over a second
-        // ahead of the audio. See BUG-011.
-        MeterSource meters;
-        QObject::connect(&engine, &Engine::levelMeasured, &meters,
-                         [&meters](const QList<double> &rms, const QList<double> &peak,
-                                   const QList<double> &decay, qint64 runningTime) {
-                             meters.queueLevel(rms, peak, decay, runningTime);
-                         });
-        QObject::connect(&engine, &Engine::spectrumMeasured, &meters,
-                         [&meters](const QList<float> &magnitudes, int rate, qint64 runningTime) {
-                             meters.queueSpectrum(magnitudes, rate, runningTime);
-                         });
-
-        // Stopping releases the display to rest; pausing holds it. The engine's
-        // own state is the authority, so this stays right however playback came
-        // to a halt — the end of a playlist, a file that failed, or the button.
-        QObject::connect(&engine, &Engine::stateChanged, &meters, [&engine, &meters] {
-            const auto state = engine.state();
-            meters.setReleasing(state == Engine::Stopped || state == Engine::Error);
-        });
-
-        // Metadata: the model asks, the reader answers on a worker pool, the model
-        // applies the results. Neither knows anything about the other's threading.
-        QObject::connect(&playlist, &PlaylistModel::metadataNeeded,
-                         &metadata, &MetadataReader::enqueue);
-        QObject::connect(&metadata, &MetadataReader::batchReady,
-                         &playlist, &PlaylistModel::applyMetadata);
-
-        // Playback: the playlist decides what plays, the engine is told.
-        QObject::connect(&playlist, &PlaylistModel::currentEntryChanged, &engine,
-                         [&engine](const QUrl &url) {
-                             if (url.isEmpty())
-                                 return;
-                             engine.setSource(url);
-                             engine.play();
-                         });
-
-        // Gapless: the next URI is cached ahead of time so that the streaming
-        // thread never has to ask the model for it. See F-005 and AV-006.
-        // Prepared rather than started: the entry is loaded and the position
-        // bar and duration populate, but nothing is heard until Play.
-        QObject::connect(&playlist, &PlaylistModel::currentEntryPrepared, &engine,
-                         [&engine](const QUrl &url) {
-                             if (!url.isEmpty())
-                                 engine.setSource(url);
-                         });
-
-        QObject::connect(&playlist, &PlaylistModel::nextEntryChanged,
-                         &engine, &Engine::setNextSource);
-        QObject::connect(&engine, &Engine::gaplessAdvance, &playlist,
-                         [&playlist] { playlist.advanceForHandover(); });
-
-        // A track that ends without a handover — the last of a list, or a file that
-        // failed — advances normally, which does start playback.
-        QObject::connect(&engine, &Engine::endOfStream, &playlist,
-                         [&playlist] { playlist.advance(); });
-        QObject::connect(&engine, &Engine::previousTrackRequested, &playlist,
-                         [&playlist] { playlist.retreat(); });
-
-        // The engine demuxes the stream and so knows the real duration; a tag can
-        // only estimate it. SPEC.md §Duration makes this the authoritative source.
-        QObject::connect(&engine, &Engine::durationChanged, &playlist,
-                         [&playlist, &engine] {
-                             playlist.setAuthoritativeDuration(engine.source(), engine.duration());
-                         });
+        // Every object the application is made of, and every arrow between
+        // them. Declared inside this scope so that all of it is destroyed
+        // before gst_deinit() below.
+        Player player;
+        auto &engine = *player.engine();
+        auto &playlist = *player.playlist();
+        auto &meters = *player.meters();
 
         QSettings settings;
         engine.setVolume(settings.value(QStringLiteral("playback/volume"), 0.7).toDouble());
@@ -277,7 +210,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine qml;
         qml.rootContext()->setContextProperty(QStringLiteral("Engine"), &engine);
         qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), &playlist);
-        qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), &view);
+        qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), player.view());
         qml.rootContext()->setContextProperty(QStringLiteral("Equaliser"), equaliser);
         qml.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
         qml.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
@@ -294,11 +227,7 @@ int main(int argc, char *argv[])
         QList<QUrl> arguments;
         for (const QString &argument : app.arguments().mid(1))
             arguments.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
-        if (!arguments.isEmpty()) {
-            playlist.addPaths(arguments);
-            if (playlist.rowCount() > 0)
-                playlist.selectWithoutPlaying(0);
-        }
+        player.open(arguments, Player::AddAndSelect);
 
         qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));
         if (qml.rootObjects().isEmpty())

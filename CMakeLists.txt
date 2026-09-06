@@ -30,6 +30,8 @@ pkg_check_modules(GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.20)
 
 qt_add_executable(ferrolux
     src/main.cpp
+    src/app/Player.cpp
+    src/app/Player.h
     src/core/Engine.cpp
     src/core/Engine.h
     src/core/Equaliser.cpp

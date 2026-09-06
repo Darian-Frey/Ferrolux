@@ -33,7 +33,15 @@ Ferrolux RS-1 is planned rather than built. This document describes the target s
                      │  PlaylistModel │     │  (Phase 6 —    │
                      │  Metadata      │     │   not present) │
                      │  PlaylistIO    │     │                │
-                     └────────────────┘     └────────────────┘
+                     └────────▲───────┘     └───────┬────────┘
+                              │                     │ commands
+                              │  owns & wires       │
+                     ┌────────┴─────────────────────▼────────┐
+                     │ app/Player                            │
+                     │  the arrows between core/, library/   │
+                     │  and meters/ — the only module that   │
+                     │  knows all three exist                │
+                     └───────────────────────────────────────┘
 ```
 
 The UI is a consumer. It reads state and pushes commands; it holds no playback logic of its own. Every arrow into `qml/` carries data that is already in its final display form, so that a shader or a delegate never has to compute anything non-trivial during a frame.
@@ -81,7 +89,9 @@ Time-domain display needs raw PCM, which the level/spectrum path does not carry.
 
 **`library/`** owns the list of things to play. `PlaylistModel` is the single source of truth for playlist contents and play order; `Engine` is told what to play, it does not decide. Metadata extraction runs on a worker thread and populates rows by signal, so adding ten thousand files never blocks the interface. `PlaylistIO` handles M3U and PLS serialisation.
 
-**`platform/`** will contain everything that is about the desktop rather than about audio: the MPRIS2 D-Bus service, media key handling, single-instance coordination and command-line parsing. Isolating it means the rest of the application has no direct dependency on D-Bus or on the session type. **It does not exist yet** — that is Phase 6. Settings persistence, which will move there, is currently in `main.cpp` so that `core/` keeps no dependency on the desktop.
+**`app/`** is the one module allowed to depend on more than one of the others, and `Player` is the whole of it. `core/`, `library/`, `meters/` and `ui/` include nothing from each other — each is testable alone precisely because it has no opinion about the rest — and until Phase 6 the only code that knew all four existed was `main()`, where the arrows between them were a screenful of lambdas. Four desktop services now need to observe and command the same objects, so the graph has a name and a header instead. `Player` adds no policy: play order still belongs to `PlaylistModel` and playback rules still belong to `Engine`, and a method here that decided either would be a third place to look for the answer. Its one piece of judgement is `Player::Open`, which says what should happen to paths arriving from outside, because that is a question neither of the others can answer alone. See IMP-005.
+
+**`platform/`** will contain everything that is about the desktop rather than about audio: the MPRIS2 D-Bus service, media key handling, single-instance coordination and command-line parsing. Isolating it means the rest of the application has no direct dependency on D-Bus or on the session type, and it reaches the player through `app/Player` rather than through `core/` directly, so the coupling runs one way. **It does not exist yet** — that is Phase 6. Settings persistence, which will move there, is currently in `main.cpp` so that `core/` keeps no dependency on the desktop.
 
 **`ui/`** holds `ThemeTokens`, which loads a named token set from JSON and exposes it as three maps — palette, metrics, type. It knows nothing about what any token means; a component asks for `readout` and gets a colour, and which amber that is belongs to the file. This is what makes F-044 a token swap rather than an asset pack.
 

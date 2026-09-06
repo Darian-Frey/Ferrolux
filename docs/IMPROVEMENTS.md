@@ -26,6 +26,129 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Applied
 
+### IMP-005 `main.cpp` owns all inter-module wiring and will not scale to Phase 6
+**Status:** applied
+**Effort:** medium
+**Found:** 2026-09-02, review after Phase 3
+**Related:** F-015, F-050, F-051, F-052, ARCHITECTURE.md §Module responsibilities
+
+Every connection between the engine, the playlist and the metadata reader is a
+lambda in `main()`. At present that is a virtue — the whole control flow is
+readable on one screen, which is why it was written that way. Phase 6 adds
+MPRIS2, media keys, single-instance enqueue and session restore, each of which
+needs to observe and command the same objects, and the function will stop being
+readable well before all four land.
+
+A `Player` facade owning the wiring is the obvious shape, and ARCHITECTURE.md
+does not currently name one.
+
+**Trade-offs:** Introducing it now adds an indirection layer to something that
+does not yet need one, and the right seams are not visible until the Phase 6
+features exist to shape them — building the facade early risks designing it for
+the wrong four consumers. Leaving it means Phase 6 begins with a refactor
+instead of a feature. The decision is when, not whether.
+
+**The trigger has arrived: Phase 6 is next.** `main()` has also grown since this
+was written — it now restores and saves the theme, the compact state and the
+inverted display alongside everything it already did. The question this entry
+poses is due now rather than deferred, and the honest answer is probably that
+the first Phase 6 feature should be the facade rather than MPRIS2.
+
+**Deferred 2026-09-02.** Trigger: Phase 6, once MPRIS2 (F-050), media keys
+(F-051), single-instance enqueue (F-052) and session restore (F-015) exist.
+Deferred on information rather than effort — the seams a `Player` facade should
+expose are not visible until those four consumers do, and a facade designed for
+guesses about them would be worse than the refactor it saves. Phase 6 should
+open by building it, not by discovering it is needed.
+
+**Applied 2026-09-06**, as Phase 6's opening move rather than after the four
+consumers existed. Its own text disagreed with itself on that — the deferral
+condition said the trigger was Phase 6 *once* MPRIS2, media keys, enqueue and
+session restore existed, while the paragraph above it said Phase 6 should open
+by building the facade. The second reading was taken, on the grounds that all
+four consumers already have written acceptance criteria in FEATURES.md, so the
+seams could be shaped against a specification rather than against guesses; the
+alternative was wiring four desktop services into `main()` and then unpicking
+them.
+
+`src/app/Player` owns the engine, the playlist, the metadata reader, the meter
+source and the filter view, holds all fifteen connections between them, and
+offers the transport surface MPRIS2 and the media keys both need. `main()` drops
+from 378 lines to 307 and no longer contains a single `connect`.
+
+**`app/` is a new module, and the reason it is not `core/`** is that `core/`,
+`library/`, `meters/` and `ui/` include nothing from one another — verified, not
+assumed — and each is testable alone because of it. Putting the facade in
+`core/` would have made `core/` depend on `library/` and `meters/` and turned
+"core owns the pipeline" into "core owns everything". `app/` is instead declared
+to be the one module allowed to know about several peers, which is exactly what
+`main()` was doing unnamed. `platform/` will call into it rather than into
+`core/`, so the desktop code couples one way.
+
+The facade adds no policy. Play order still belongs to `PlaylistModel` and the
+three-second rule on `previous` still belongs to `Engine`; `Player::previous()`
+calls the engine and lets the engine's own signal route back to the model,
+rather than deciding anything itself. Its one piece of judgement is
+`Player::Open` — what should happen to paths arriving from outside — because
+that is the one question neither of the others can answer alone. Which
+command-line flag selects which mode is left to F-052 and deliberately not
+encoded in the names.
+
+Verified by driving the panel under XTest, since no suite covers the wiring and
+the wiring is the whole of what moved: a directory loads paused at 1 of 217,
+play populates the stream format, next advances, previous after three seconds
+restarts the current track rather than going back — F-002's rule intact through
+the facade — pause holds and stop resets to zero. 321 checks still pass in Debug
+and Release.
+
+### IMP-006 The meter shaders carry literal colours, so a theme cannot reach them
+**Status:** applied
+**Effort:** small
+**Noticed:** 2026-09-04, while making the meter well a `PanelSection`
+**Applied:** 2026-09-05
+**Related:** F-044, D-004, SPEC.md §Design tokens, CLAUDE.md §Conventions
+
+`qml/MeterDisplay.qml` passed literal hexadecimal to its shaders. The convention
+is explicit that QML uses design tokens and never literal colours, and the reason
+is F-044: a variant is "a token set over the same geometry", so anything holding a
+literal is geometry a variant cannot reach. Under a set that changed the lamp the
+whole panel would have changed and the meters would have stayed amber.
+
+Six were exact matches for existing tokens and were substituted directly.
+
+**The other five turned out not to need tokens at all**, which is why this closed
+without touching SPEC.md's palette. Measured in HSL against `readout`, every one
+of them is the same lamp at a different hue and lightness:
+
+| role | offset from the lamp |
+|------|----------------------|
+| cap, VU needle | +3°, same saturation, +0.21 lightness |
+| flame far rank | +4.5°, ×1.16 saturation, +0.23 lightness |
+| flame near rank | −11°, ×0.91 saturation, +0.05 lightness |
+| over-reference segment | −22.6°, ×0.92 saturation, +0.02 lightness |
+| unlit segment | the well with 7.5% of the lamp bled into it |
+
+That is what a physical display does — one phosphor, driven harder or softer —
+so they are derived in `qml/Tokens.qml` rather than written down. A set that
+changes the lamp now gets its cap, its flame and its warning tier for free, and
+no set has to specify five values that are a function of one it already has.
+
+Fitted rather than guessed, and verified twice. Against the literals they
+replace, the worst channel error over all five modes is **3/255**, which is below
+what the eye resolves — the flame's two in particular were tuned by eye by the
+author over several passes, and the point of fitting was to keep that work. And
+with the lamp temporarily set to VFD green, the peak tier moved from 39.3° to
+145.0° while the lamp moved from 36° to 142°: the offset is preserved, so the
+derivation follows rather than coincides.
+
+**Trade-offs:** A variant can no longer tune the flame independently of the lamp.
+That is the intended constraint rather than a cost — the flame *is* the lamp, and
+a set that could disagree with itself about what colour its display is would be a
+set that eventually does. Where a future finish genuinely needs a second lamp
+colour — a two-colour ladder with real red over-segments, say — that is a palette
+token and a SPEC.md change, and it should be argued on its own rather than
+smuggled in as a default.
+
 ### IMP-003 `PlaylistModel::moveSelection` is quadratic in the selection size
 **Status:** applied
 **Effort:** small
@@ -152,85 +275,3 @@ author's, but it should be decided rather than left to drift — the count only
 goes up.
 
 
-### IMP-005 `main.cpp` owns all inter-module wiring and will not scale to Phase 6
-**Status:** deferred
-**Effort:** medium
-**Found:** 2026-09-02, review after Phase 3
-**Related:** F-015, F-050, F-051, F-052, ARCHITECTURE.md §Module responsibilities
-
-Every connection between the engine, the playlist and the metadata reader is a
-lambda in `main()`. At present that is a virtue — the whole control flow is
-readable on one screen, which is why it was written that way. Phase 6 adds
-MPRIS2, media keys, single-instance enqueue and session restore, each of which
-needs to observe and command the same objects, and the function will stop being
-readable well before all four land.
-
-A `Player` facade owning the wiring is the obvious shape, and ARCHITECTURE.md
-does not currently name one.
-
-**Trade-offs:** Introducing it now adds an indirection layer to something that
-does not yet need one, and the right seams are not visible until the Phase 6
-features exist to shape them — building the facade early risks designing it for
-the wrong four consumers. Leaving it means Phase 6 begins with a refactor
-instead of a feature. The decision is when, not whether.
-
-**The trigger has arrived: Phase 6 is next.** `main()` has also grown since this
-was written — it now restores and saves the theme, the compact state and the
-inverted display alongside everything it already did. The question this entry
-poses is due now rather than deferred, and the honest answer is probably that
-the first Phase 6 feature should be the facade rather than MPRIS2.
-
-**Deferred 2026-09-02.** Trigger: Phase 6, once MPRIS2 (F-050), media keys
-(F-051), single-instance enqueue (F-052) and session restore (F-015) exist.
-Deferred on information rather than effort — the seams a `Player` facade should
-expose are not visible until those four consumers do, and a facade designed for
-guesses about them would be worse than the refactor it saves. Phase 6 should
-open by building it, not by discovering it is needed.
-
-### IMP-006 The meter shaders carry literal colours, so a theme cannot reach them
-**Status:** applied
-**Effort:** small
-**Noticed:** 2026-09-04, while making the meter well a `PanelSection`
-**Applied:** 2026-09-05
-**Related:** F-044, D-004, SPEC.md §Design tokens, CLAUDE.md §Conventions
-
-`qml/MeterDisplay.qml` passed literal hexadecimal to its shaders. The convention
-is explicit that QML uses design tokens and never literal colours, and the reason
-is F-044: a variant is "a token set over the same geometry", so anything holding a
-literal is geometry a variant cannot reach. Under a set that changed the lamp the
-whole panel would have changed and the meters would have stayed amber.
-
-Six were exact matches for existing tokens and were substituted directly.
-
-**The other five turned out not to need tokens at all**, which is why this closed
-without touching SPEC.md's palette. Measured in HSL against `readout`, every one
-of them is the same lamp at a different hue and lightness:
-
-| role | offset from the lamp |
-|------|----------------------|
-| cap, VU needle | +3°, same saturation, +0.21 lightness |
-| flame far rank | +4.5°, ×1.16 saturation, +0.23 lightness |
-| flame near rank | −11°, ×0.91 saturation, +0.05 lightness |
-| over-reference segment | −22.6°, ×0.92 saturation, +0.02 lightness |
-| unlit segment | the well with 7.5% of the lamp bled into it |
-
-That is what a physical display does — one phosphor, driven harder or softer —
-so they are derived in `qml/Tokens.qml` rather than written down. A set that
-changes the lamp now gets its cap, its flame and its warning tier for free, and
-no set has to specify five values that are a function of one it already has.
-
-Fitted rather than guessed, and verified twice. Against the literals they
-replace, the worst channel error over all five modes is **3/255**, which is below
-what the eye resolves — the flame's two in particular were tuned by eye by the
-author over several passes, and the point of fitting was to keep that work. And
-with the lamp temporarily set to VFD green, the peak tier moved from 39.3° to
-145.0° while the lamp moved from 36° to 142°: the offset is preserved, so the
-derivation follows rather than coincides.
-
-**Trade-offs:** A variant can no longer tune the flame independently of the lamp.
-That is the intended constraint rather than a cost — the flame *is* the lamp, and
-a set that could disagree with itself about what colour its display is would be a
-set that eventually does. Where a future finish genuinely needs a second lamp
-colour — a two-colour ladder with real red over-segments, say — that is a palette
-token and a SPEC.md change, and it should be argued on its own rather than
-smuggled in as a default.

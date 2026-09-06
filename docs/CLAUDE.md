@@ -8,8 +8,9 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-**Phases 1 to 5 built.** Phase 5 is feature-complete as of 2026-09-04 with one
-acceptance clause outstanding that only the author can settle. The application
+**Phases 1 to 5 built; Phase 6 opened 2026-09-06.** Phase 5 is feature-complete
+as of 2026-09-04 with one acceptance clause outstanding that only the author can
+settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
 its own panel — nothing in the window comes from a desktop theme. **321 checks
 across six suites** pass in both Debug and Release.
@@ -29,7 +30,13 @@ across six suites** pass in both Debug and Release.
   `VisualSettings.{h,cpp}` — the nine display *proportions*, which are
   deliberately not tokens: a finish is what the panel is made of, these are what
   the user has set the displays to, and they survive a change of finish
-- `src/main.cpp` — entry point, all inter-module wiring, settings persistence
+- `src/app/Player.{h,cpp}` — the facade: it owns the engine, the playlist, the
+  metadata reader and the meter source, holds every connection between them, and
+  offers the transport surface the desktop services need. `app/` is the only
+  module allowed to depend on several peers; the other four still include
+  nothing from one another, which is what keeps each testable alone
+- `src/main.cpp` — entry point, settings persistence, QML context, fonts, the
+  token set and the command line. No longer contains a single `connect`
 - `qml/` — fifteen components and `shaders/`. `Main.qml` is the window's
   layout; everything it draws with is panel chrome. `SettingsWindow.qml` is a
   second top-level window rather than a panel drawer, so that a display stays
@@ -41,7 +48,7 @@ across six suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
-- Not yet present: `platform/`, which is Phase 6
+- Not yet present: `platform/`, which is the rest of Phase 6
 
 **No open bugs and no suggested improvements.** Twenty-two bugs found so far,
 twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
@@ -63,11 +70,17 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 ## Active task
 
-Phase 6, desktop integration: MPRIS2, media keys under X11 and Wayland,
-single-instance enqueue, session restore. `platform/` does not exist yet and is
-where all of it goes — the point of that directory is that nothing else acquires
-a dependency on D-Bus or on the session type. Settings persistence currently
-lives in `main.cpp` and moves there with it.
+Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
+which is done: the wiring is out of `main()` before four more consumers went
+into it. What remains is MPRIS2 (F-050), media keys under X11 and Wayland
+(F-051), single-instance enqueue (F-052), session restore (F-015), keyboard
+control (F-043) and the desktop entry.
+
+`platform/` does not exist yet and is where all of it goes — the point of that
+directory is that nothing else acquires a dependency on D-Bus or on the session
+type, and it reaches the player through `app/Player` rather than through `core/`.
+Settings persistence still lives in `main.cpp` and moves there next; ARCHITECTURE.md
+has promised that move since before the directory existed.
 
 Phase 5's last acceptance clause is the author's to judge and cannot be
 measured: whether a viewer shown the panel without context reads it as
