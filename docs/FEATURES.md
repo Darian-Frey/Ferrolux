@@ -152,7 +152,9 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - Per-channel RMS and peak, and banded spectrum magnitudes, delivered at the interval in SPEC.md §Meters
 - Acquisition never blocks the GStreamer streaming thread — see AV-001
-**Status:** Not started (Phase 4)
+**Status:** **Met** (Phase 4, 2026-09-03). `level` and `spectrum` deliver per-channel RMS and peak and banded magnitudes at the interval SPEC.md §Meters states, and `src/meters/MeterSource` buckets them, applies the ballistics and holds the scheduling queue that corrects the message lead — which is BUG-011, the meters running over a second ahead of the audio.
+
+The second criterion is met by construction rather than by care: both elements post their results as bus messages, and `gst_bus_add_watch` dispatches on the main loop, so no application code runs on a streaming thread at all. That is the strongest form the claim can take, and it is still not a measurement — **AV-001's detection remains unimplemented**, so the invariant is held by review on any change touching `core/` or `meters/`. The status is Met on the criteria as written; AV-001 is what would let it be asserted rather than reasoned.
 
 ### F-031 Shader-rendered spectrum display
 **Priority:** Must
@@ -227,7 +229,11 @@ The contour steps are the point rather than a stylisation. A continuous gradient
 - Values are lit, legends are printed. Anything that reports a *value* — elapsed and remaining time, volume, balance position, equaliser gains — is rendered as an illuminated readout in the `readout` palette using the readout faces. Anything that *names* a control — band centre frequencies, `pre`, section titles, button legends — is silkscreened on the chassis in `ink`. The two must not be confused: a lit legend implies a state it does not have, and a printed value cannot change
 - Continuous controls carry a legible scale, and balance has a detent at centre. Centre is the position a balance control returns to most and the one position it cannot be set to by eye; a control that can be left imperceptibly off-centre with no way to see it is the defect, not the user's aim
 - All chrome drawn as vectors or shaders; no fixed-size bitmap assets in the control surface
-**Status:** Not started (Phase 5)
+**Status:** **Met** 2026-09-04 (Phase 5), on all seven criteria. The four sections are in one window; `ferric`'s shell is a warm off-white and its readout amber, with the moulded controls dropping into their wells on one `depress` quantity that drives travel and lighting together. Shuffle and repeat are `qml/SlideSwitch.qml`, read from the lever position with the marks printed on the chassis and never lit — the cycling buttons of the Phase 2 harness are gone, which is what the criterion excludes. `Tokens.hairline` is a scaled metric and nothing in the panel is expressed in pixels, which `tools/verify-scaling.sh` holds at four ratios. `qml/Readout.qml` and `qml/Legend.qml` are separate components precisely so that a value cannot be printed or a legend lit; `qml/Slot.qml` prints a tick scale and balance carries a detent at centre. No bitmap assets are in the control surface, which is invariant 6.
+
+F-044 varies the chassis without disturbing this: the finishes change the paint and keep the amber lamp, so the warm off-white shell is `ferric` rather than the only possibility.
+
+Note this is the *feature's* acceptance, all of which is objective. ROADMAP.md Phase 5 carries a second, separate clause — whether a viewer shown the panel without context reads it as photographed hardware — which is a judgement for the author and is why the phase is marked feature-complete rather than complete. That clause is not part of F-040 and does not qualify this status.
 **Notes:** The toggle-switch and hairline criteria come from the original design brief accompanying the mockup, recorded here on 2026-09-02 because they were otherwise carried only in that prose. The same brief is the source of the amber-or-VFD-green readout option in F-044 and the needle VU meters in F-032.
 
 ### F-041 Resolution independence
