@@ -74,14 +74,26 @@ playing, keeping the window position and the playback:
 
 ![Compact mode](docs/images/compact.png)
 
-Four finishes ship, exchanged from the settings drawer while the panel is
-running, and the display can be inverted to run dark-on-lit. Each finish is the
-same file with a different palette — the geometry and the type scale are shared
-by construction rather than copied — and every one is held to the same contrast
-floors by `tests/tokens_test`, because a palette is eight numbers and it is very
-easy to write eight plausible numbers that cannot be read.
+Four finishes ship — `ferric`, `anodised`, `ember` and `glacier` — exchanged
+from the settings drawer while the panel is running, and the display can be
+inverted to run dark-on-lit.
 
-![The anodised finish with the display inverted](docs/images/themes.png)
+![The four finishes](docs/images/finishes.png)
+
+Each is the same file with a different palette: the geometry and the type scale
+are shared by construction rather than copied and kept in step. The chassis
+varies and the lamp does not, which is how real equipment varies — the paint is
+the paint and the lamp is the lamp — and everything a display uses beyond the
+palette's three ambers is *derived* from the lamp rather than written down, so a
+finish that changed it would take the caps, the flame and the over-reference
+segments with it.
+
+Every set is held to the same contrast floors by `tests/tokens_test`: lit text
+at 4.5:1 against the well, legends at 4.5:1 against the chassis and against a
+control face, annotation at the large-text floor. That check exists because a
+palette is eight numbers and it is very easy to write eight plausible numbers
+that cannot be read — which is what happened, and was reported from use before
+the check was written.
 
 The static mockup the design started from is at
 [`docs/cassette_futurism_player_ui_mockup.html`](docs/cassette_futurism_player_ui_mockup.html).

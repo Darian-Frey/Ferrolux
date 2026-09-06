@@ -1,16 +1,16 @@
 {
   "name": "glacier",
-  "description": "Faded blue-grey chassis, amber readouts. A case that has seen some sun.",
+  "description": "Dark blue chassis, amber readouts. The lamp's complement, so it reads as lit.",
 
   "palette": {
-    "shell":           "#A3B0B4",
-    "shell-recess":    "#C2CCCE",
-    "shell-edge":      "#7C888B",
-    "display-bg":      "#262C2E",
+    "shell":           "#2C3A4E",
+    "shell-recess":    "#3A4C64",
+    "shell-edge":      "#182230",
+    "display-bg":      "#11161D",
     "readout":         "#EF9F27",
     "readout-dim":     "#BA7517",
     "readout-floor":   "#854F0B",
-    "ink":             "#232A2C"
+    "ink":             "#C4CCD4"
   },
 
   "metrics": {

@@ -3,14 +3,14 @@
   "description": "Burnt orange chassis, amber readouts. The loudest of the four.",
 
   "palette": {
-    "shell":           "#B4794A",
-    "shell-recess":    "#CE9264",
-    "shell-edge":      "#8A5730",
-    "display-bg":      "#2B211A",
+    "shell":           "#8B4923",
+    "shell-recess":    "#97522B",
+    "shell-edge":      "#5A2E14",
+    "display-bg":      "#1E1510",
     "readout":         "#EF9F27",
     "readout-dim":     "#BA7517",
     "readout-floor":   "#854F0B",
-    "ink":             "#261508"
+    "ink":             "#EDE6DE"
   },
 
   "metrics": {

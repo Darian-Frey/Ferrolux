@@ -307,7 +307,26 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   rather than acted on, but recorded, because a deferred entry whose condition
   has passed silently becomes a forgotten one.
 
+- The README's screenshots retaken, and the single theme image replaced with a
+  four-up of every finish. Each panel in it has the chooser open with its own
+  finish latched, which shows both what the finishes look like and that they are
+  selected rather than built.
+
 ### Fixed
+- The `ember` and `glacier` finishes were both wrong, reported from use.
+  `ember` read as pink rather than burnt orange, which is what 42% saturation
+  at 50% lightness on a warm hue *is* — it is now 60% at 34%, and its ink
+  inverts to a light warm grey because the chassis is no longer light enough to
+  print on. `glacier` sat at 194° and 10% saturation, a grey with a hint of
+  cyan rather than a blue, and light enough to read as pale concrete; it is now
+  a dark 215°, within a degree of the lamp's complement, which is what makes an
+  amber readout look lit rather than merely present.
+- `tools/verify-scaling.sh` pins `ui/theme` to the default set for the duration
+  of its run. It finds the edge it measures *by colour*, and those colours
+  belong to whichever finish was last selected — so a run inherited from a
+  session left on a dark chassis would have found no chassis-to-well boundary
+  and reported every ratio as soft. A false failure produced entirely by the
+  harness, which is the third this pair of tools has had.
 - BUG-019: the equaliser preset name was written on exit and never read, so the
   field reported `flat` after a restart over whatever curve had been restored.
   `Equaliser::adoptPreset` takes a remembered name as a label and only when the

@@ -77,17 +77,44 @@ TRACK=fixtures/tone-ref.flac
 command -v wmctrl >/dev/null || { echo "needs wmctrl" >&2; exit 2; }
 command -v import >/dev/null || { echo "needs ImageMagick" >&2; exit 2; }
 
+# The run is pinned to the default token set. The edge this measures is found by
+# its colour, and the colours belong to whichever finish `ui/theme` last named —
+# so a run inherited from a session that left the panel on a dark set would find
+# no chassis-to-well boundary at all and report every ratio as soft. That is a
+# false failure produced entirely by the harness, which is the third of these
+# this pair of tools has had; see AV-002 and AV-005.
+CONFIG="$HOME/.config/ferrolux/ferrolux.ini"
+SAVED=$(mktemp)
+[ -f "$CONFIG" ] && cp "$CONFIG" "$SAVED"
+python3 - "$CONFIG" <<'PY'
+import configparser, pathlib, sys
+p = pathlib.Path(sys.argv[1]); p.parent.mkdir(parents=True, exist_ok=True)
+c = configparser.ConfigParser(); c.optionxform = str
+if p.exists(): c.read(p)
+ui = c.setdefault('ui', {})
+ui['theme'] = 'ferric'
+ui['display-inverted'] = 'false'
+ui['compact'] = 'false'
+with p.open('w') as f: c.write(f)
+PY
+
 # A number is not a look. Set FERROLUX_SCALING_SHOTS to a directory to keep the
 # captures: the measurements below can tell crisp from soft and one layout from
 # another, and cannot tell whether a face has been substituted or a colour has
 # come out wrong, which are the failures a person spots at a glance.
+restore() {
+    [ -f "$SAVED" ] && cp "$SAVED" "$CONFIG"
+    rm -f "$SAVED"
+    pkill -x ferrolux 2>/dev/null || true
+}
+
 if [ -n "$FERROLUX_SCALING_SHOTS" ]; then
     SHOTS="$FERROLUX_SCALING_SHOTS"
     mkdir -p "$SHOTS"
-    trap 'pkill -x ferrolux 2>/dev/null || true' EXIT
+    trap 'restore' EXIT
 else
     SHOTS=$(mktemp -d)
-    trap 'rm -rf "$SHOTS"; pkill -x ferrolux 2>/dev/null || true' EXIT
+    trap 'rm -rf "$SHOTS"; restore' EXIT
 fi
 
 for FACTOR in 1 1.5 2 3; do
@@ -133,6 +160,8 @@ except ImportError:
 
 shots, wide, high = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 
+# ferric's chassis and well. The run pins `ui/theme` to that set for exactly
+# this reason: these two are what the edge is found by.
 SHELL = (0xB4, 0xB2, 0xA9)
 WELL = (0x2C, 0x2C, 0x2A)
 
