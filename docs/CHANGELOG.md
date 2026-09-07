@@ -592,15 +592,42 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   word. `CommandLine` now accepts a `file:` URL as well as a path, because `%F`
   is specified to pass local paths and not every launcher honours that.
 
-- BUG-026 and BUG-027 logged, not fixed. `errorBanner` is called twice in
-  `Main.qml` and defined nowhere, so two failure messages are `ReferenceError`
-  — and the panel has no transient notification surface at all, which is why
-  BUG-025 had to hold its error on a timer. A broken *next* playlist entry stops
-  the track that is playing, because `playbin3` reports a failure to prepare the
-  next URI on the same bus as a failure of the current one; it predates BUG-025's
-  fix, confirmed by reproducing it on the committed code.
+- BUG-027 mostly fixed and left open at low severity: `Engine::setNextSource`
+  declines to hand over a next source that cannot be opened, so a fault in a file
+  nobody has reached yet no longer ends the track being listened to. A 6.966 s
+  file whose next entry is missing now plays 6.965 s of it, against about 5.3 s
+  and a stop before. The check is one `stat` on the main thread, never in
+  `aboutToFinish`, which is the one function in this project that runs on a
+  streaming thread. What remains is a next entry that exists, is readable and
+  does not decode: it still costs the previous track its last two seconds, and a
+  `stat` cannot tell that a file will not decode.
+
+  The investigation stands in the entry: a broken *next*
+  playlist entry stops the track that is playing, because `playbin3` reports a
+  failure to prepare the next URI on the same bus as a failure of the current
+  one. An error *can* be attributed to its URI, by walking up from
+  `GST_MESSAGE_SRC` to the nearest object with a `uri` property, and ignoring
+  next-URI errors keeps the current track playing its full length — but no EOS
+  ever follows, so the playlist never advances. Ignoring alone would trade "cut
+  short and stopped" for "complete and stuck".
 
 ### Fixed
+- **BUG-026: `errorBanner` was called twice and defined nowhere**, so a preset
+  that could not be named and an `.eqf` that would not import both raised a
+  `ReferenceError` instead of saying so. Fixed with the surface the panel
+  already had rather than the banner the calls were named after: `DisplayPanel`
+  puts an error where the album would be, on its own principle that "an error
+  takes this line rather than getting one of its own", and the panel's own
+  notices now share it — the engine's winning where both have something to say.
+
+  Looking at the result found a second defect on the same line. The message
+  arrived as "A preset needs a name without a …", because `albumReadout` is
+  anchored to `formatReadout.left` and **an invisible item still holds its
+  anchor**: the text was being elided to leave room for a field that is hidden
+  whenever a message is shown. That one predates the entry and truncated the
+  engine's errors too — every message past about thirty characters, on a display
+  with the room to show it, unnoticed because the messages seen so far were
+  short.
 - **BUG-025: a file that would not load stalled the playlist instead of
   advancing**, which was half of F-001's second acceptance clause. Two defects,
   both in the engine. `play()` on a source already in `Error` set the state back

@@ -191,7 +191,16 @@ Rectangle {
         Readout {
             id: albumReadout
             anchors.left: parent.left
-            anchors.right: formatReadout.left
+
+            // Up to the format field normally, and up to the counter when an
+            // error has taken this line — because the format field is hidden in
+            // that case, and an invisible item still holds its anchor. The
+            // message was being elided to leave room for a field that is not
+            // drawn: "A preset needs a name without a slash in it." arrived as
+            // "A preset needs a name without a …", cut off before the part that
+            // says what to do about it.
+            anchors.right: display.error !== "" ? counterReadout.left
+                                                : formatReadout.left
             anchors.rightMargin: Tokens.gapControl
             height: implicitHeight
             face: Tokens.readoutText

@@ -78,13 +78,12 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**Two open bugs and no suggested improvements.** Twenty-seven bugs found so far,
-twenty-four fixed and one won't-fix upstream (BUG-006). BUG-027 is open — a
-broken *next* playlist entry stops the track that is playing, because
-`playbin3` reports a failure to prepare the next URI on the same bus as a
-failure of the current one and `Engine` cannot tell them apart. BUG-026 is open
-and small: `errorBanner` is called twice in `Main.qml` and defined nowhere, so
-two failure messages are `ReferenceError` instead. Read BUGS.md before
+**One open bug and no suggested improvements.** Twenty-seven bugs found so far,
+twenty-five fixed and one won't-fix upstream (BUG-006). BUG-027 remains open at
+low severity: a next entry that exists, is readable and does not decode still
+costs the previous track its last two seconds. A next source that cannot be
+*opened* is no longer handed over at all, which covers the common case of a
+playlist pointing at files that have moved. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -143,11 +142,27 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
-- **The panel has one place for a message and no transient banner**, so an
-  error that competes with a state change has to be held on a timer rather than
-  shown and dismissed. Clearing a playback error the moment the next track
-  started was correct and useless: a skip takes a fraction of a second and the
-  message flashed past unread. BUG-025, and BUG-026 for the missing component.
+- **A next source that cannot be opened must not be handed over.** `playbin3`
+  reports a failure to prepare the next URI on the same bus as a failure of the
+  one playing, so a fault in a file nobody has reached yet ends the track being
+  listened to. Checked in `setNextSource` on the main thread — never in
+  `aboutToFinish`, which is the one function here that runs on a streaming
+  thread (AV-001). BUG-027.
+- **A GStreamer error can be attributed to a URI**, by walking up from
+  `GST_MESSAGE_SRC` to the nearest object with a `uri` property. That is how a
+  failure to prepare the *next* track is told apart from a failure of the one
+  playing — `playbin3` reports both on the same bus. Knowing which is not
+  sufficient on its own: ignoring a next-URI error keeps the current track
+  playing but no EOS ever follows, so the playlist never advances. BUG-027.
+- **The panel has one place for a message**, the display line where the album
+  would be, and both the engine's errors and the panel's own notices go there —
+  the engine's winning. A message is held for six seconds rather than shown and
+  dismissed, because clearing it when the next track starts makes it flash past
+  unread: a skip takes a fraction of a second. BUG-025 and BUG-026.
+- **An invisible item still holds its anchor.** The message line was anchored to
+  a field that is hidden whenever a message is shown, so every error longer than
+  about thirty characters was elided to leave room for something not drawn.
+  BUG-026.
 - **A decoder is only reachable if something identifies the stream first**, and
   the two are registered independently — so a format can be perfectly decodable
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled

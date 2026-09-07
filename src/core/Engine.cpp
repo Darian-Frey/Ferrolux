@@ -3,6 +3,7 @@
 //
 #include "core/Engine.h"
 
+#include <QFileInfo>
 #include <QtGlobal>
 #include <algorithm>
 #include <cmath>
@@ -13,6 +14,14 @@ Q_LOGGING_CATEGORY(lcCore, "ferrolux.core")
 
 namespace ferrolux::core {
 namespace {
+
+// Whether a local file can actually be opened. Existence is not enough — a file
+// present but unreadable fails in the same place and for the same reason.
+bool readable(const QUrl &url)
+{
+    const QFileInfo info(url.toLocalFile());
+    return info.exists() && info.isFile() && info.isReadable();
+}
 
 // How long a failure stays on the panel once playback has moved on. Long enough
 // to read one line, short enough that it is gone before it could describe the
@@ -329,7 +338,26 @@ void Engine::setSource(const QUrl &url)
 
 void Engine::setNextSource(const QUrl &url)
 {
-    const QByteArray encoded = url.isEmpty() ? QByteArray() : url.toString().toUtf8();
+    // **A next source that cannot be opened is not handed over.** `playbin3`
+    // reports a failure to prepare the next URI on the same bus as a failure of
+    // the one playing, and there is nothing in the message to say which it was —
+    // so the track being listened to is ended by a fault in a file nobody has
+    // reached yet. Measured before this check existed: a 6.97 s file whose next
+    // entry was missing stopped at about 5.3 s, losing the last second and a
+    // half to a handover that could never have worked. BUG-027.
+    //
+    // Declining the handover costs nothing. The stream finishes normally, posts
+    // EOS, and the playlist advances onto the unusable entry in the ordinary
+    // way — where it fails as the *current* source, is reported, and is stepped
+    // over by BUG-025's handling. The file is skipped either way; this is about
+    // not damaging the track before it.
+    //
+    // Checked here rather than in `aboutToFinish`, which runs on a streaming
+    // thread and may not touch the filesystem (AV-001). This runs on the main
+    // thread, once per track change, and is one `stat`.
+    const bool usable = !url.isEmpty() && (!url.isLocalFile() || readable(url));
+
+    const QByteArray encoded = usable ? url.toString().toUtf8() : QByteArray();
     QMutexLocker locker(&m_nextMutex);
     m_nextUri = encoded;
 }

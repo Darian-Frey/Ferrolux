@@ -19,9 +19,9 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-027 A broken *next* entry stops the track that is playing
+### BUG-027 A corrupt *next* entry truncates the track that is playing
 **Status:** open
-**Severity:** medium
+**Severity:** low
 **Found:** 2026-09-07, fixing BUG-025
 **Related:** F-005, F-001, BUG-025
 
@@ -42,14 +42,74 @@ the same six errors and the same stop on the committed code. BUG-025's advance
 makes the aftermath tidier — the playlist moves on rather than sitting there —
 but the good track is still cut short.
 
-Not fixed here. Telling the two apart means knowing which URI an error refers
-to, which is a change to how `Engine` tracks the prepared source, and that is
-worth doing deliberately rather than alongside something else.
+**Investigated 2026-09-07 and not fixed.** The diagnosis is complete and two of
+the three pieces of a fix are proven; the third is not, and shipping the first
+two alone would trade one failure mode for another.
+
+*Measured damage.* A 6.97 s file whose next entry is missing plays to about
+5.x s — cut short by roughly the `about-to-finish` lead — and then stops without
+advancing. With a good next entry the same file reaches 6.x s and hands over
+normally. A **corrupt** next entry does exactly what a missing one does, so
+checking that the file exists before arming the handover would cover only half
+the cases.
+
+*An error can be attributed to its URI.* Walking up from `GST_MESSAGE_SRC`
+through `gst_object_get_parent` to the nearest object with a `uri` property
+returns the URI the failing element belongs to — proven with a probe: while
+`format.ogg` played, all six errors reported the *next* file's URI and none the
+current one. That is the discrimination `Engine::fail` lacks.
+
+*Ignoring them preserves the track.* With next-URI errors ignored, the current
+file played its full 6.96 s with zero current-stream errors.
+
+*But nothing then ends the stream.* Over a 45-second window after a failed
+handover, **no EOS ever arrives** — so the track finishes, the pipeline sits
+there, and the playlist never advances. Ignoring alone converts "cut short and
+stopped" into "complete and stuck", which is not obviously better.
+
+*Repair is possible and delicate.* Handing over a different file after the
+failure does start a new stream, but the classification above stops being
+reliable once `playbin`'s `uri` property has been changed underneath it — the
+property is shared state, and errors still draining from the old attempt then
+attribute to the new URI. That is the part needing a design rather than a patch:
+`Engine` would have to track the prepared source itself instead of asking the
+pipeline what it currently holds.
+
+**Partly fixed 2026-09-07, and the severity is now much lower than this entry
+first claimed.** Two changes have happened since it was written and both matter.
+
+BUG-025's advance means playback no longer *stops*: with a third entry after the
+broken one, the player skips the bad file and plays on. The title above
+overstates what remains.
+
+And `Engine::setNextSource` now declines to hand over a next source that cannot
+be opened — checked on the main thread with one `stat`, never in
+`aboutToFinish`, which runs on a streaming thread and may not touch the
+filesystem (AV-001). Declining costs nothing: the stream finishes normally, posts
+EOS, and the playlist advances onto the unusable entry in the ordinary way, where
+it fails as the *current* source and is stepped over. The file is skipped either
+way; this is about not damaging the track before it.
+
+Measured on a 6.966 s file whose next entry is missing: **6.965 s of 6.966
+before it hands on**, against about 5.3 s and a stop before these two changes.
+
+**What remains is the corrupt-but-readable next file**, which still truncates —
+5.035 s of 6.966 measured — and then advances correctly. A `stat` cannot tell
+that a file will not decode, so the check above cannot catch it; only the URI
+attribution can, and that still runs into the missing EOS described above.
+
+Left open at **low severity**, precisely scoped: a next entry that exists, is
+readable, and does not decode costs the previous track its last two seconds. The
+common case — a playlist pointing at files that have been moved or deleted — is
+fixed.
+
+## Fixed
 
 ### BUG-026 `errorBanner` is called twice and does not exist
-**Status:** open
+**Status:** fixed
 **Severity:** low
 **Found:** 2026-09-07, deciding where a playback error should be shown
+**Fixed:** 2026-09-07
 **Related:** F-022, BUG-025
 
 `Main.qml` calls `errorBanner.show(...)` in two places — when a preset name
@@ -69,7 +129,37 @@ error there on a timer: with a banner it would have been the banner's job.
 Not fixed inline. It is a new component and a decision about where notifications
 belong on a panel that has so far had none.
 
-## Fixed
+**Fixed by using the surface the panel already had**, rather than by adding the
+banner the two call sites were named after. `DisplayPanel` puts an error where
+the album would be, lit rather than dimmed, on its own stated principle that "an
+error takes this line rather than getting one of its own" — a panel with one
+place for a message should not grow a second one the first time something else
+needs to say something. `errorBanner` now holds the text and that line shows it,
+exactly as it shows the engine's, with the engine's winning where both have
+something: those are about the thing the instrument is for.
+
+It holds for six seconds, matching `Engine::kErrorHoldMs`, so a message from
+either source stays the same length of time and the panel does not appear to
+have two clocks.
+
+**A second defect on the same line, found by looking at the result.** The
+message arrived as "A preset needs a name without a …", cut off before the part
+saying what to do about it. `albumReadout` is anchored right to
+`formatReadout.left`, and when an error is shown `formatReadout` is *hidden* —
+but an invisible item still holds its anchor, so the message was being elided to
+leave room for a field that is not drawn. It now anchors to the counter instead
+while an error is up.
+
+That one predates this entry and applied to the engine's errors too: every
+message longer than about thirty characters was truncated at half the display's
+width, on a display with the room to show it. It was invisible because the
+messages that had been seen were short enough to fit.
+
+Verified by driving the failure rather than reasoning about it: saving a preset
+named `a/b` puts the full sentence on the display and clears it six seconds
+later, with no `ReferenceError` in the log, and a corrupt file still shows the
+engine's own error on the same line.
+
 
 ### BUG-025 A file that will not load stalls the playlist instead of advancing
 **Status:** fixed

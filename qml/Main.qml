@@ -59,6 +59,40 @@ ApplicationWindow {
         // the application quitting at all. See BUG-021.
     }
 
+    // Messages the panel raises about itself — a preset that cannot be named, an
+    // `.eqf` that will not import. Two call sites used this id for a component
+    // that was never written, so both were a `ReferenceError` at the moment they
+    // were needed and neither message was ever seen (BUG-026).
+    //
+    // It is not a banner, despite the name the call sites gave it. The display
+    // already has a line for this: `DisplayPanel` puts an error where the album
+    // would be, lit rather than dimmed, on the stated principle that "an error
+    // takes this line rather than getting one of its own". A panel with one
+    // place for a message should not grow a second one the first time something
+    // else needs to say something — so this holds the text and the display shows
+    // it, exactly as it shows the engine's.
+    //
+    // The engine's errors win where both have something to say: they are about
+    // the thing the instrument is for.
+    QtObject {
+        id: errorBanner
+
+        property string text: ""
+
+        // Long enough to read one line. Matches the hold `Engine` applies to its
+        // own errors (`kErrorHoldMs`), so a message from either source stays for
+        // the same time and the panel does not appear to have two clocks.
+        property Timer hold: Timer {
+            interval: 6000
+            onTriggered: errorBanner.text = ""
+        }
+
+        function show(message) {
+            errorBanner.text = message
+            hold.restart()
+        }
+    }
+
     // Every keyboard shortcut, and the reference that prints them. One table
     // serves both, so the printed list cannot describe a key that does nothing.
     // F-043.
@@ -232,7 +266,10 @@ ApplicationWindow {
             counter: Playlist.count > 0
                      ? qsTr("%1 of %2").arg(Playlist.currentRow + 1).arg(Playlist.count)
                      : ""
-            error: Engine.errorText
+            // One line, two sources. The engine's errors take precedence
+            // because they are about playback; the panel's own messages fill
+            // the line when playback has nothing to report.
+            error: Engine.errorText !== "" ? Engine.errorText : errorBanner.text
         }
 
         // ---- transport ---------------------------------------------------
