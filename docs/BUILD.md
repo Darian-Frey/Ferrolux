@@ -92,6 +92,12 @@ manager and:
 sudo apt install wmctrl x11-utils imagemagick python3-pil
 ```
 
+`tools/make-test-fixtures.sh` generates one file per format in F-001's
+acceptance list. Two of them need encoders GStreamer does not have — `wavpack`
+and `mpcenc`, from the `wavpack` and `musepack-tools` packages. Neither is a
+dependency of Ferrolux; the script skips those two fixtures with a note when
+they are absent.
+
 `tools/make-fonts.sh` additionally needs `curl`, `unzip` and `fonttools`. It
 builds a virtualenv for the last of these if it is not importable, so there is
 usually nothing to install — and it only needs running when the bundled faces

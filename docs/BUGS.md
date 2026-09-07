@@ -19,7 +19,76 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-*None.*
+### BUG-025 A file that will not load stalls the playlist instead of advancing
+**Status:** open
+**Severity:** medium
+**Found:** 2026-09-07, verifying F-001's format list
+**Related:** F-001, F-010, BUG-024
+
+F-001's second acceptance clause: "unsupported or corrupt files produce a
+visible error and advance the playlist rather than stalling". The first half
+holds — the display prints the engine's error text, and it is legible. The
+second half fails in three cases out of four.
+
+Each trial put one bad file ahead of a good one and pressed play:
+
+| the bad file | advanced? | reported |
+|---|---|---|
+| random bytes named `.flac` | **no** | `Playing`, position 0 |
+| a FLAC truncated mid-stream | **no** | `Playing`, stuck at 1.04 s |
+| a WavPack file (BUG-024) | yes | correct |
+| a path that does not exist | **no** | `Stopped`, position 0 |
+
+The one that advances is the one that fails *early*, at the typefinder. The
+three that stall fail later — inside a decoder, at the end of truncated data,
+or in the filesystem — and nothing turns any of those into the advance the
+clause requires.
+
+**The reported state is worse than the stall.** In two of the three the engine
+reaches `Error` and then returns to `Loading`, which `MprisService` maps to
+`Playing` because loading is normally on its way to playing. A load that has
+already failed is not on its way to anything, so every desktop control and lock
+screen shows a player playing a track whose position never moves. The panel is
+honest — it prints the error — and the desktop is not.
+
+Not fixed inline, per Maintenance Rule 8. It is a change to the engine's error
+handling and to what `Loading` is allowed to mean, and both deserve a decision
+rather than a patch.
+
+### BUG-024 WavPack is offered and accepted, and cannot be played
+**Status:** open
+**Severity:** medium
+**Found:** 2026-09-07, verifying F-001's format list
+**Related:** F-001, D-002, BUG-006
+
+`.wv` is in `PlaylistModel::audioSuffixes`, WavPack is in F-001's acceptance
+list, and `MprisRoot::supportedMimeTypes` advertises `audio/x-wavpack` to the
+desktop — which now also puts it in the `.desktop` entry's `MimeType`, so a file
+manager offers Ferrolux as a way to open one. The file is added to the playlist,
+the panel shows a visible error, and nothing plays.
+
+**The decoder is present and works.** `wavpackparse ! wavpackdec` decodes the
+file perfectly. What fails is the routing to it: GStreamer's typefinder does not
+recognise WavPack. Across five test files it reported `video/x-h264` twice and
+nothing at all three times, so `decodebin` never reaches the decoder and
+`playbin3` reports a stream error from `h264parse`.
+
+It is not the fixture. The file produced by the **reference** `wavpack` encoder
+fails exactly as GStreamer's own `wavpackenc` output does — which is why the
+reference encoder was installed rather than assumed unnecessary. It is not
+element ranking either: `musepackdec` is `marginal` like `avdec_alac`, and both
+of those play.
+
+So the fault is upstream, in the same way BUG-006 is, and the question this
+entry poses is what Ferrolux should say about it. **Advertising a format in
+three places and failing on it is the worst of the options**: the user is
+invited to try. Removing `wv` from the suffix list and from the advertised media
+types would at least be honest, at the cost of the format never working if the
+typefinder is fixed later. Leaving it and detecting the failure well — which
+needs BUG-025 first — is the other direction.
+
+Not decided here. Both routes change what the application claims about itself,
+which is the author's to settle.
 
 ## Fixed
 

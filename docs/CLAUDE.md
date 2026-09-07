@@ -78,8 +78,12 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**No open bugs and no suggested improvements.** Twenty-three bugs found so far,
-twenty-two fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
+**Two open bugs and no suggested improvements.** Twenty-five bugs found so far,
+twenty-two fixed, one won't-fix upstream (BUG-006), and BUG-024 and BUG-025 open
+from verifying F-001's format list — WavPack is advertised in three places and
+cannot be played, and a file that will not load stalls the playlist instead of
+advancing. Both change what the application claims about itself and are the
+author's to settle. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -138,6 +142,10 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **`gst-launch playbin3` is not the player.** It reported Musepack as failing;
+  Ferrolux plays it. A format list has to be checked by loading each file into
+  the application and watching the position advance — anything else measures
+  GStreamer's command-line tool rather than the product.
 - **A build tree is not an installation.** Qt 6.4's QML engine does not search
   `qrc:/qt/qml`, so this application's own embedded module was only ever found
   because `qt_add_qml_module` leaves a generated `Ferrolux/qmldir` beside the

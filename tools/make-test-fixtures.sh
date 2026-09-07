@@ -12,6 +12,63 @@ set -e
 DIR="${1:-fixtures}"
 mkdir -p "$DIR"
 
+
+# ---- F-001's format list -------------------------------------------------
+# One short file per format the feature claims, so "plays FLAC, MP3, Ogg
+# Vorbis, Opus, AAC/M4A, WAV, AIFF, WavPack, Musepack and ALAC" can be checked
+# rather than assumed. Two of them need encoders GStreamer does not have, and
+# are skipped with a note rather than silently missing:
+#
+#   wavpack        `wavpack`        (apt: wavpack)
+#   musepack       `mpcenc`         (apt: musepack-tools)
+#
+# Neither is a dependency of Ferrolux. They are here for the same reason
+# `make-fonts.sh` wants fonttools: to regenerate an input, not to build.
+formats() {
+    # The sample format is left to `audioconvert` to negotiate, because the
+    # encoders disagree about it — `vorbisenc` takes float and refuses S16LE,
+    # and forcing one format on all of them silently produces no file. Two
+    # exceptions are pinned deliberately:
+    #
+    #   Opus refuses 44.1 kHz outright and is resampled to 48.
+    #   WAV is pinned to 16-bit PCM, because `wavenc` writes IEEE float by
+    #   default — valid, but an unusual thing to hold a decoder to, and the
+    #   reference WavPack encoder refuses it outright.
+    SRC="audiotestsrc num-buffers=300 wave=ticks samplesperbuffer=1024 ! audioconvert"
+
+    gst-launch-1.0 -q $SRC ! vorbisenc ! oggmux ! filesink location="$DIR/format.ogg"
+    gst-launch-1.0 -q $SRC ! audioresample ! audio/x-raw,rate=48000 \
+        ! opusenc ! oggmux ! filesink location="$DIR/format.opus"
+    gst-launch-1.0 -q $SRC ! avenc_aac ! mp4mux ! filesink location="$DIR/format-aac.m4a"
+    gst-launch-1.0 -q $SRC ! avenc_alac ! mp4mux ! filesink location="$DIR/format-alac.m4a"
+    gst-launch-1.0 -q $SRC ! avmux_aiff ! filesink location="$DIR/format.aiff"
+    gst-launch-1.0 -q $SRC ! audio/x-raw,format=S16LE,rate=44100,channels=2 \
+        ! wavenc ! filesink location="$DIR/format.wav"
+    echo "  format.{ogg,opus,m4a,wav,aiff}  Vorbis, Opus, AAC, ALAC, AIFF, WAV"
+
+    if command -v wavpack >/dev/null; then
+        wavpack -q -y "$DIR/format.wav" -o "$DIR/format.wv" 2>/dev/null
+        echo "  format.wv            WavPack, from the reference encoder"
+    else
+        echo "  format.wv            SKIPPED — install wavpack"
+    fi
+
+    if command -v mpcenc >/dev/null; then
+        mpcenc --quiet "$DIR/format.wav" "$DIR/format.mpc" 2>/dev/null
+        echo "  format.mpc           Musepack SV8, from mpcenc"
+    else
+        echo "  format.mpc           SKIPPED — install musepack-tools"
+    fi
+
+    # The other half of F-001: a file that cannot be decoded must produce a
+    # visible error and advance the playlist rather than stalling. Three ways of
+    # being unplayable, because they fail at three different points — the
+    # typefinder, the decoder, and the filesystem.
+    head -c 200000 /dev/urandom > "$DIR/broken-random.flac"
+    head -c 60000 "$DIR/test.flac" > "$DIR/broken-truncated.flac"
+    echo "  broken-*.flac        random bytes, and a FLAC cut short"
+}
+
 echo "writing fixtures to $DIR"
 
 # 32.5 s of ticks: broadband transients, deterministic, and awkward in the ways
@@ -47,3 +104,5 @@ run the suites with:
   ./build-debug/metadata_reader_test $DIR/test.flac $DIR/test-vbr.mp3 $DIR/test-vbr-xing.mp3
   ./build-debug/acceptance_transport $DIR/test.flac $DIR/test-vbr-xing.mp3 $DIR/tone-ref.flac
 USAGE
+
+formats
