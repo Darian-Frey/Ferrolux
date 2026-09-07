@@ -60,8 +60,20 @@ CommandLine::Result CommandLine::parse(const QStringList &arguments)
     // handed to a player running somewhere else names a different file or none
     // at all, and the failure is silent: the path simply does not exist and the
     // track never appears.
-    for (const QString &argument : parser.positionalArguments())
-        result.paths.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
+    //
+    // A `file:` URL is taken as one rather than as a filename. The desktop
+    // entry uses `%F`, which is specified to pass local paths — but not every
+    // launcher honours that, and one that passes `file:///home/…` would
+    // otherwise have the whole URL treated as a relative filename, producing an
+    // absolute path to something that does not exist. That failure is silent:
+    // the track simply never appears.
+    for (const QString &argument : parser.positionalArguments()) {
+        const QUrl asUrl(argument);
+        if (asUrl.isValid() && asUrl.scheme() == QLatin1String("file"))
+            result.paths.append(asUrl);
+        else
+            result.paths.append(QUrl::fromLocalFile(QFileInfo(argument).absoluteFilePath()));
+    }
 
     return result;
 }

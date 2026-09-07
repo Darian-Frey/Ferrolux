@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Ferrolux RS-1
+GenericName=Audio Player
+Comment=A local-file audio player with the character of a tape deck
+Exec=ferrolux %F
+Icon=ferrolux
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;audio;player;playlist;equaliser;equalizer;
+StartupNotify=true
+StartupWMClass=ferrolux
+MimeType=audio/flac;audio/mpeg;audio/ogg;audio/x-vorbis+ogg;audio/x-opus+ogg;audio/mp4;audio/aac;audio/x-wav;audio/x-aiff;audio/x-wavpack;audio/x-musepack;

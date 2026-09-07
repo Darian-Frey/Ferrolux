@@ -218,5 +218,52 @@ int main(int argc, char *argv[])
                                  : QStringLiteral("in the code, not in the table: %1")
                                        .arg(undocumented.join(QStringLiteral(", "))));
 
+    // ---- the desktop entry says what MPRIS says ----------------------------
+    // The list of media types the application opens is stated twice: once in
+    // `resources/ferrolux.desktop`, which is what puts it in a file manager's
+    // "Open with", and once in `MprisRoot::supportedMimeTypes`, which is what a
+    // shell asks. They are the same claim, and nothing but this makes them
+    // agree — a type added to one is silently absent from the other.
+    std::printf("\nThe desktop entry against MPRIS\n");
+
+    const QString entry = readAll(root + QStringLiteral("/resources/ferrolux.desktop"));
+    check(!entry.isEmpty(), "the desktop entry is readable");
+
+    const QString mpris = readAll(root + QStringLiteral("/src/platform/MprisService.cpp"));
+    if (!entry.isEmpty() && !mpris.isEmpty()) {
+        QSet<QString> declared;
+        for (const QString &line : entry.split(QLatin1Char('\n'))) {
+            if (!line.startsWith(QStringLiteral("MimeType=")))
+                continue;
+            for (const QString &type : line.mid(9).split(QLatin1Char(';'), Qt::SkipEmptyParts))
+                declared.insert(type.trimmed());
+        }
+
+        QSet<QString> advertised;
+        static const QRegularExpression audio(QStringLiteral("\"(audio/[A-Za-z0-9.+-]+)\""));
+        auto it = audio.globalMatch(mpris);
+        while (it.hasNext())
+            advertised.insert(it.next().captured(1));
+
+        check(!declared.isEmpty(), "the entry declares media types",
+              QStringLiteral("%1 of them").arg(declared.size()));
+        check(declared == advertised,
+              "and they are exactly the ones MPRIS advertises",
+              declared == advertised
+                  ? QStringLiteral("%1 types").arg(declared.size())
+                  : QStringLiteral("only in the entry: {%1}; only in MPRIS: {%2}")
+                        .arg(QStringList((declared - advertised).values()).join(QStringLiteral(", ")),
+                             QStringList((advertised - declared).values()).join(QStringLiteral(", "))));
+    }
+
+    // The three places that name the desktop file must agree, or a shell finds
+    // the icon through one of them and nothing through the others.
+    const QString main = readAll(root + QStringLiteral("/src/main.cpp"));
+    check(main.contains(QStringLiteral("setDesktopFileName(QStringLiteral(\"ferrolux\"))")),
+          "main.cpp names the desktop file `ferrolux`");
+    check(mpris.contains(QStringLiteral("QString MprisRoot::desktopEntry"))
+              && mpris.contains(QStringLiteral("return QStringLiteral(\"ferrolux\")")),
+          "and MPRIS reports the same name");
+
     return ferrolux::tests::summary();
 }

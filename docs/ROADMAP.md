@@ -232,7 +232,7 @@ has an unlit ghost and the title does not.
 
 ## Phase 6 — Desktop integration and polish
 **Goal:** Behaves like a citizen of the desktop.
-**Status:** In progress, opened 2026-09-06
+**Status:** Feature-complete 2026-09-07
 **Features delivered:** F-015, F-043, F-050, F-051, F-052
 **Deliverables:**
 - [x] `app/Player`, the facade the rest of the phase is built on (IMP-005) — the engine, the playlist, the metadata reader and the meter source, with all fifteen arrows between them, moved out of `main()` before four more consumers were added to it. `app/` is a new module and is the only one permitted to depend on several peers; `core/`, `library/`, `meters/` and `ui/` still include nothing from one another. `platform/` will call into `Player` rather than into `core/`, which is what keeps D-Bus out of everything that makes sound
@@ -242,7 +242,7 @@ has an unlit ghost and the title does not.
 - [x] Single-instance with enqueue semantics and CLI arguments (F-052) — `platform/CommandLine` and `platform/SingleInstance`. The name is claimed before the pipeline exists, so a second launch hands over and exits without opening the audio device. The bare default appends and selects only into an empty list, which is what reconciles the two acceptance clauses that read as contradictory; `--replace` plays, which F-052 does not say and is recorded as a judgement in the feature entry
 - [x] Session restore (F-015) — `platform/Session`. Contents to a playlist file, the rest to SPEC.md §Settings, which gains `session/track` and `session/order`. The play order is the *permutation* rather than the shuffle flag, because F-012 requires it to be held rather than recomputed and reshuffling on restore is that recomputation at launch. Nothing resumes playing
 - [x] Full keyboard control with an in-app shortcut reference (F-043) — `qml/Shortcuts.qml` and `qml/KeyGuide.qml`, from one table so the printed reference cannot disagree with the bindings. `Slot` becomes keyboard-operable, which is what puts the equaliser bands, the volume, the balance and the seek bar within reach; focus is drawn rather than borrowed from a desktop style
-- [ ] Desktop entry, icon set, MIME associations
+- [x] Desktop entry, icon set, MIME associations — `resources/ferrolux.desktop` and a scalable icon drawn in `ferric`'s own palette, installed to the standard locations. `MprisRoot` gains the `DesktopEntry` property that was deliberately withheld until the file existed, and `setDesktopFileName` names it for Wayland, which finds a window's icon that way and not from the window. Installing it for the first time found BUG-023: the application had never worked outside its build directory
 
 **Acceptance:** Playback controls work from the desktop shell and lock screen. Opening a file from the file manager enqueues into a running instance. Closing and reopening restores the session exactly.
 

@@ -53,10 +53,12 @@ class MprisRoot : public QDBusAbstractAdaptor
     Q_PROPERTY(QStringList SupportedUriSchemes READ supportedUriSchemes)
     Q_PROPERTY(QStringList SupportedMimeTypes READ supportedMimeTypes)
 
-    // `DesktopEntry` is deliberately absent until the `.desktop` file exists,
-    // which is a later deliverable of this phase. It is optional, and a shell
-    // that cannot find the file it names falls back to `Identity` — but only if
-    // the property is missing rather than wrong.
+    // The basename of the installed `.desktop` file, without the suffix. It is
+    // how a shell finds the icon and the name to put beside its media controls,
+    // and it was deliberately absent until that file existed — a property
+    // naming a file nobody has is worse than no property, because the fallback
+    // to `Identity` only happens when the property is missing rather than wrong.
+    Q_PROPERTY(QString DesktopEntry READ desktopEntry)
 
 public:
     explicit MprisRoot(MprisService *service);
@@ -67,6 +69,7 @@ public:
     QString identity() const;
     QStringList supportedUriSchemes() const;
     QStringList supportedMimeTypes() const;
+    QString desktopEntry() const;
 
 public slots:
     void Raise();

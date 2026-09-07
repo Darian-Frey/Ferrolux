@@ -139,6 +139,17 @@ void testFlags()
           "and it is resolved to an absolute file URL",
           relative.paths.isEmpty() ? QString() : relative.paths.first().toString());
 
+    // A launcher that hands over a URL rather than a path. `%F` in the desktop
+    // entry is specified to pass local paths, but not every launcher honours
+    // that, and the whole URL treated as a relative filename would name
+    // something that does not exist — silently.
+    const auto url = CommandLine::parse({ QStringLiteral("ferrolux"),
+                                          QStringLiteral("file:///tmp/track.mp3") });
+    check(url.paths.size() == 1 && url.paths.first().toLocalFile()
+              == QLatin1String("/tmp/track.mp3"),
+          "a file: URL is taken as a URL, not as a filename",
+          url.paths.isEmpty() ? QString() : url.paths.first().toLocalFile());
+
     const auto none = CommandLine::parse({ QStringLiteral("ferrolux") });
     check(none.paths.isEmpty() && none.mode == Player::AddAndSelect,
           "no arguments is no paths and the silent default");

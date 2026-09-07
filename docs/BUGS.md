@@ -23,6 +23,44 @@ are mirrored here with a link back to the issue.
 
 ## Fixed
 
+### BUG-023 The application only ran from its build directory
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-09-07, the first time it was installed — Phase 6's last deliverable
+**Fixed:** 2026-09-07
+**Related:** F-041, D-002, IMP-010
+
+Copied anywhere other than `build-release/`, the player started, claimed its
+single-instance bus name, restored its session, began decoding — and then showed
+no window, registered no MPRIS service, and spun one thread at 100% of a core
+for as long as it was left running. It printed nothing. `cmake --install` was
+enough to trigger it, so **the application had never worked when installed**,
+which nobody had noticed because nobody had installed it.
+
+`qt_add_qml_module` embeds this application's own module — the components, the
+`Tokens` singleton, and the `qmldir` naming them — under `:/qt/qml/Ferrolux`,
+and the resource is linked in. What Qt 6.4's engine does not do is search
+`qrc:/qt/qml`. It adds `qrc:/qt-project.org/imports` and the directory the
+executable is sitting in, and nothing else; Qt 6.5 added the missing one.
+
+**The build tree hid it exactly.** `qt_add_qml_module` also generates
+`build-release/Ferrolux/qmldir` on disk, beside the binary — so the second of
+those import paths found it, every time, for five phases. The proof is blunt:
+copying that one generated directory next to the moved binary restored it
+completely, and adding `qrc:/qt/qml` to the engine's import path fixed all three
+locations at once.
+
+Two things about the failure are worth keeping. It was **silent** — no QML
+warning, no error, nothing on stderr, because the import failure surfaces
+somewhere that does not report. And it was **not a crash but a spin**, which
+reads as a hung application rather than a broken one and sends the reader
+looking at the render loop.
+
+The general form is the one to remember: **a build tree is not an installation,
+and an application that has only ever been run from one has an untested
+dependency on it.** Nothing here was wrong in a way any test could see, because
+every test ran the binary where it was built.
+
 ### BUG-022 `PanelMenu` measured its width in a binding that wrote to what it measured
 **Status:** fixed
 **Severity:** low

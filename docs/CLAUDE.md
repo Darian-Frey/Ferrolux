@@ -8,11 +8,11 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-**Phases 1 to 5 built; Phase 6 opened 2026-09-06.** Phase 5 is feature-complete
+**Phases 1 to 6 built.** Phase 6 is feature-complete as of 2026-09-07. Phase 5 is feature-complete
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **355 checks
+its own panel — nothing in the window comes from a desktop theme. **361 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -78,8 +78,8 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**No open bugs and no suggested improvements.** Twenty-two bugs found so far,
-twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
+**No open bugs and no suggested improvements.** Twenty-three bugs found so far,
+twenty-two fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -102,10 +102,9 @@ Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
 which is done: the wiring is out of `main()` before four more consumers went
 into it. `platform/Settings`, `platform/MprisService` (F-050), `platform/MediaKeys`
 (F-051), `platform/SingleInstance` with `platform/CommandLine` (F-052),
-`platform/Session` (F-015) and keyboard control (F-043) are done. **The desktop
-entry, icon set and MIME associations are all that remain in Phase 6** — and
-they would also let `MprisRoot` gain the `DesktopEntry` property left out until
-that file exists.
+`platform/Session` (F-015), keyboard control (F-043) and the desktop entry are
+all done. **Phase 6 is feature-complete as of 2026-09-07**; what remains is to
+judge its acceptance clause, and then Phase 7.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
@@ -139,6 +138,12 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **A build tree is not an installation.** Qt 6.4's QML engine does not search
+  `qrc:/qt/qml`, so this application's own embedded module was only ever found
+  because `qt_add_qml_module` leaves a generated `Ferrolux/qmldir` beside the
+  binary in the build directory. Moved anywhere else it showed no window,
+  registered no MPRIS, printed nothing and spun a core. Five phases of testing
+  never saw it, because every test ran the binary where it was built. BUG-023.
 - **A `Shortcut` at window scope fires while a text field has focus.** A bare
   letter binding is therefore a letter that cannot be typed into the preset
   dialog. The set is disabled whenever the focused item has a `selectedText`,

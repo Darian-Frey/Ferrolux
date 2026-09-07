@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+  Copyright (C) 2026 Shane Hartley
+
+  The application icon: the panel, at the size of a launcher.
+
+  Scalable rather than a set of bitmaps, which is the project's founding
+  argument (D-003) applied to the one asset that sits outside the window. Every
+  colour is `ferric`'s, taken from resources/themes/ferric.json rather than
+  chosen to look similar — the icon and the chassis are the same instrument.
+
+  It has to survive 16 px, so it is four shapes: the chassis, the display well
+  cut into it, a lit reading, and a level below. The tick marks and the bezel
+  detail of the real panel are deliberately absent; at a sixteenth of their
+  drawn size they are noise that reads as a smudge.
+
+  Flat fills only, and no gradients or `defs`. The panel itself bevels every
+  surface with one, but an icon is rendered by whatever the desktop happens to
+  ship — and renderers disagree about gradients in a way they do not disagree
+  about a filled rectangle. At these sizes the bevel is a half-pixel of shading
+  nobody sees, so it costs nothing to be certain instead.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- The chassis, with the hairline edge the panel draws around every
+       surface. Rounded to the same proportion as a panel section. -->
+  <rect x="3" y="9" width="58" height="46" rx="6"
+        fill="#C3C1B8" stroke="#888780" stroke-width="1.5"/>
+
+  <!-- The display well, cut in and therefore dark. -->
+  <rect x="9" y="15" width="46" height="18" rx="2.5" fill="#2C2C2A"/>
+
+  <!-- A reading, lit. Two bars of unequal length: a display showing something
+       rather than a placeholder, which is what makes it read as a player and
+       not as a box. -->
+  <rect x="13" y="19.5" width="26" height="3.5" rx="1.25" fill="#EF9F27"/>
+  <rect x="13" y="25.5" width="16" height="3.5" rx="1.25" fill="#BA7517"/>
+
+  <!-- The level below it: lit segments falling away to unlit ones, which is
+       the one gesture that says "audio" at any size. -->
+  <g>
+    <rect x="9"  y="39" width="4" height="10" rx="1" fill="#EF9F27"/>
+    <rect x="15" y="42" width="4" height="7"  rx="1" fill="#EF9F27"/>
+    <rect x="21" y="37" width="4" height="12" rx="1" fill="#EF9F27"/>
+    <rect x="27" y="43" width="4" height="6"  rx="1" fill="#BA7517"/>
+    <rect x="33" y="40" width="4" height="9"  rx="1" fill="#BA7517"/>
+    <rect x="39" y="44" width="4" height="5"  rx="1" fill="#854F0B"/>
+    <rect x="45" y="42" width="4" height="7"  rx="1" fill="#854F0B"/>
+    <rect x="51" y="45" width="4" height="4"  rx="1" fill="#854F0B"/>
+  </g>
+</svg>

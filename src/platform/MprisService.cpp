@@ -75,6 +75,14 @@ QStringList MprisRoot::supportedMimeTypes() const
              QStringLiteral("audio/x-musepack") };
 }
 
+QString MprisRoot::desktopEntry() const
+{
+    // Matches `resources/ferrolux.desktop` and the name handed to
+    // `QGuiApplication::setDesktopFileName`. Three places say this, and the
+    // desktop believes whichever it reads first.
+    return QStringLiteral("ferrolux");
+}
+
 void MprisRoot::Raise()
 {
     QObject *window = m_service->window();

@@ -87,6 +87,13 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral("0.2.0"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
 
+    // Names the desktop entry this application is. Wayland uses it as the
+    // `app_id` and finds the window's icon through it — an icon file alone is
+    // not enough there, because a Wayland window carries no icon of its own.
+    // On X11 the equivalent is `StartupWMClass` in the entry, which matches the
+    // `ferrolux` class Qt takes from the executable name.
+    QGuiApplication::setDesktopFileName(QStringLiteral("ferrolux"));
+
     // F-052. Parsed and handed over before a pipeline exists: a second launch
     // must reach the running player and exit without ever opening the audio
     // device, because two processes briefly holding the same sink is audible
@@ -172,6 +179,21 @@ int main(int argc, char *argv[])
         }
 
         QQmlApplicationEngine qml;
+
+        // Where this application's own QML module lives, which on Qt 6.4 has to
+        // be said. `qt_add_qml_module` embeds the module — the components, the
+        // `Tokens` singleton and the `qmldir` that names them — under
+        // `:/qt/qml/Ferrolux`, but 6.4's engine does not search `qrc:/qt/qml`;
+        // it adds `qrc:/qt-project.org/imports` and the directory the
+        // executable sits in, and nothing else. Qt 6.5 added the former.
+        //
+        // In a build tree that omission is invisible, because the generated
+        // `Ferrolux/qmldir` sits beside the binary and is found by the second
+        // of those. Move the binary anywhere else — which is what installing
+        // it does — and the module cannot be resolved. It does not fail
+        // cleanly: the window never appears and a thread spins at 100%. See
+        // BUG-023.
+        qml.addImportPath(QStringLiteral("qrc:/qt/qml"));
         qml.rootContext()->setContextProperty(QStringLiteral("Engine"), player.engine());
         qml.rootContext()->setContextProperty(QStringLiteral("Playlist"), player.playlist());
         qml.rootContext()->setContextProperty(QStringLiteral("PlaylistView"), player.view());

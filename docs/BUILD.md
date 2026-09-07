@@ -126,6 +126,28 @@ sudo pacman -S base-devel cmake ninja \
 
 Untested.
 
+## Installing
+
+```bash
+cmake --install build --prefix ~/.local
+```
+
+That puts the binary in `bin/`, the desktop entry in
+`share/applications/ferrolux.desktop` and a scalable icon in
+`share/icons/hicolor/scalable/apps/`. A launcher picks it up from there, and so
+does a file manager's "Open with" — the entry declares the same media types the
+MPRIS service advertises, and `tests/spec_test` holds the two lists to each
+other.
+
+Opening a file from a file manager goes through the same path as a second
+launch: the entry's `Exec` runs `ferrolux` with the file, which hands it to the
+player already running rather than starting a second one (F-052).
+
+**Run the installed binary at least once before believing a packaging change.**
+BUG-023 was an untested dependency on the build directory — the application had
+never worked when installed, and nothing noticed for five phases because every
+test ran it where it was built.
+
 ## Build commands
 
 ```bash
@@ -143,7 +165,7 @@ cmake --build build
 
 ## Tests
 
-Eight suites, 355 checks. Six are self-contained and need nothing but the build;
+Eight suites, 361 checks. Six are self-contained and need nothing but the build;
 `tokens_test` and `spec_test` take the source directory, because they read the
 tree rather than the build: `spec_test` holds SPEC.md §Settings and the code to
 each other in both directions, so an undocumented key and a documented one that

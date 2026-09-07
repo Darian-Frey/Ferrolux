@@ -577,7 +577,30 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   Seven suites now, 328 checks — IMP-004 landed first and made the seventh
   cheap.
 
+- Phase 6's last deliverable: a desktop entry, a scalable icon and MIME
+  associations, installed to the standard locations. The icon is drawn in
+  `ferric`'s own palette rather than in colours chosen to look similar, and flat
+  — no gradients — because an icon is rendered by whatever the desktop ships and
+  renderers disagree about gradients in a way they do not about a filled
+  rectangle. `MprisRoot` gains the `DesktopEntry` property that was deliberately
+  withheld until the file existed, and `setDesktopFileName` names it for
+  Wayland, which finds a window's icon that way and not from the window.
+
+  `spec_test` gains a check that the entry's media types are exactly the ones
+  MPRIS advertises — the same claim stated twice, with nothing but this making
+  the two agree — and that the three places naming the desktop file say the same
+  word. `CommandLine` now accepts a `file:` URL as well as a path, because `%F`
+  is specified to pass local paths and not every launcher honours that.
+
 ### Fixed
+- **BUG-023: the application only ran from its build directory**, found by
+  installing it for the first time. Copied anywhere else it started, claimed its
+  bus name, restored its session, decoded audio — and showed no window,
+  registered no MPRIS and spun a core, silently. Qt 6.4's engine does not search
+  `qrc:/qt/qml`, where `qt_add_qml_module` embeds this application's own module;
+  it searches the directory the executable sits in, and the build tree happens to
+  contain a generated `Ferrolux/qmldir`. Five phases of testing never saw it,
+  because every test ran the binary where it was built.
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object
   it depended on; Qt broke the cycle after a bounded number of passes, so the

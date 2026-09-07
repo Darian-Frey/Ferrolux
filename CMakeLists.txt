@@ -326,7 +326,24 @@ if(FERROLUX_TEST_FLAC AND FERROLUX_TEST_MP3)
         COMMAND metadata_reader_test ${FERROLUX_TEST_FLAC} ${FERROLUX_TEST_MP3})
 endif()
 
+include(GNUInstallDirs)
+
 install(TARGETS ferrolux
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# The desktop entry and its icon. Without these the application is a binary
+# somebody has to know the name of: no launcher entry, no "Open with", and on
+# Wayland no icon on the window, because the compositor finds that through the
+# desktop file named by `setDesktopFileName` rather than from the window itself.
+#
+# The icon is scalable rather than a set of rendered sizes, which is the
+# project's founding argument (D-003, F-041) applied to the one asset that lives
+# outside the window.
+install(FILES resources/ferrolux.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+install(FILES resources/icons/ferrolux.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
