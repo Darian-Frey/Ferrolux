@@ -78,12 +78,11 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**Two open bugs and no suggested improvements.** Twenty-five bugs found so far,
-twenty-two fixed, one won't-fix upstream (BUG-006), and BUG-024 and BUG-025 open
-from verifying F-001's format list — WavPack is advertised in three places and
-cannot be played, and a file that will not load stalls the playlist instead of
-advancing. Both change what the application claims about itself and are the
-author's to settle. Read BUGS.md before
+**One open bug and no suggested improvements.** Twenty-five bugs found so far,
+twenty-three fixed and one won't-fix upstream (BUG-006). BUG-025 is open: a file
+that will not load stalls the playlist instead of advancing, which is half of
+F-001's second acceptance clause, and fixing it touches the engine's error
+handling and what `Loading` is allowed to mean. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -142,6 +141,11 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **A decoder is only reachable if something identifies the stream first**, and
+  the two are registered independently — so a format can be perfectly decodable
+  and completely unplayable at the same time. WavPack was: `wavpackdec` handled
+  every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
+  supplies ours. BUG-024.
 - **`gst-launch playbin3` is not the player.** It reported Musepack as failing;
   Ferrolux plays it. A format list has to be checked by loading each file into
   the application and watching the position advance — anything else measures

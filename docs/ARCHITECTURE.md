@@ -88,6 +88,8 @@ Time-domain display needs raw PCM, which the level/spectrum path does not carry.
 
 **`core/`** owns the pipeline and everything that changes what comes out of the speakers. `Engine` builds the pipeline, runs the playback state machine, and is the sole owner of every GStreamer object; nothing outside `core/` holds a `GstElement*`. `Equaliser` is a thin abstraction over the filter element, exposing bands and preamp as gains in decibels rather than as backend-specific properties, so the backend can be replaced without touching the UI (see D-005).
 
+`core/TypeFinders` is the one piece of `core/` that is not about a pipeline. A decoder is only reachable if something identifies the stream first, and GStreamer registers the two independently — so a format can be perfectly decodable and completely unplayable at once, which WavPack was. It registers what is missing, once, before anything types a stream. BUG-024.
+
 **`meters/`** turns bus traffic into pixels. `MeterSource` handles acquisition, bucketing, smoothing and ballistics; `MeterTexture` handles GPU residency. The split matters because ballistics are physical modelling that belongs on the CPU where it can be tested, while rendering is per-fragment work that belongs on the GPU. No module other than `meters/` knows the texture layout.
 
 **`library/`** owns the list of things to play. `PlaylistModel` is the single source of truth for playlist contents and play order; `Engine` is told what to play, it does not decide. Metadata extraction runs on a worker thread and populates rows by signal, so adding ten thousand files never blocks the interface. `PlaylistIO` handles M3U and PLS serialisation.

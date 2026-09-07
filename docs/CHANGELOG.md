@@ -593,6 +593,24 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   is specified to pass local paths and not every launcher honours that.
 
 ### Fixed
+- **BUG-024: WavPack was advertised in three places and played in none**, fixed
+  by supplying the piece that was missing rather than by choosing between the
+  two options the entry had framed. Neither was needed. A decoder is only
+  reachable if something identifies the stream first, and GStreamer registers
+  the two independently — so the format was fully decodable and completely
+  unplayable at the same time: `wavpackparse ! wavpackdec` handled every file,
+  including one written by the reference encoder and verified lossless by
+  `wvunpack`, while the type finder reported `video/x-h264` twice across five
+  files and nothing at all three times.
+
+  `core/TypeFinders` registers one that matches the four ASCII bytes `wvpk` at
+  offset zero, at `GST_RANK_PRIMARY` rather than higher — if the upstream finder
+  is fixed, both match and GStreamer takes the more confident answer, where
+  ranking ours above everything would mean out-voting a correct answer with
+  ours. It was prototyped before it was recommended: a forty-line programme
+  registering the finder took a WavPack file to EOS through `playbin3`, which is
+  what turned a guess into an option. **All ten of F-001's formats now play**,
+  each checked by loading it into the player and watching the position advance.
 - **BUG-023: the application only ran from its build directory**, found by
   installing it for the first time. Copied anywhere else it started, claimed its
   bus name, restored its session, decoded audio — and showed no window,

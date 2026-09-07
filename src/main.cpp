@@ -35,6 +35,7 @@
 #include <gst/gst.h>
 
 #include "app/Player.h"
+#include "core/TypeFinders.h"
 #include "platform/CommandLine.h"
 #include "platform/MediaKeys.h"
 #include "platform/MprisService.h"
@@ -63,6 +64,11 @@ using ferrolux::ui::VisualSettings;
 int main(int argc, char *argv[])
 {
     gst_init(&argc, &argv);
+
+    // Formats GStreamer can decode but does not recognise. Registered here,
+    // once, before anything types a stream — a finder added after a file has
+    // been identified is too late for that file. See BUG-024.
+    ferrolux::core::registerTypeFinders();
 
     // Measurement mode for AV-002. With the swap interval left alone, frames
     // arrive at the refresh rate whether they cost a millisecond or fifteen,

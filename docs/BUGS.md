@@ -55,10 +55,13 @@ Not fixed inline, per Maintenance Rule 8. It is a change to the engine's error
 handling and to what `Loading` is allowed to mean, and both deserve a decision
 rather than a patch.
 
+## Fixed
+
 ### BUG-024 WavPack is offered and accepted, and cannot be played
-**Status:** open
+**Status:** fixed
 **Severity:** medium
 **Found:** 2026-09-07, verifying F-001's format list
+**Fixed:** 2026-09-07
 **Related:** F-001, D-002, BUG-006
 
 `.wv` is in `PlaylistModel::audioSuffixes`, WavPack is in F-001's acceptance
@@ -90,7 +93,32 @@ needs BUG-025 first — is the other direction.
 Not decided here. Both routes change what the application claims about itself,
 which is the author's to settle.
 
-## Fixed
+**Fixed by supplying the missing piece rather than by choosing between the two
+options above.** Neither was needed: `core/TypeFinders` registers a type finder
+that matches the four ASCII bytes `wvpk` at offset zero, and WavPack plays.
+
+The third route was invisible until the failure was understood properly. A
+decoder is only reachable if something identifies the stream first, and the two
+are registered independently — so a format can be perfectly decodable and
+completely unplayable at once, which is exactly what this was. Once that is the
+diagnosis, the fix is the identification and nothing else.
+
+It was prototyped before it was recommended. A forty-line program registering
+the finder and playing through `playbin3` took a WavPack file to EOS, which is
+what turned "this might work" into an option worth taking; the earlier reading
+that only two routes existed was made without it.
+
+Registered at `GST_RANK_PRIMARY` rather than higher. If the upstream finder is
+ever fixed, both match and GStreamer takes the more confident answer, which
+costs nothing — ranking ours above everything would mean out-voting a correct
+answer with ours. Four bytes at offset zero is specific enough that a false
+positive would have to be a file built to look like one, and the sweep confirms
+it: all ten of F-001's formats play, so nothing else is being mis-claimed.
+
+Verified on the reference encoder's output, on a 23 MB WavPack of real music,
+and on the generated fixture — each loaded into the player with the position
+watched, rather than asked of `gst-launch`.
+
 
 ### BUG-023 The application only ran from its build directory
 **Status:** fixed
