@@ -3,6 +3,8 @@
 //
 #include "core/Engine.h"
 
+#include "core/StreamTimer.h"
+
 #include <QFileInfo>
 #include <QtGlobal>
 #include <algorithm>
@@ -78,19 +80,35 @@ void aboutToFinish(GstElement *playbin, void *data)
 {
     Engine *engine = static_cast<Engine *>(data);
 
+    // AV-001, and the two halves are timed apart because they answer to
+    // different people. Everything up to the handover is ours; the handover
+    // itself is a property write that `playbin3` chooses how to service, and it
+    // is the whole mechanism gapless playback works by. Timing them together
+    // reports a number nobody can act on — the first run of
+    // `tools/stress-audio.sh` did exactly that, showing 2.4 ms for a callback
+    // whose own work is a mutex and a refcount.
     QByteArray uri;
     {
-        QMutexLocker locker(&engine->m_nextMutex);
-        uri = engine->m_nextUri;
+        const StreamScope ours(engine->m_streamTimer);
+
+        {
+            QMutexLocker locker(&engine->m_nextMutex);
+            uri = engine->m_nextUri;
+            if (!uri.isEmpty())
+                engine->m_handoverUri = uri;
+        }
+
         if (!uri.isEmpty())
-            engine->m_handoverUri = uri;
+            engine->m_handoverPending.storeRelease(1);
     }
 
     if (uri.isEmpty())
         return; // end of the playlist: let it finish and post EOS
 
-    engine->m_handoverPending.storeRelease(1);
-    g_object_set(playbin, "uri", uri.constData(), nullptr);
+    {
+        const StreamScope handover(engine->m_handoverTimer);
+        g_object_set(playbin, "uri", uri.constData(), nullptr);
+    }
 }
 
 Engine::Engine(QObject *parent)

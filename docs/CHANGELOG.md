@@ -648,6 +648,50 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   taste. `meters_test` checks the resulting rate against the number requested,
   not merely that the cap comes down. 379 checks.
 
+- AV-001 has implemented detection, which leaves AV-007 as the only Critical
+  vector without it. The vector is application work on a GStreamer streaming
+  thread — a failure whose symptom is an occasional dropout on somebody else's
+  machine under a load this one never sees, which is what makes it Critical and
+  what makes it expensive to find later.
+
+  Two halves, as the entry specified. `spec_test` reads `src/` and collects
+  every GStreamer signal the project connects, holding that set against an
+  inventory that names the thread each runs on — so a new callback fails the
+  suite until somebody classifies it, the hazard being arrival on the audio path
+  without noticing rather than bad code written there deliberately. It then
+  brace-matches the body of `about-to-finish`, the only callback that does run on
+  a streaming thread, and checks it is free of seventeen constructs: signal
+  emission, logging, allocation, blocking cross-thread calls, I/O, pipeline
+  state changes and queries. It also asserts that no `gst_bus_set_sync_handler`
+  exists anywhere, that being the likeliest way this invariant would break,
+  because it is what the documentation reaches for when a bus message needs to
+  be seen sooner. Both checks were made to fail before being trusted.
+
+  `tools/stress-audio.sh` is the half that runs: twenty three-second tracks —
+  short, so the once-per-track callback is actually exercised — played first
+  idle and then under one spinning thread per core with continuous disc I/O,
+  timing the callback from inside it with the new `core/StreamTimer` and
+  counting `pulsesink`'s own underflow reports. The underrun count comes from
+  the sink's logging rather than from a probe on purpose: a probe installed to
+  detect starvation would be one more piece of application work on the thread
+  under suspicion.
+
+  **Its first run reported the application at fault, and it was not.** Timed as
+  one number the callback read 2.4 ms with eight of fifteen calls over budget,
+  on an idle machine. Split into the application's own work and the handover it
+  performs, the answer inverts: our part is 4.6 µs at worst under full load
+  against a 1 ms budget and does not move with load, and the milliseconds belong
+  to `g_object_set(playbin, "uri", ...)` — not application work but the entire
+  mechanism `about-to-finish` exists to be answered by. The sink never ran dry in
+  either condition, at either figure.
+
+  That handover cost is logged as IMP-012 rather than left in the measurement,
+  because it doubles under load, from 2.0 ms to 4.2 ms, and nothing in this
+  project bounds it: not the margin, which is the sink's buffer, and not the
+  cost, which is `playbin3`'s. It is sufficient on the evidence and on this
+  hardware. The entry says what would have to change if it ever stops being.
+  385 checks.
+
 ### Fixed
 - **BUG-028: `frame_bench` measured shaders whose parameters were undefined.**
   The benchmark registered every context property the display needs except

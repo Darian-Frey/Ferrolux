@@ -44,6 +44,8 @@
 #include <QList>
 #include <QByteArray>
 #include <QMutex>
+
+#include "core/StreamTimer.h"
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -94,6 +96,12 @@ public:
     // so that QML and the settings code can reach it without either learning
     // anything about the backend.
     Equaliser *equaliser() { return &m_equaliser; }
+
+    // AV-001's figures, for whoever is measuring. Const, because a caller that
+    // could reset this could also make a stress run report a clean sheet it did
+    // not earn.
+    const StreamTimer &streamTimer() const { return m_streamTimer; }
+    const StreamTimer &handoverTimer() const { return m_handoverTimer; }
 
     State state() const { return m_state; }
     QUrl source() const { return m_source; }
@@ -255,6 +263,18 @@ private:
     bool m_playRequested = false;
 
     // Written on the main thread, read on a streaming thread.
+    // AV-001's detection. Written from the streaming thread inside
+    // `aboutToFinish`, read from the main thread by whoever is measuring; the
+    // class is all atomics, so neither needs the mutex below.
+    StreamTimer m_streamTimer;
+
+    // The handover call alone. Separate because it is GStreamer's time rather
+    // than ours: `g_object_set` on `uri` is how `about-to-finish` is answered,
+    // and what `playbin3` does inside it is not this project's to shorten. It
+    // is measured because it is still time on a streaming thread, and the
+    // device is the judge of whether it was too much.
+    StreamTimer m_handoverTimer;
+
     QMutex m_nextMutex;
     QByteArray m_nextUri;
     // The URI the streaming thread actually handed over to, so that the main

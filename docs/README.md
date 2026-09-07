@@ -7,16 +7,21 @@
 > Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 379 checks across eight suites pass in Debug and Release.
+> invertible. 385 checks across eight suites pass in Debug and Release.
 >
-> Two acceptance criteria are measured rather than asserted, and both are the
-> reason the project exists. AV-002: every display holds 60 fps at 3840×2160
-> with at least 40% of the frame budget spare, by `tools/measure-frames.sh`.
-> AV-005: the panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio, by
-> `tools/verify-scaling.sh`. Both tools first reported defects that turned out
-> to be their own — a clamped window, a maximised one, an overheated GPU — and
-> each of those is recorded, because a measurement that cannot say what it
-> measured is worse than none.
+> Three criteria are measured rather than asserted, and they are the reasons
+> the project exists. AV-002: every display holds 60 fps at 3840×2160 with at
+> least 40% of the frame budget spare, by `tools/measure-frames.sh`. AV-005: the
+> panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio, by
+> `tools/verify-scaling.sh`. AV-001: with every core spinning and the disc
+> busy, the application's own work on the audio thread peaks at 4.6 µs against
+> a 1 ms budget and the sink never runs dry, by `tools/stress-audio.sh`.
+>
+> Every one of those tools first reported a defect that turned out to be its
+> own — a clamped window, a maximised one, an overheated GPU, a benchmark
+> drawing with undefined parameters, a timer that blamed the application for
+> GStreamer's milliseconds. Each is recorded, because a measurement that cannot
+> say what it measured is worse than none.
 >
 > Five clauses remain unverified. Four are audible or need a harness that does
 > not exist: playlist scroll frame time, denormal stalls, the gapless join and
@@ -24,12 +29,13 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug at low severity and no suggested improvements. Twenty-eight
+> One open bug at low severity and one suggested improvement. Twenty-eight
 > bugs found, twenty-six fixed, one won't-fix upstream and BUG-027 open: a
 > corrupt *next* playlist entry still costs the track that is playing its last
 > two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
-> F-002 and F-031 have closed, four remain.
+> F-002 and F-031 have closed, four remain. Three of the four Critical attack
+> vectors now have implemented detection; AV-007 is the one that does not.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.
 

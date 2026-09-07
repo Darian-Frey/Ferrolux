@@ -4,7 +4,9 @@ Project-specific failure modes the project must be resilient against.
 Grouped by category. Each vector lists detection method and severity.
 Severity: Critical (must hold) | Major (regression on release blocks) | Minor (track only).
 
-Ferrolux is pre-implementation, so most detection entries are currently `not implemented`. This is honest signal rather than a gap to be papered over: the distance between an identified failure mode and a working check for it is information. Phase 7 requires every Critical vector to have implemented detection before RS-1 ships.
+This file was written before the code, when every detection entry said `not implemented`. That was honest signal rather than a gap to be papered over: the distance between an identified failure mode and a working check for it is information, and it is worth reading which vectors closed early and which are still open.
+
+Phase 7 requires every Critical vector to have implemented detection before RS-1 ships. **Three of the four have it** — AV-001, AV-003 and AV-005. AV-007 does not, and is the outstanding one.
 
 ---
 
@@ -13,9 +15,59 @@ Ferrolux is pre-implementation, so most detection entries are currently `not imp
 ### AV-001 Application work on the GStreamer streaming thread
 **Severity:** Critical
 **Description.** Any allocation, lock acquisition against UI state, blocking I/O or synchronous cross-thread signal on a streaming thread starves the audio path. The symptom is intermittent dropouts under system load rather than a reproducible failure, which makes it expensive to find later and cheap to prevent now. Bus message handlers, metadata callbacks and probe functions are the likely entry points.
-**Detection.** Not implemented (would require a thread-annotation pass plus a stress harness running playback under synthetic CPU and I/O load with an underrun counter on the sink). Interim: ARCHITECTURE.md §Key invariants item 1 is checked by review on any change touching `core/` or `meters/`.
+**Detection.** **Implemented**, in the two halves this entry asked for.
+
+*The annotation pass* is a section of `spec_test`, which reads `src/`. It
+collects every GStreamer signal the project connects and holds that set against
+an inventory naming the thread each one runs on, so a new callback fails the
+suite until somebody classifies it — the point being that the expensive thing
+about this vector is not writing bad code on the audio path but arriving on the
+audio path without noticing. It then brace-matches the body of the one callback
+that does run on a streaming thread, `about-to-finish`, and checks it is written
+out of seventeen constructs: signal emission, logging, allocation, blocking
+cross-thread calls, file I/O, pipeline state changes and queries. It also
+asserts no `gst_bus_set_sync_handler` exists anywhere, which is the single most
+likely way this invariant would be broken, because it is what the documentation
+reaches for when a bus message needs to be seen sooner.
+
+Both checks were confirmed to fail before being trusted, by adding a `qWarning`
+to the callback and an unclassified `g_signal_connect` beside it.
+
+*The stress harness* is `tools/stress-audio.sh`. It plays twenty three-second
+tracks — short so that `about-to-finish`, which fires once per track, is
+actually exercised — first on an idle machine and then under one spinning thread
+per core plus continuous disc I/O, and counts two things: how long the callback
+holds a streaming thread, timed from inside it by `core/StreamTimer`, and how
+many times `pulsesink` reported an underflow. The second comes from the sink's
+own logging rather than from a probe, deliberately: a probe installed to detect
+starvation would be one more piece of application work on the thread under
+suspicion.
+
+**Measured 2026-09-07** on the reference hardware, 16 spinning threads:
+
+| | idle | under load |
+|---|---|---|
+| the application's own work | 7.4 µs worst, 3.5 µs mean | **4.6 µs worst, 1.8 µs mean** |
+| the `g_object_set` handover | 2018 µs worst, 1035 µs mean | **4238 µs worst, 1224 µs mean** |
+| `pulsesink` underflows | 0 | **0** |
+
+**The two are separated because they answer to different people, and the first
+run of the harness proved why.** Timed together, the callback read 2.4 ms with
+eight of fifteen calls over budget on an *idle* machine, which looks exactly
+like the defect this vector describes. It is not. The application's own work
+there — a mutex, a refcounted copy, an atomic store — is three orders of
+magnitude inside the 1 ms budget and does not move under load. What costs
+milliseconds is `g_object_set(playbin, "uri", ...)`, which is not application
+work but the entire mechanism `about-to-finish` exists to be answered by, and
+what `playbin3` does inside it is not this project's to shorten.
+
+That cost is nonetheless real and it doubles under load, from 2.0 ms to 4.2 ms.
+It is recorded rather than budgeted, and judged by the only thing that can judge
+it: whether the device noticed. It did not, in either condition. See IMP-012 for
+what would have to change if it ever does.
+
 **Related decisions.** D-002 (GStreamer backend), D-005 (CPU-side ballistics).
-**Related features.** F-001, F-030.
+**Related features.** F-001, F-005, F-030.
 
 ### AV-002 Frame budget overrun from meter rendering
 **Severity:** Major

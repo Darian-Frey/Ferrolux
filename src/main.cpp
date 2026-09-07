@@ -296,6 +296,27 @@ int main(int argc, char *argv[])
             }
         }
 
+        // AV-001. Report what the streaming thread was made to do, and quit.
+        // Separate from `FERROLUX_FRAME_MEASURE` because the two measure
+        // opposite ends of the machine and want opposite conditions: the frame
+        // measurement wants an idle system, and this one wants a loaded one.
+        // `tools/stress-audio.sh` supplies the load.
+        const int streamSeconds = qEnvironmentVariableIntValue("FERROLUX_STREAM_MEASURE");
+        if (streamSeconds > 0) {
+            QTimer::singleShot(streamSeconds * 1000, &app, [&app, &player] {
+                // Two lines, because the two costs have different owners: the
+                // first is the application's own work on a streaming thread,
+                // which AV-001 forbids, and the second is what `playbin3` does
+                // when handed the next URI, which it requires.
+                std::fprintf(stderr, "STREAM own %s\n",
+                             qPrintable(player.engine()->streamTimer().summary()));
+                std::fprintf(stderr, "STREAM handover %s\n",
+                             qPrintable(player.engine()->handoverTimer().summary()));
+                std::fflush(stderr);
+                app.quit();
+            });
+        }
+
         status = app.exec();
     }
 

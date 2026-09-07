@@ -38,6 +38,8 @@
 #include <QStringList>
 #include <QTextStream>
 
+#include <iterator>
+
 #include <cstdio>
 
 using ferrolux::tests::check;
@@ -264,6 +266,139 @@ int main(int argc, char *argv[])
     check(mpris.contains(QStringLiteral("QString MprisRoot::desktopEntry"))
               && mpris.contains(QStringLiteral("return QStringLiteral(\"ferrolux\")")),
           "and MPRIS reports the same name");
+
+    // ---- AV-001 ------------------------------------------------------------
+    // ARCHITECTURE.md §Key invariants item 1: the streaming thread does no
+    // application work. This is the static half of AV-001's detection; the
+    // measured half is `core/StreamTimer` and `tools/stress-audio.sh`.
+    //
+    // It reads the source because there is nothing else to read. A streaming
+    // thread is not a type, GStreamer does not mark which of its callbacks run
+    // on one, and the compiler cannot tell an allocation on the audio path from
+    // an allocation anywhere else. What can be checked mechanically is which
+    // callbacks exist, that each one is accounted for, and what the ones on the
+    // audio path are written out of.
+    std::printf("\nAV-001, the streaming thread (ARCHITECTURE.md §Key invariants 1)\n");
+    {
+        // Every GStreamer callback the project registers, wherever it lives.
+        QStringList registrations;
+        QDirIterator sources(root + QStringLiteral("/src"),
+                             QStringList() << QStringLiteral("*.cpp") << QStringLiteral("*.h"),
+                             QDir::Files, QDirIterator::Subdirectories);
+        QString engineSource;
+        while (sources.hasNext()) {
+            const QString path = sources.next();
+            const QString text = readAll(path);
+            if (path.endsWith(QStringLiteral("core/Engine.cpp")))
+                engineSource = text;
+
+            static const QRegularExpression connect(
+                QStringLiteral("g_signal_connect[^(]*\\([^,]+,\\s*\"([a-z0-9-]+)\""));
+            auto it = connect.globalMatch(text);
+            while (it.hasNext())
+                registrations << it.next().captured(1);
+        }
+
+        // The inventory. A signal named here has been classified; anything else
+        // is a callback nobody has decided the thread of, which is exactly the
+        // state AV-001 says is expensive to discover later.
+        //
+        // `about-to-finish` is emitted from the streaming thread as the current
+        // stream runs out. It is the only one, and it is the reason this vector
+        // is Critical rather than theoretical.
+        static const QSet<QString> streamingThread = { QStringLiteral("about-to-finish") };
+        static const QSet<QString> mainLoop = {};
+
+        const QSet<QString> found(registrations.begin(), registrations.end());
+        const QSet<QString> unclassified = found - streamingThread - mainLoop;
+        check(unclassified.isEmpty(),
+              "every GStreamer signal the project connects is classified by thread",
+              unclassified.isEmpty()
+                  ? QStringLiteral("%1 connected, %2 on a streaming thread")
+                        .arg(found.size()).arg((found & streamingThread).size())
+                  : QStringLiteral("unclassified: {%1} — add it to spec_test's inventory "
+                                   "and say which thread it runs on")
+                        .arg(QStringList(unclassified.values()).join(QStringLiteral(", "))));
+
+        check(found.contains(QStringLiteral("about-to-finish")),
+              "and the one known to run on a streaming thread is still connected",
+              QStringLiteral("otherwise this section is checking nothing"));
+
+        // A sync handler runs on whichever thread posted the message, which for
+        // anything the audio path posts is a streaming thread. It is the single
+        // most likely way this invariant gets broken, because it is what the
+        // documentation reaches for when a bus message needs to be seen sooner.
+        bool syncHandler = false;
+        QDirIterator again(root + QStringLiteral("/src"),
+                           QStringList() << QStringLiteral("*.cpp") << QStringLiteral("*.h"),
+                           QDir::Files, QDirIterator::Subdirectories);
+        while (again.hasNext())
+            if (readAll(again.next()).contains(QStringLiteral("gst_bus_set_sync_handler")))
+                syncHandler = true;
+        check(!syncHandler,
+              "the bus is read by a watch on the main loop, not by a sync handler");
+
+        // The body of the streaming-thread callback, and what it may not
+        // contain. Brace-matched from the signature rather than read to the end
+        // of the file, so that adding a function below it does not silently
+        // widen what is being checked.
+        const int signature = engineSource.indexOf(QStringLiteral("void aboutToFinish(GstElement"));
+        const int open = engineSource.indexOf(QLatin1Char('{'), signature);
+        int depth = 0;
+        int close = open;
+        for (; close < engineSource.size(); ++close) {
+            if (engineSource.at(close) == QLatin1Char('{'))
+                ++depth;
+            else if (engineSource.at(close) == QLatin1Char('}') && --depth == 0)
+                break;
+        }
+        const QString body = signature >= 0 && close > open
+            ? engineSource.mid(open, close - open)
+            : QString();
+        check(!body.isEmpty() && body.contains(QStringLiteral("g_object_set")),
+              "the streaming-thread callback's body was located",
+              QStringLiteral("%1 characters").arg(body.size()));
+
+        check(body.contains(QStringLiteral("StreamScope")),
+              "it is timed, so AV-001's measured half has something to measure");
+
+        // Each of these is a way to stall an audio thread, and each reads as
+        // ordinary code everywhere else in the project — which is the whole
+        // difficulty with this invariant. Logging allocates and takes a lock
+        // inside Qt; a signal emission can be direct-connected and run arbitrary
+        // slots on this thread; a blocking invoke waits on a main loop that may
+        // be busy laying out a playlist of 20,000 rows.
+        struct Forbidden { const char *token; const char *why; };
+        static const Forbidden forbidden[] = {
+            { "emit ",                  "emits a Qt signal" },
+            { "Q_EMIT",                 "emits a Qt signal" },
+            { "QMetaObject::invokeMethod", "calls across threads" },
+            { "BlockingQueuedConnection", "blocks on the main loop" },
+            { "qDebug",                 "logs" },
+            { "qInfo",                  "logs" },
+            { "qWarning",               "logs" },
+            { "qCritical",              "logs" },
+            { "qCDebug",                "logs" },
+            { "qCWarning",              "logs" },
+            { "printf",                 "does I/O" },
+            { "new ",                   "allocates" },
+            { "malloc",                 "allocates" },
+            { "QString",                "allocates" },
+            { "QFile",                  "does file I/O" },
+            { "gst_element_set_state",  "changes pipeline state from inside it" },
+            { "gst_element_query",      "queries the pipeline, which can block" },
+        };
+        QStringList violations;
+        for (const Forbidden &f : forbidden)
+            if (body.contains(QLatin1String(f.token)))
+                violations << QStringLiteral("%1 (%2)")
+                                  .arg(QLatin1String(f.token), QLatin1String(f.why));
+        check(violations.isEmpty(),
+              "and does no application work: no allocation, no logging, no signal, no blocking call",
+              violations.isEmpty()
+                  ? QStringLiteral("%1 constructs checked for").arg(int(std::size(forbidden)))
+                  : violations.join(QStringLiteral("; ")));
+    }
 
     return ferrolux::tests::summary();
 }

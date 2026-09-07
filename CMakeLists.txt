@@ -48,6 +48,8 @@ qt_add_executable(ferrolux
     src/app/Player.h
     src/core/Engine.cpp
     src/core/Engine.h
+    src/core/StreamTimer.cpp
+    src/core/StreamTimer.h
     src/core/TypeFinders.cpp
     src/core/TypeFinders.h
     src/core/Equaliser.cpp
@@ -233,6 +235,8 @@ qt_add_executable(acceptance_transport
     src/library/MetadataReader.h
     src/core/Engine.cpp
     src/core/Engine.h
+    src/core/StreamTimer.cpp
+    src/core/StreamTimer.h
     src/core/Equaliser.cpp
     src/core/Equaliser.h
     src/library/PlaylistModel.cpp

@@ -22,7 +22,49 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
-*None.*
+### IMP-012 The gapless handover costs milliseconds on a streaming thread, and nothing bounds it
+**Status:** suggested
+**Effort:** large
+**Found:** 2026-09-07, implementing AV-001's detection
+**Related:** AV-001, F-005, F-030, D-002
+
+`aboutToFinish` answers `about-to-finish` by writing the next URI with
+`g_object_set`. That call is measured at **2.0 ms on an idle machine and 4.2 ms
+under load**, against 4.6 µs for everything the application does around it. It
+runs on a streaming thread, which is the thread AV-001 exists to keep clear.
+
+Nothing here is wrong. It is the documented way to do gapless playback in
+GStreamer, `playbin3` is entitled to spend that time setting up the next source,
+and the sink did not underrun in either condition — the ring buffer is deep
+enough to cover it. The concern is that **no part of that sentence is under this
+project's control.** The margin is whatever the sink's buffer happens to be, the
+cost is whatever `playbin3` does with a URI, and the measurement says the cost
+more than doubles when the machine is busy. A slower machine, a smaller buffer,
+a source that needs a network round trip to open, and the same code starves the
+device.
+
+What could be done, in ascending order of cost:
+
+- **Nothing, and watch it.** `tools/stress-audio.sh` now prints the figure on
+  every run, so a change that doubles it again is visible rather than inferred.
+  This is the current position.
+- **Warm the next source before the handover**, so that whatever `g_object_set`
+  does is already done. There is no supported way to ask `playbin3` for this;
+  it would mean pre-rolling a second pipeline, which is most of a hand-built
+  gapless implementation.
+- **Stop using `playbin3`.** A hand-built `uridecodebin` chain would put the
+  handover under this project's control and its timing under this project's
+  measurement. That reverses D-002, and D-002 was taken for good reasons.
+
+**Trade-offs:** The first option accepts a risk on hardware slower than the
+reference machine, in exchange for keeping the pipeline that D-002 chose and the
+gapless behaviour F-005 needs. The second and third both trade a substantial
+amount of new code — and every failure mode that comes with owning a pipeline —
+against a margin that is currently, on the evidence, sufficient. Doing either
+now would be optimising against a symptom nobody has observed; the reason to log
+it is that if the symptom ever is observed, it will be an intermittent dropout
+on somebody else's machine, and this entry is what turns a week of investigation
+into an afternoon.
 
 ## Applied
 

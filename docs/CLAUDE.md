@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **379 checks
+its own panel — nothing in the window comes from a desktop theme. **385 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -72,7 +72,9 @@ across eight suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's), `verify-desktop.sh`
-  (IMP-010's — drives `platform/` over a real session bus, hermetically)
+  (IMP-010's — drives `platform/` over a real session bus, hermetically),
+  `stress-audio.sh` (AV-001's — playback under synthetic CPU and I/O load,
+  timing the streaming thread from inside it and counting the sink's underruns)
 - `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`,
   `CommandLine` and `Session`; the desktop entry is the rest of Phase 6.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
@@ -177,6 +179,13 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **Time your own work and the library's separately, or the measurement names
+  the wrong culprit.** Timed as one, `about-to-finish` read 2.4 ms with half its
+  calls over budget on an idle machine — which is exactly what AV-001's defect
+  would look like. Split, the application's own work is 4.6 µs under full load
+  and the remainder is `g_object_set` on `playbin3`'s `uri`, which is the
+  mechanism gapless playback works by and not ours to shorten. A number that
+  spans two owners cannot be acted on by either.
 - **A missing QML context property is a default value, not a failure.** Every
   `Visuals.*` binding in `frame_bench` raised `ReferenceError` and each uniform
   silently took its type's default, so the benchmark measured shaders drawn with
@@ -297,14 +306,16 @@ Registering them with CTest requires `-DFERROLUX_TEST_FLAC=` and
 `-DFERROLUX_TEST_MP3=` at configure time; without those two, `ctest` silently
 runs four suites instead of six, which is easy to read as a pass.
 
-Two measurements are tools rather than tests, because each needs a display, a
-window manager and a GPU, and a machine with none of those would report a
-failure that says nothing about the code:
+Four measurements are tools rather than tests, because each needs something a
+build machine may not have — a display, a window manager, a GPU, a session bus,
+an audio device — and a machine without it would report a failure that says
+nothing about the code:
 
 ```bash
 ./tools/measure-frames.sh 4      # AV-002 — 60 fps, in a window and offscreen at 4K
 ./tools/verify-scaling.sh        # AV-005 — the panel at 1x, 1.5x, 2x and 3x
 ./tools/verify-desktop.sh        # IMP-010 — MPRIS, single instance, session, settings
+./tools/stress-audio.sh          # AV-001 — the streaming thread under load
 ```
 
 Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the
