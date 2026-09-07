@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <functional>
 
+#include "Check.h"
 #include "core/Engine.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
@@ -29,21 +30,13 @@ using ferrolux::core::Engine;
 using ferrolux::library::PlaylistModel;
 using ferrolux::meters::MeterSource;
 
-namespace {
+using ferrolux::tests::check;
+using ferrolux::tests::failures;
 
-int failures = 0;
+namespace {
 
 constexpr qint64 kSecond = 1'000'000'000;
 constexpr qint64 kSeekToleranceNs = 500 * 1'000'000; // F-003
-
-void check(bool ok, const char *what, const QString &detail = {})
-{
-    std::printf("  [%s] %s%s%s\n", ok ? "pass" : "FAIL", what,
-                detail.isEmpty() ? "" : " — ", detail.isEmpty() ? "" : qPrintable(detail));
-    std::fflush(stdout);
-    if (!ok)
-        ++failures;
-}
 
 bool spin(Engine &engine, const std::function<bool()> &done, int timeoutMs)
 {
@@ -459,7 +452,5 @@ int main(int argc, char *argv[])
 
     runStopStartCycles(files.first(), 20);
 
-    std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
-                failures, failures == 1 ? "" : "s");
-    return failures ? 1 : 0;
+    return ferrolux::tests::summary();
 }

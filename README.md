@@ -171,7 +171,7 @@ Dependencies, per-distribution package lists and troubleshooting are in
 intention. Everything built so far needs Qt 6 Base, Declarative and Shader
 Tools, GStreamer 1.20 with its base, good and bad plugin sets, and TagLib.
 
-Six test suites, 321 checks:
+Eight test suites, 355 checks:
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \

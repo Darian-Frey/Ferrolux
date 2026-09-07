@@ -418,10 +418,25 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   pressing keys, so the test could not disturb whatever else was playing —
   which is how the original defect was found.
 
-- IMP-008 logged, not applied: X11 under a bare window manager has neither a
-  daemon nor an MPRIS consumer, so the keys do nothing there. The `XGrabKey` that
-  would fix it takes a key away from every application on the machine and could
-  not be tested on the session it was developed on.
+- IMP-008 applied: `platform/X11MediaKeys` grabs the four `XF86Audio` keysyms
+  for sessions with no settings daemon — X11 under a bare window manager, the
+  case F-051 could not reach. The entry had said to wait for a session to test
+  in; a nested X server with no window manager and no daemon **is** that
+  session, and keys synthesised on it cannot reach the real desktop.
+
+  Testing it found two defects that reading would not have. `MediaKeys::attach`
+  returned early when there was no session bus at all, so the one case the
+  fallback exists for could never reach it. And a grab claimed and released by
+  activity, inheriting IMP-009's rule, could never be taken: under a bare window
+  manager nothing focuses the window and nothing plays until a key starts it.
+  **Letting go of a registration gives the keys back to another player; letting
+  go of a grab gives them to nobody**, so the grab is held for the run.
+
+  Every combination of the three locking modifiers is grabbed separately, or the
+  key works until somebody presses Num Lock; a refused grab is caught rather
+  than fatal, and left to whoever holds it. `find_package(X11)` is optional, so
+  a Wayland-only or headless build compiles the class to a stub — verified by
+  building with X11 disabled and checking the grab is absent from the binary.
 
 - Single instance and the command line (F-052): `platform/CommandLine` parses
   `--enqueue`, `--play` and `--replace`, and `platform/SingleInstance`
@@ -448,9 +463,27 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   F-051 degrade. Verified both ways: one process across four launch forms with a
   bus, two independent players without one.
 
-- IMP-010 logged, not applied: `platform/` is now five classes and no test suite
-  touches any of them. Each was verified by hand and none of those checks will
-  run again by themselves.
+- IMP-010 applied, split the way the entry said it would have to be.
+  `tests/platform_test` covers the part that needs nothing but the build —
+  `CommandLine`'s wire protocol between two launches, where a drift makes a
+  `--replace` from a file manager quietly append instead. It does not drag
+  GStreamer in after all: `core/Engine.h` forward-declares its pipeline, so the
+  enum costs only Qt. `parse` now takes its arguments rather than reaching for
+  `QCoreApplication::arguments()`, which is what makes the flag mapping testable
+  at all.
+
+  `tools/verify-desktop.sh` is the rest: MPRIS, the single-instance hand-off and
+  each flag form, a session saved and restored, and the settings surviving a
+  launch byte for byte. **It is hermetic** — `XDG_CONFIG_HOME` and
+  `XDG_DATA_HOME` point into a temporary directory, so it cannot disturb the
+  settings of whoever runs it, which every earlier round of this checking did by
+  hand. And it asks the player to quit over MPRIS rather than killing it: the
+  first draft used `pkill` and six checks failed, because SIGTERM does not reach
+  `aboutToQuit` and every save happens there — the tool reproducing a lesson
+  already written down, which is the argument for encoding these rather than
+  remembering them.
+
+  Eight suites, 355 checks.
 
 - Session restore (F-015): `platform/Session`. The playlist contents go to a
   playlist file under `~/.local/share/ferrolux/`, because that is what a
@@ -507,10 +540,42 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   third top-level window does not bring back BUG-021: the application exits
   cleanly with the guide open, closed by the manager, and never opened.
 
-- IMP-011 logged, not applied: the window still calls itself
-  `Ferrolux RS-1 — Phase 5 harness` while MPRIS reports `Ferrolux RS-1`, so the
-  desktop is told two names for one application. What it should say is a
-  presentation decision rather than a defect.
+- IMP-011 applied: the window is `Ferrolux RS-1` rather than
+  `Ferrolux RS-1 — Phase 5 harness`, which was accurate when it was written and
+  had been what every task switcher and screenshot said since. MPRIS already
+  reported `Ferrolux RS-1`, so the desktop had two names for one application and
+  now has one. The track is deliberately not in the title: it reaches the shell
+  through MPRIS metadata already, and a window that renames itself every three
+  minutes cannot be found twice in a task switcher.
+
+- IMP-004 applied, its trigger having fired twice: `tests/Check.h` replaces the
+  `check()` helper each of the six suites had its own copy of. The saving in
+  lines is roughly nothing — 78 removed, 30 added, and the header is 65 — and
+  that was never the point. **The copies had already drifted**: `tokens_test`'s
+  `check` was missing the `std::fflush` the other five had, so a suite that
+  aborted mid-run lost its buffered tail, which is the part naming the check it
+  died on. Several of these drive a real pipeline and can abort. What was given
+  up is what the entry's trade-off named — a suite is no longer one file
+  readable start to finish without following an include. Output is
+  byte-identical and a deliberate failure still reports and exits non-zero.
+
+- IMP-007 applied: `tests/spec_test` holds SPEC.md §Settings and the code to
+  each other, **in both directions**. Every key the table states must be one the
+  application reads or writes, and every key marked `**Planned.**` must not be —
+  a one-way check rots in whichever direction nobody is watching, which is how
+  the entry came about: the orphan count fell from three to one when F-015
+  landed and nothing anywhere said so. `ui/geometry` is the one that remained,
+  and is marked.
+
+  It would have caught BUG-019, where a key sat in the table, in the saving code
+  and absent from the restoring code until a lit field on the panel gave it
+  away. The coupling to the document is real and not argued away: reflowing the
+  table breaks the suite, so the check verifies it found the table at all and
+  names the header row it expected. All four failure modes were provoked against
+  a copy of the tree before the suite was believed.
+
+  Seven suites now, 328 checks — IMP-004 landed first and made the seventh
+  cheap.
 
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width

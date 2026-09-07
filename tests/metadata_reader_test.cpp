@@ -12,22 +12,16 @@
 
 #include <cstdio>
 
+#include "Check.h"
 #include "library/MetadataReader.h"
 
 using namespace ferrolux::library;
 
+using ferrolux::tests::check;
+using ferrolux::tests::failures;
+
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const char *what, const QString &detail = {})
-{
-    std::printf("  [%s] %s%s%s\n", ok ? "pass" : "FAIL", what,
-                detail.isEmpty() ? "" : " — ", detail.isEmpty() ? "" : qPrintable(detail));
-    std::fflush(stdout);
-    if (!ok)
-        ++failures;
-}
 
 const char *stateName(MetadataState state)
 {
@@ -178,7 +172,5 @@ int main(int argc, char *argv[])
         check(idleCount >= 1, "cancelling reports idle rather than hanging");
     }
 
-    std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
-                failures, failures == 1 ? "" : "s");
-    return failures ? 1 : 0;
+    return ferrolux::tests::summary();
 }

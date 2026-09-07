@@ -21,10 +21,9 @@
 //
 //   * GNOME, Cinnamon, MATE — the daemon, on X11 and on Wayland alike.
 //   * KDE and others that drive MPRIS directly — F-050, with nothing more.
-//   * A bare window manager with neither — nothing here helps; that case wants
-//     an X11 grab and is recorded in IMPROVEMENTS.md rather than written blind,
-//     because a global grab that cannot be tested is a global grab that eats
-//     somebody's keyboard.
+//   * A bare window manager with neither — `X11MediaKeys`, a global grab, and
+//     the last resort rather than the first. It is only reached when no daemon
+//     answered, so on an ordinary desktop it is compiled and never runs.
 //
 // **The keys are claimed on activity, not on existence.** They are a single
 // global thing that only one application can hold, and the daemon gives them to
@@ -61,6 +60,8 @@
 namespace ferrolux::app { class Player; }
 
 namespace ferrolux::platform {
+
+class X11MediaKeys;
 
 class MediaKeys : public QObject
 {
@@ -121,6 +122,13 @@ private:
     app::Player *m_player = nullptr;
     QObject *m_window = nullptr;
     Daemon m_available;
+
+    // The fallback, constructed only when no daemon was found, and held for the
+    // run rather than claimed and released by activity like the registration
+    // is. Letting go of a registration gives the keys back to another player;
+    // letting go of a grab gives them to nobody, because a session with no
+    // daemon has nobody to give them to. See `attach`.
+    X11MediaKeys *m_grab = nullptr;
     bool m_holding = false;
 
     // Whether playback has actually happened since the last stop, as distinct

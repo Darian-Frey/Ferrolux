@@ -17,6 +17,7 @@
 
 #include <cstdio>
 
+#include "Check.h"
 #include "library/PlaylistFilter.h"
 #include "library/PlaylistIO.h"
 #include "library/PlaylistModel.h"
@@ -27,18 +28,11 @@ using ferrolux::library::PlaylistFilter;
 using ferrolux::library::PlaylistModel;
 namespace PlaylistIO = ferrolux::library::PlaylistIO;
 
+using ferrolux::tests::check;
+using ferrolux::tests::failures;
+
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const char *what, const QString &detail = {})
-{
-    std::printf("  [%s] %s%s%s\n", ok ? "pass" : "FAIL", what,
-                detail.isEmpty() ? "" : " — ", detail.isEmpty() ? "" : qPrintable(detail));
-    std::fflush(stdout);
-    if (!ok)
-        ++failures;
-}
 
 QList<QUrl> synthesise(int count, const QString &prefix = QStringLiteral("track"))
 {
@@ -508,7 +502,5 @@ int main(int argc, char *argv[])
     testFilter();
     testScale();
 
-    std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
-                failures, failures == 1 ? "" : "s");
-    return failures ? 1 : 0;
+    return ferrolux::tests::summary();
 }

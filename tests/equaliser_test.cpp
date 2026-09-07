@@ -20,22 +20,16 @@
 #include <cmath>
 #include <cstdio>
 
+#include "Check.h"
 #include "core/Equaliser.h"
 
 using ferrolux::core::Equaliser;
 
+using ferrolux::tests::check;
+using ferrolux::tests::failures;
+
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const char *what, const QString &detail = {})
-{
-    std::printf("  [%s] %s%s%s\n", ok ? "pass" : "FAIL", what,
-                detail.isEmpty() ? "" : " — ", detail.isEmpty() ? "" : qPrintable(detail));
-    std::fflush(stdout);
-    if (!ok)
-        ++failures;
-}
 
 // Runs a fixed, deterministic signal through an optional equaliser and returns
 // the raw output bytes. Everything is built from the same element factories the
@@ -535,7 +529,5 @@ int main(int argc, char *argv[])
     testUserPresets();
     testPresetNameSurvivesRestart();
 
-    std::printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
-                failures, failures == 1 ? "" : "s");
-    return failures ? 1 : 0;
+    return ferrolux::tests::summary();
 }

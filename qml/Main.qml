@@ -21,7 +21,12 @@ ApplicationWindow {
     width: 720
     height: 780
     visible: true
-    title: qsTr("Ferrolux RS-1 — Phase 5 harness")
+    // The badge on the panel, and what MPRIS reports as the application's
+    // identity. One name for one application: the desktop was being told two.
+    // The track is not in here — it is published to the shell through MPRIS
+    // metadata, and a window that renames itself every three minutes is a
+    // window nobody can find twice. See IMP-011.
+    title: qsTr("Ferrolux RS-1")
 
     // The chassis. Warm off-white, and the surface every moulded control is
     // lit against — the bevel gradients are only legible as mouldings because

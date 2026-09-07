@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     // must reach the running player and exit without ever opening the audio
     // device, because two processes briefly holding the same sink is audible
     // and this happens every time a file is opened from a file manager.
-    const CommandLine::Result invocation = CommandLine::parse();
+    const CommandLine::Result invocation = CommandLine::parse(app.arguments());
 
     SingleInstance instance;
     if (!instance.claim()) {
@@ -218,11 +218,15 @@ int main(int argc, char *argv[])
             // window exist would have nowhere to go.
             instance.serve(&player, window);
 
-            if (keys.attach(window))
+            if (!keys.attach(window))
+                qInfo("media keys: nothing to register with and nothing to grab; "
+                      "relying on MPRIS");
+            else if (!keys.provider().isEmpty())
                 qInfo("media keys: %s answers; claimed while playing or focused",
                       qPrintable(keys.provider()));
             else
-                qInfo("media keys: no settings daemon; relying on MPRIS");
+                qInfo("media keys: no settings daemon; grabbing them directly "
+                      "while playing or focused");
 
             if (measuring) {
                 const QString geometry = qEnvironmentVariable("FERROLUX_GEOMETRY");

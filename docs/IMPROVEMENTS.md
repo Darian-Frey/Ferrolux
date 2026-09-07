@@ -22,30 +22,12 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
-### IMP-011 The window still calls itself a Phase 5 harness
-**Status:** suggested
-**Effort:** trivial
-**Found:** 2026-09-07, implementing F-043
-**Related:** F-050, F-040
+*None.*
 
-`Main.qml` sets the window title to `Ferrolux RS-1 — Phase 5 harness`. It was
-accurate when it was written and it is what the window manager, the task
-switcher and every screenshot have said since. MPRIS reports the same
-application as `Ferrolux RS-1`, so the desktop is already being told two
-different names for it.
-
-"Harness" in particular stopped being true somewhere in Phase 5, when the panel
-became the application rather than a scaffold around one.
-
-**Trade-offs:** None technically — it is one string. It is logged rather than
-changed because what the window should be called is a presentation decision
-about the product, not a defect: `Ferrolux RS-1` matches MPRIS and the badge on
-the panel, but the author may want the version, the playing track, or nothing
-but `Ferrolux`. Picking one silently would be choosing on the author's behalf,
-and the choice shows up in every screenshot of the project.
+## Applied
 
 ### IMP-010 `platform/` has four classes and no automated coverage
-**Status:** suggested
+**Status:** applied
 **Effort:** medium
 **Found:** 2026-09-06, finishing F-052
 **Related:** F-015, F-050, F-051, F-052, IMP-004
@@ -78,8 +60,54 @@ build machine joins AV-002 and AV-005 as a thing people forget. Against both:
 `platform/` is the layer whose failures are least visible from inside the
 application, because every one of them looks like the desktop being odd.
 
+**Applied 2026-09-07**, split the way the entry said it would have to be.
+
+`tests/platform_test` is the part that needs nothing but the build: 28 checks
+over `CommandLine`'s mapping between `Player::Open` and its wire words. The
+trade-off warned that this would drag GStreamer into a suite that needs none of
+it — it does not, because `core/Engine.h` forward-declares its pipeline rather
+than including the headers, so the enum costs Qt and nothing else. `parse` was
+changed to take its arguments instead of reaching for
+`QCoreApplication::arguments()`, which is what makes the flag mapping testable
+at all: `arguments()` is fixed when the application is constructed and only one
+of those exists at a time. That is a function taking its input rather than a
+mapping moved to suit a test.
+
+The default is checked hardest, because it is the one that fails silently. An
+unrecognised word must mean the form that does not play — otherwise a newer
+instance sending a word an older one has never heard starts music at somebody,
+which is BUG-015 across a process boundary.
+
+`tools/verify-desktop.sh` is the rest: 27 checks driving a real player over the
+bus — MPRIS's interfaces, properties, transport and `PropertiesChanged`; the
+single-instance hand-off and each flag form; a session saved and restored; and
+the settings surviving a launch byte for byte. A tool rather than a suite for
+the reason AV-002 and AV-005 are, and the entry's second worry answered as far
+as it can be: it needs a session bus, so a build machine without one still
+cannot run it.
+
+Two things it does that the hand checks did not. **It is hermetic** —
+`XDG_CONFIG_HOME` and `XDG_DATA_HOME` point into a temporary directory, so it
+cannot disturb the settings of whoever runs it. Every earlier round of this
+checking altered them and had to put them back by hand, and one of those rounds
+paused somebody's browser video. And **it asks the player to quit rather than
+killing it**, over MPRIS, needing no display: the first draft used `pkill` and
+six checks failed, because SIGTERM does not reach `aboutToQuit` and every save
+happens there. The tool had reproduced a lesson already written down in
+CLAUDE.md, which is the argument for encoding these checks rather than
+remembering them.
+
+Writing it also found a defect in itself worth recording: `tr -d 'int64 '`
+deletes the *characters* `6` and `4`, so the position comparison was run on
+mangled numbers and passed by luck. It now uses `sed`, and the restored figure
+is asserted to sit at or just past the observed one rather than merely above
+zero.
+
+Eight suites, 355 checks.
+
+
 ### IMP-008 Media keys do nothing under a bare window manager
-**Status:** suggested
+**Status:** applied
 **Effort:** medium
 **Found:** 2026-09-06, implementing F-051
 **Related:** F-051, F-050, AV-005
@@ -117,8 +145,53 @@ than by not working.
 Not before: the failure it prevents is invisible on the machines available, and
 the failure it could introduce is not.
 
+**Applied 2026-09-07.** `platform/X11MediaKeys` grabs the four `XF86Audio`
+keysyms on the root window when no settings daemon answered. It is reached only
+in that case, so on an ordinary desktop it is compiled and never runs.
+
+**The condition this was deferred against was made rather than waited for.**
+"Worth doing when there is a bare-WM session to test in" — Xephyr is one: a
+nested X server with no window manager and no settings daemon, on which keys can
+be synthesised without any of them reaching the real session. That last point
+matters as much as the first; the previous round of media-key testing paused a
+browser video because global keys go wherever the daemon sends them.
+
+**Two real defects turned up that no amount of reading would have found**, which
+is the entry's own argument for not writing this blind:
+
+1. `MediaKeys::attach` returned early when there was no session bus at all —
+   before the fallback was constructed. A bare window manager frequently has no
+   session bus, so the one case a global grab exists for was the one case that
+   could never reach it.
+2. **A grab must not be claimed and released by activity the way a registration
+   is**, and the first version did exactly that, inheriting IMP-009's rule.
+   Under a bare window manager there may be no manager to focus the window, and
+   nothing plays until a key starts it — so "wanted" could never become true,
+   and the keys did nothing at all. The distinction is real and now written
+   down: letting go of a *registration* gives the keys back to another player;
+   letting go of a *grab* gives them to nobody, because a session with no daemon
+   has nobody to give them to. The grab is therefore held for the run.
+
+The grab is also careful about the things a hand-written global hotkey usually
+gets wrong. Every combination of the three locking modifiers is taken
+separately, or the key works until somebody presses Num Lock and then silently
+stops. Xlib reports a refused grab asynchronously and by default kills the
+process, so an error handler catches `BadAccess` and the key is left to whoever
+already holds it, with the partial grab undone rather than left behind.
+
+Verified in the nested session with no window manager, no settings daemon and no
+D-Bus: play started, next advanced twice, previous went back, stop stopped. On
+the real desktop, no grab is attempted and the daemon registration is unchanged.
+`find_package(X11)` is optional, so a Wayland-only or headless machine still
+builds and compiles the class to a stub — confirmed by building with X11
+disabled and checking the grab is absent from the binary.
+
+Wayland with no daemon remains unfixable, by design: there is no global grab to
+make, and that is the compositor's decision.
+
+
 ### IMP-007 SPEC.md's settings table does not say which keys exist
-**Status:** suggested
+**Status:** applied
 **Effort:** small
 **Found:** 2026-09-06, gathering the keys into `platform/Settings`
 **Related:** F-015, F-042, SPEC.md §Settings
@@ -155,7 +228,125 @@ suggestion — a status column, or a check that walks the table and asserts each
 key appears in `Settings`. The second would have caught BUG-019, where a key was
 written on exit and never read on start.
 
-## Applied
+**Applied 2026-09-07**, as the check rather than the status column — and it
+turned out to want both. `tests/spec_test` parses the settings table and holds
+it to the source **in both directions**: every unmarked key must be implemented,
+and every key marked `**Planned.**` must *not* be. A one-way check rots in
+whichever direction nobody is watching, which is how this entry came about — the
+orphan count fell from three to one when F-015 landed and nothing anywhere said
+so.
+
+`ui/geometry` is the one that remained and is now marked. The marker is the
+status column the trade-off was wary of, with the objection answered: a document
+that lies about its own status column is worse than one that says nothing, so
+the markers are checked rather than trusted.
+
+It would have caught BUG-019 — that key was in the table, in the saving code and
+absent from the restoring code, and it took a lit field on the panel before
+anyone noticed.
+
+**The coupling the trade-off warned about is real and was not argued away.**
+Reflowing the settings table breaks this suite, and the failure would look like
+a code problem when it is a formatting one — so the check verifies it found the
+table at all, and names `SPEC.md §Settings` and the exact header row it expected
+when it did not. Each of the four failure modes was provoked against a copy of
+the tree before the suite was believed: an unmarked orphan, an invented key, a
+stale marker, and the table renamed out from under it.
+
+Seven suites now, 328 checks. IMP-004 landed first and made the seventh cheap.
+
+
+### IMP-004 The `check()` test helper is duplicated across every suite
+**Status:** applied
+**Effort:** trivial
+**Found:** 2026-09-02, review after Phase 3
+**Related:** BUILD.md §Tests
+
+`acceptance_transport`, `playlist_model_test`, `metadata_reader_test`,
+`equaliser_test`, `meters_test` and `tokens_test` each define their own identical
+`check()` and failure counter, about fifteen lines apiece. It was four suites
+when this was written.
+
+**Trade-offs:** A shared `tests/Check.h` removes the duplication but couples
+every suite to one header, and each is currently a single self-contained file
+that can be read start to finish without following an include. Fifteen lines
+repeated a few times is cheap; the coupling is permanent. Worth doing only if
+more suites appear or the helper grows beyond printing a line.
+
+**Deferred 2026-09-02.** Trigger: a fifth test suite.
+
+**The trigger has fired, twice.** `meters_test` arrived in Phase 4 and
+`tokens_test` in Phase 5, so the helper is now copied six times rather than
+four, and the shared header would be shaped by six real callers. The condition
+this was deferred against no longer holds; whether to act on that is still the
+author's, but it should be decided rather than left to drift — the count only
+goes up.
+
+**Applied 2026-09-07.** `tests/Check.h` holds `check`, the counter and a
+`summary()` that prints the last line and returns the exit status. All six
+suites use it and none defines its own; 78 lines went and 30 came back, and the
+header itself is 65 — **so the saving in lines is roughly nothing, and that was
+never the point.**
+
+The point is what the copies had already done. `tokens_test`'s `check` was
+missing the `std::fflush` the other five had, so a suite that aborted mid-run
+lost its buffered tail — and the tail is the part naming the check it died on.
+Several of these drive a real GStreamer pipeline and can abort. Nobody
+introduced that difference deliberately; it is what six copies of fifteen lines
+do on their own.
+
+**What was given up** is exactly what the trade-off above named: a suite is no
+longer a single file that can be read start to finish without following an
+include. That was a real property and it is gone. It bought a helper that
+cannot drift again, and one place to change when the output format changes —
+which it will, because the count of `[pass]` lines is how the checks in this
+project are counted.
+
+The output is byte-identical: 321 checks pass in Debug and Release, and a
+deliberate failure still prints its detail, reports `FAILED (2 failures)` and
+exits non-zero.
+
+
+### IMP-011 The window still calls itself a Phase 5 harness
+**Status:** applied
+**Effort:** trivial
+**Found:** 2026-09-07, implementing F-043
+**Related:** F-050, F-040
+
+`Main.qml` sets the window title to `Ferrolux RS-1 — Phase 5 harness`. It was
+accurate when it was written and it is what the window manager, the task
+switcher and every screenshot have said since. MPRIS reports the same
+application as `Ferrolux RS-1`, so the desktop is already being told two
+different names for it.
+
+"Harness" in particular stopped being true somewhere in Phase 5, when the panel
+became the application rather than a scaffold around one.
+
+**Trade-offs:** None technically — it is one string. It is logged rather than
+changed because what the window should be called is a presentation decision
+about the product, not a defect: `Ferrolux RS-1` matches MPRIS and the badge on
+the panel, but the author may want the version, the playing track, or nothing
+but `Ferrolux`. Picking one silently would be choosing on the author's behalf,
+and the choice shows up in every screenshot of the project.
+
+**Applied 2026-09-07.** The author chose `Ferrolux RS-1`: it is the badge on the
+panel and what MPRIS already reports, so the desktop now has one name for one
+application instead of two.
+
+The track is deliberately *not* in the title, which was the other candidate and
+is what most players do. It is already published to the shell through MPRIS
+metadata, so a lock screen and a panel applet have it without the window
+carrying it — and a window that renames itself every three minutes is a window
+nobody can find twice in a task switcher. The panel is where the track is
+displayed; the title is the desktop's handle on the application.
+
+The secondary windows keep `Ferrolux — settings` and `Ferrolux — keys` rather
+than repeating the model code. In a window list the three group under the same
+first word, which is what that prefix is for.
+
+Nothing depended on the old string: `tools/verify-scaling.sh` and
+`tools/measure-frames.sh` find the window by `WM_CLASS`, not by title.
+
 
 ### IMP-009 Ferrolux keeps the media keys even when it is not the player being used
 **Status:** applied
@@ -447,30 +638,5 @@ up in a profile, which would require it to cost something it currently does not.
 
 ## Deferred
 
-### IMP-004 The `check()` test helper is duplicated across every suite
-**Status:** deferred
-**Effort:** trivial
-**Found:** 2026-09-02, review after Phase 3
-**Related:** BUILD.md §Tests
-
-`acceptance_transport`, `playlist_model_test`, `metadata_reader_test`,
-`equaliser_test`, `meters_test` and `tokens_test` each define their own identical
-`check()` and failure counter, about fifteen lines apiece. It was four suites
-when this was written.
-
-**Trade-offs:** A shared `tests/Check.h` removes the duplication but couples
-every suite to one header, and each is currently a single self-contained file
-that can be read start to finish without following an include. Fifteen lines
-repeated a few times is cheap; the coupling is permanent. Worth doing only if
-more suites appear or the helper grows beyond printing a line.
-
-**Deferred 2026-09-02.** Trigger: a fifth test suite.
-
-**The trigger has fired, twice.** `meters_test` arrived in Phase 4 and
-`tokens_test` in Phase 5, so the helper is now copied six times rather than
-four, and the shared header would be shaped by six real callers. The condition
-this was deferred against no longer holds; whether to act on that is still the
-author's, but it should be decided rather than left to drift — the count only
-goes up.
-
+*None.*
 

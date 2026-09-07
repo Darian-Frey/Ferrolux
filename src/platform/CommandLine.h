@@ -28,6 +28,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 
 #include "app/Player.h"
@@ -50,10 +51,15 @@ public:
         bool handled = false;
     };
 
-    // Parses the application's own arguments. Paths become absolute here, on
-    // the machine that typed them, because a relative path handed to a player
-    // running in another working directory means a different file or none.
-    static Result parse();
+    // Parses `arguments` in the form `QCoreApplication::arguments()` returns.
+    // Taken rather than fetched, so the mapping from flags to modes can be
+    // exercised without a process per case: `arguments()` is fixed when the
+    // application is constructed, and only one of those exists at a time.
+    //
+    // Paths become absolute here, on the machine that typed them, because a
+    // relative path handed to a player running in another working directory
+    // means a different file or none at all.
+    static Result parse(const QStringList &arguments);
 
     // The wire forms of `Player::Open`, for handing a request to an instance
     // that is already running. Words rather than the enumerator's number, so

@@ -12,7 +12,7 @@ namespace ferrolux::platform {
 
 using app::Player;
 
-CommandLine::Result CommandLine::parse()
+CommandLine::Result CommandLine::parse(const QStringList &arguments)
 {
     QCommandLineParser parser;
     parser.setApplicationDescription(
@@ -44,7 +44,7 @@ CommandLine::Result CommandLine::parse()
 
     // `process` exits the application itself for --help, --version and for a
     // malformed option, which is why nothing below has to handle those.
-    parser.process(QCoreApplication::arguments());
+    parser.process(arguments);
 
     // Later forms win rather than being an error. Someone who writes both meant
     // the more decisive of the two, and refusing to start over an argument is a

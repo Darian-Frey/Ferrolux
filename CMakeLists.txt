@@ -36,6 +36,8 @@ qt_add_executable(ferrolux
     src/platform/SingleInstance.h
     src/platform/MediaKeys.cpp
     src/platform/MediaKeys.h
+    src/platform/X11MediaKeys.cpp
+    src/platform/X11MediaKeys.h
     src/platform/MprisService.cpp
     src/platform/MprisService.h
     src/platform/Session.cpp
@@ -142,6 +144,16 @@ qt_add_resources(ferrolux "ferrolux_panel_assets"
 
 target_include_directories(ferrolux PRIVATE src)
 
+# IMP-008. The media-key grab of last resort, for X11 sessions with no settings
+# daemon. Optional on purpose: a Wayland-only or headless machine still builds,
+# and `X11MediaKeys` compiles to a stub that reports it cannot help.
+find_package(X11)
+if(X11_FOUND)
+    message(STATUS "X11 found — media keys will fall back to a global grab")
+else()
+    message(STATUS "X11 not found — media keys rely on a settings daemon or MPRIS")
+endif()
+
 target_link_libraries(ferrolux PRIVATE
     Qt6::Quick
     # MPRIS2 (F-050). Only the application links it: the point of platform/ is
@@ -150,6 +162,11 @@ target_link_libraries(ferrolux PRIVATE
     PkgConfig::GStreamer
     PkgConfig::TagLib
 )
+
+if(X11_FOUND)
+    target_link_libraries(ferrolux PRIVATE X11::X11)
+    target_compile_definitions(ferrolux PRIVATE FERROLUX_HAVE_X11)
+endif()
 
 enable_testing()
 
@@ -200,6 +217,7 @@ qt_add_shaders(frame_bench "frame_bench_meter_shaders"
 # FERROLUX_TEST_MP3 are set at configure time.
 qt_add_executable(acceptance_transport
     tests/acceptance_transport.cpp
+    tests/Check.h
     src/core/Engine.cpp
     src/core/Engine.h
     src/core/Equaliser.cpp
@@ -220,8 +238,32 @@ target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreame
 # for. Each of those is a way for the panel to go quietly wrong: a token that
 # resolves to nothing draws black, and a face that fails to load substitutes a
 # system font mid-readout.
+# IMP-010. The parts of platform/ that need nothing but the build — which is
+# CommandLine's wire protocol. The rest needs a session bus and two processes,
+# and is tools/verify-desktop.sh.
+qt_add_executable(platform_test
+    tests/platform_test.cpp
+    tests/Check.h
+    src/platform/CommandLine.cpp
+    src/platform/CommandLine.h
+)
+target_include_directories(platform_test PRIVATE src)
+target_link_libraries(platform_test PRIVATE Qt6::Core)
+add_test(NAME platform COMMAND platform_test)
+
+# IMP-007. Reads the documents rather than the build: it holds SPEC.md
+# §Settings and the source to each other, in both directions.
+qt_add_executable(spec_test
+    tests/spec_test.cpp
+    tests/Check.h
+)
+target_include_directories(spec_test PRIVATE src)
+target_link_libraries(spec_test PRIVATE Qt6::Core)
+add_test(NAME spec COMMAND spec_test ${CMAKE_CURRENT_SOURCE_DIR})
+
 qt_add_executable(tokens_test
     tests/tokens_test.cpp
+    tests/Check.h
     src/ui/ThemeTokens.cpp
     src/ui/ThemeTokens.h
 )
@@ -232,6 +274,7 @@ add_test(NAME tokens COMMAND tokens_test "${CMAKE_CURRENT_SOURCE_DIR}")
 # Phase 2 playlist tests. Pure logic over URLs, so these are self-contained.
 qt_add_executable(playlist_model_test
     tests/playlist_model_test.cpp
+    tests/Check.h
     src/library/PlaylistModel.cpp
     src/library/PlaylistModel.h
     src/library/PlaylistIO.cpp
@@ -245,6 +288,7 @@ add_test(NAME playlist COMMAND playlist_model_test)
 
 qt_add_executable(metadata_reader_test
     tests/metadata_reader_test.cpp
+    tests/Check.h
     src/library/MetadataReader.cpp
     src/library/MetadataReader.h
 )
@@ -253,6 +297,7 @@ target_link_libraries(metadata_reader_test PRIVATE Qt6::Core PkgConfig::TagLib)
 
 qt_add_executable(equaliser_test
     tests/equaliser_test.cpp
+    tests/Check.h
     src/core/Equaliser.cpp
     src/core/Equaliser.h
 )
@@ -262,6 +307,7 @@ add_test(NAME equaliser COMMAND equaliser_test)
 
 qt_add_executable(meters_test
     tests/meters_test.cpp
+    tests/Check.h
     src/ui/VisualSettings.cpp
     src/ui/VisualSettings.h
     src/meters/MeterSource.cpp

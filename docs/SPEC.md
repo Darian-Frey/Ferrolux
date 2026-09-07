@@ -355,11 +355,13 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `ui/theme` | string | `ferric` | Token set name. A name that no longer resolves falls back to the default and says so — a set renamed or removed since it was chosen is a stale setting, not a reason to start with no appearance |
 | `ui/display-inverted` | bool | false | Draws the display well lit-ground with dark text rather than dark-ground with lit text. A different instrument rather than the same one recoloured, so it is a setting and not a token |
 | `ui/compact` | bool | false | F-042 |
-| `ui/geometry` | bytearray | — | Window position and size |
+| `ui/geometry` | bytearray | — | **Planned.** Window position and size. Belongs to no feature entry; recorded here so the table does not imply the application already does this. `tests/spec_test` holds every unmarked key to being implemented, and every marked one to not being — so this marker cannot rot in either direction |
 | `session/playlist` | string | — | Path to the auto-saved session playlist. F-015 |
 | `session/track` | int | −1 | Row that was current, as an index into that playlist |
 | `session/order` | list\<int\> | — | Play order, as a permutation of row indices. **Absent means sequential** — the identity permutation is rebuilt for nothing, and writing it out would be a cost paid by everyone who does not use shuffle. Saved because F-012 requires the order to be *held* rather than recomputed, and restoring `playback/shuffle` and reshuffling is that recomputation performed at launch |
 | `session/position` | int64 | 0 | Nanoseconds into the current track |
+
+A row marked **Planned** is a key the specification describes and the application does not yet read or write. The distinction is worth making in the table rather than left to be discovered: a documented setting that nothing implements is a promise this file is making on the application's behalf, and there is no way to tell one from the other by reading. `tests/spec_test` checks both directions — every unmarked key must appear in the code, and every marked one must not — so the markers cannot quietly stop being true. See IMP-007.
 
 The nine `meters/` keys below `reference-level` are the *proportions of the displays*, and they are settings rather than tokens on purpose. A token set is what the panel is made of and every set must carry every token; these are what the user has set the displays to, and they survive a change of finish because a preference for a coarse ladder is not a preference about paint. Keeping them apart also stops a finish redefining them, which would make choosing a chassis silently change a setting the user chose. Every one is clamped on load as well as on write, because a settings file can be edited by hand and a flame with zero ranks is a division by zero in a shader — which does not throw, it draws something wrong sixty times a second.
 

@@ -76,6 +76,13 @@ A machine with no session bus still builds and still plays. The service says so
 and carries on: losing the desktop's media controls is not a reason to refuse
 to play music.
 
+**X11 is optional and is found rather than required.** Where it is present the
+media keys gain a last-resort global grab for sessions with no settings daemon —
+a bare window manager, typically (IMP-008) — and `libx11-dev` supplies it, which
+`qt6-base-dev` already pulls in on these distributions. Where it is absent, on a
+Wayland-only or headless machine, the build says so and the class compiles to a
+stub; nothing else changes.
+
 **The two measurement tools need more, and none of it is needed to build or
 run the player.** `tools/measure-frames.sh` and `tools/verify-scaling.sh` drive
 a real window and read back what was drawn, so they want a display, a window
@@ -136,9 +143,12 @@ cmake --build build
 
 ## Tests
 
-Six suites, 321 checks. Four are self-contained and need nothing but the build;
-`tokens_test` takes the source directory, because it reads the token sets and
-the faces from the tree:
+Eight suites, 355 checks. Six are self-contained and need nothing but the build;
+`tokens_test` and `spec_test` take the source directory, because they read the
+tree rather than the build: `spec_test` holds SPEC.md §Settings and the code to
+each other in both directions, so an undocumented key and a documented one that
+nothing implements are each a failing check rather than something to be noticed
+by grep. `tokens_test` reads the token sets and the faces from the tree:
 
 ```bash
 ./build-debug/playlist_model_test
@@ -218,7 +228,20 @@ about the code. Both are AV detections and both are run by hand.
 ```bash
 ./tools/measure-frames.sh 4      # AV-002: 60 fps, in a window and offscreen at 4K
 ./tools/verify-scaling.sh        # AV-005: the panel at 1x, 1.5x, 2x and 3x
+./tools/verify-desktop.sh        # IMP-010: platform/ against a real session
 ```
+
+`verify-desktop.sh` is a tool for the same reason as the other two: an MPRIS
+service needs a session bus and a single-instance hand-off needs two processes,
+so a build machine with neither would report a failure that says nothing about
+the code. It needs `gdbus` and a session bus, and no display — the player is
+asked to quit over MPRIS rather than having its window closed, which is also
+what keeps it honest, since SIGTERM never reaches `aboutToQuit` and a tool that
+kills the process is checking that nothing was saved.
+
+**It is hermetic.** `XDG_CONFIG_HOME` and `XDG_DATA_HOME` point into a
+temporary directory, so the settings it writes, the session it saves and the
+playlist it leaves behind are its own, and running it cannot disturb yours.
 
 `measure-frames.sh` runs two passes. The window pass measures the whole
 application at the sizes the display can render; the offscreen pass renders the

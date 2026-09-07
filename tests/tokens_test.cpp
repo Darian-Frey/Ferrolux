@@ -22,6 +22,7 @@
 // verification pass. Loading a font needs QGuiApplication for the font database
 // but not a display; the offscreen platform is enough.
 
+#include "Check.h"
 #include "ui/ThemeTokens.h"
 
 #include <QDir>
@@ -34,17 +35,11 @@
 
 using ferrolux::ui::ThemeTokens;
 
+using ferrolux::tests::check;
+using ferrolux::tests::failures;
+
 namespace {
 
-int failures = 0;
-
-void check(bool ok, const char *what, const QString &detail = {})
-{
-    if (!ok)
-        ++failures;
-    std::printf("  [%s] %s%s\n", ok ? "pass" : "FAIL", what,
-                detail.isEmpty() ? "" : qPrintable(QStringLiteral(" — ") + detail));
-}
 
 // SPEC.md §Design tokens, transcribed. If this table and the document disagree,
 // the document wins and this is the bug.
@@ -370,7 +365,5 @@ int main(int argc, char *argv[])
         testContrast(set.name(), set);
     }
 
-    std::printf("\n%s (%d failure%s)\n", failures == 0 ? "PASSED" : "FAILED",
-                failures, failures == 1 ? "" : "s");
-    return failures == 0 ? 0 : 1;
+    return ferrolux::tests::summary();
 }

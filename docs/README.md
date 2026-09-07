@@ -6,7 +6,7 @@
 > **Why this status:** Phases 1 to 5 are built. Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 321 checks across six suites pass in Debug and Release.
+> invertible. 355 checks across eight suites pass in Debug and Release.
 >
 > Two acceptance criteria are measured rather than asserted, and both are the
 > reason the project exists. AV-002: every display holds 60 fps at 3840×2160
@@ -74,7 +74,7 @@ ferrolux/
 ├── resources/
 │   ├── fonts/         # The four OFL faces of D-012, with their licences
 │   └── themes/        # Token sets: ferric, anodised, glacier, ember
-├── tests/             # Six suites, plus frame_bench which is a tool
+├── tests/             # Eight suites, plus frame_bench which is a tool
 ├── tools/             # Fixtures, fonts, and the AV-002 and AV-005 measurements
 └── docs/              # This documentation set
 ```

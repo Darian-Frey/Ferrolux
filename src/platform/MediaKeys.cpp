@@ -12,6 +12,7 @@
 #include "app/Player.h"
 #include "core/Engine.h"
 #include "library/PlaylistModel.h"
+#include "platform/X11MediaKeys.h"
 
 namespace ferrolux::platform {
 
@@ -41,10 +42,6 @@ MediaKeys::~MediaKeys()
 
 bool MediaKeys::attach(QObject *window)
 {
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected())
-        return false;
-
     m_window = window;
 
     // In order. GNOME's own name first, then the compatibility name its daemon
@@ -63,7 +60,13 @@ bool MediaKeys::attach(QObject *window)
           QStringLiteral("org.mate.SettingsDaemon.MediaKeys") },
     };
 
-    for (const Daemon &daemon : daemons) {
+    // Only if there is a bus to ask. A session with none is not an error and is
+    // exactly where the fallback below earns its keep: **this used to return
+    // here**, so the one case a global grab exists for — a bare window manager,
+    // which frequently has no session bus either — was the one case that never
+    // reached it.
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    for (const Daemon &daemon : (bus.isConnected() ? daemons : QList<Daemon>{})) {
         // Watched whether or not it is running now. A daemon that restarts
         // silently drops every grab it was holding, and a player that
         // registered once and then stops responding to the keys — with no
@@ -88,11 +91,34 @@ bool MediaKeys::attach(QObject *window)
     if (m_window)
         connect(m_window, SIGNAL(activeChanged()), this, SLOT(evaluate()));
 
+    // No daemon on this session. That is a bare window manager, or a desktop
+    // that expects MPRIS to carry the keys — F-050 covers the second, and the
+    // first has nobody to ask, so the keys have to be taken. IMP-008.
+    if (m_available.service.isEmpty() && X11MediaKeys::possible()) {
+        m_grab = new X11MediaKeys(m_player, this);
+
+        // **Taken once and held, unlike the daemon registration**, and the
+        // difference is not an oversight. Handing a registration back gives the
+        // keys to whichever player registered before this one; letting go of a
+        // grab gives them to nobody, because there is no daemon on this session
+        // to give them to. A polite grab is a key that does nothing at all.
+        //
+        // It also cannot be conditional on being the session in use, because
+        // the condition can never become true: under a bare window manager
+        // there may be no manager to focus the window, and nothing is playing
+        // until a key starts it. Waiting to be wanted means waiting for
+        // something that only the key being wanted could cause — which is
+        // exactly what the first version of this did, and it did nothing at all
+        // in the one session it exists for.
+        if (!m_grab->grab())
+            qCInfo(lcKeys) << "no media keys on this keyboard, or another client holds them";
+    }
+
     // Once now, because a restored session or a `--play` on the command line
     // can already be playing by the time this runs.
     evaluate();
 
-    return !m_available.service.isEmpty();
+    return !m_available.service.isEmpty() || m_grab != nullptr;
 }
 
 bool MediaKeys::wanted() const
@@ -112,6 +138,8 @@ bool MediaKeys::wanted() const
 
 void MediaKeys::evaluate()
 {
+    // Only the daemon registration is claimed and released by activity. The
+    // grab is held for the run — see `attach`.
     if (m_available.service.isEmpty())
         return;
 
