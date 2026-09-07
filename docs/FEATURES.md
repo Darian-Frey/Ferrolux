@@ -107,7 +107,13 @@ People who keep a local music library on Linux and want a player with the charac
 **Priority:** Should
 **Acceptance:**
 - Playlist contents, current track, playback position and play order restored on next launch
-**Status:** Not started (Phase 6)
+**Status:** **Met** 2026-09-07 (Phase 6). `platform/Session` writes the contents to a playlist file under `~/.local/share/ferrolux/` and the other three to SPEC.md §Settings. Verified: an album played to 49.9 s on row 2 came back on the next launch as the same 16 entries, the same row, and 49922197 µs — the saved figure to the nanosecond.
+
+**Play order means the permutation, not the shuffle flag.** F-012's acceptance is explicit that shuffle is an order the model *holds* and does not recompute on each advance, so restoring `playback/shuffle` and letting the model reshuffle would perform exactly that recomputation, once, at launch: shuffle would be on, the list would be in *a* random order, every visible symptom would be right, and the tracks coming up would not be the ones that were coming up when the user quit. Nobody would ever be able to say why. The permutation is therefore saved whole and adopted whole — verified by comparing the stored order across a quit and a restart, byte for byte identical, where a reshuffle of sixteen entries would almost certainly differ.
+
+**Nothing resumes playing.** The position is restored so that pressing Play continues where it left off, and that is as far as it goes; a player that starts on launch because it was playing when it closed makes noise in a quiet room. Confirmed: the restored state reports `Paused`, never `Playing`.
+
+Three cases were driven rather than reasoned about. Paths on the command line are added to the restored session rather than instead of it, and suppress the position seek — resuming into a position belonging to a track the user did not ask for is worse than starting theirs at zero. A play order that does not describe the playlist beside it is refused, with the contents kept and the order rebuilt, because an order indexing entries that are not there is a crash rather than a wrong order. And clearing the playlist removes the keys and the file, so emptying it on purpose is not undone by the next launch.
 
 ---
 

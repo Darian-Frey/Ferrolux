@@ -240,7 +240,7 @@ has an unlit ghost and the title does not.
 - [x] MPRIS2 service (F-050) — `platform/MprisService`, both interfaces at the specified path, every property and method exercised with a bus client and the shell observed discovering it. `Qt6::DBus` is linked by the application target alone, so no test suite acquires a dependency on a session bus, and a machine without one warns and plays on
 - [x] Media key handling under X11 and Wayland (F-051) — `platform/MediaKeys` registers with the settings daemon of GNOME, Cinnamon or MATE, and F-050 covers the desktops that route the keys through MPRIS. The split is by desktop rather than by display server, which is not what the feature note assumed and was found by measuring. X11 under a bare window manager is left over and is IMP-008
 - [x] Single-instance with enqueue semantics and CLI arguments (F-052) — `platform/CommandLine` and `platform/SingleInstance`. The name is claimed before the pipeline exists, so a second launch hands over and exits without opening the audio device. The bare default appends and selects only into an empty list, which is what reconciles the two acceptance clauses that read as contradictory; `--replace` plays, which F-052 does not say and is recorded as a judgement in the feature entry
-- [ ] Session restore
+- [x] Session restore (F-015) — `platform/Session`. Contents to a playlist file, the rest to SPEC.md §Settings, which gains `session/track` and `session/order`. The play order is the *permutation* rather than the shuffle flag, because F-012 requires it to be held rather than recomputed and reshuffling on restore is that recomputation at launch. Nothing resumes playing
 - [ ] Full keyboard control with an in-app shortcut reference
 - [ ] Desktop entry, icon set, MIME associations
 

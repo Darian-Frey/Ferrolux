@@ -38,6 +38,7 @@
 #include "platform/CommandLine.h"
 #include "platform/MediaKeys.h"
 #include "platform/MprisService.h"
+#include "platform/Session.h"
 #include "platform/Settings.h"
 #include "platform/SingleInstance.h"
 #include "core/Equaliser.h"
@@ -53,6 +54,7 @@ using ferrolux::meters::MeterTexture;
 using ferrolux::platform::CommandLine;
 using ferrolux::platform::MediaKeys;
 using ferrolux::platform::MprisService;
+using ferrolux::platform::Session;
 using ferrolux::platform::Settings;
 using ferrolux::platform::SingleInstance;
 using ferrolux::ui::ThemeTokens;
@@ -130,6 +132,15 @@ int main(int argc, char *argv[])
         QObject::connect(&app, &QGuiApplication::aboutToQuit,
                          &persisted, &Settings::save);
 
+        // F-015. After the settings, because `playback/shuffle` decides what
+        // order `loadFrom` builds before the saved one is adopted over it, and
+        // before the command line, because paths given there are added to the
+        // session rather than instead of it.
+        Session session(&player);
+        const bool restored = session.restore();
+        QObject::connect(&app, &QGuiApplication::aboutToQuit,
+                         &session, &Session::save);
+
         // F-050. Constructed before the window because the adaptors are built
         // with it; the bus name is claimed in `attach` once there is a window
         // to raise.
@@ -172,6 +183,13 @@ int main(int argc, char *argv[])
         // `Player::Open` holds the rules; `CommandLine` holds which of them the
         // user asked for.
         player.open(invocation.paths, invocation.mode);
+
+        // Only into the track the session left current. Paths on the command
+        // line have selected one of their own by now, and seeking that to a
+        // position belonging to a different track is worse than starting it at
+        // the beginning.
+        if (restored && invocation.paths.isEmpty())
+            session.resume();
 
         qml.load(QUrl(QStringLiteral("qrc:/qt/qml/Ferrolux/qml/Main.qml")));
         if (qml.rootObjects().isEmpty())

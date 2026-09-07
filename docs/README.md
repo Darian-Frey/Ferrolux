@@ -67,7 +67,7 @@ ferrolux/
 │   ├── library/       # Playlist model, metadata, playlist file I/O
 │   ├── ui/            # Token sets, and the display proportions of F-036
 │   ├── app/           # Player — the wiring, and the only module joining peers
-│   ├── platform/      # Settings, MPRIS2, media keys, single instance, CLI
+│   ├── platform/      # Settings, session, MPRIS2, keys, single instance, CLI
 │   └── main.cpp       # Process startup, QML context, fonts, command line
 ├── qml/               # Panel components, flat — Main, PanelSection, Slot, …
 │   └── shaders/       # .frag sources, compiled by qsb at build time

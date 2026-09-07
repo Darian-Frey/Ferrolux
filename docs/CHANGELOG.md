@@ -452,6 +452,35 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   touches any of them. Each was verified by hand and none of those checks will
   run again by themselves.
 
+- Session restore (F-015): `platform/Session`. The playlist contents go to a
+  playlist file under `~/.local/share/ferrolux/`, because that is what a
+  playlist file is for and it stays readable by anything else; the track, the
+  position and the play order go to SPEC.md §Settings, which gains
+  `session/track` and `session/order` and now implements the two `session/`
+  keys it had declared and never used.
+
+  **Play order means the permutation, not the shuffle flag.** F-012's acceptance
+  is explicit that shuffle is an order the model holds and does not recompute on
+  each advance — so restoring `playback/shuffle` and letting the model reshuffle
+  would perform exactly that recomputation at launch. Shuffle would be on, the
+  list would be in *a* random order, every visible symptom would be right, and
+  the tracks coming up would not be the ones that were coming up when the user
+  quit. The permutation is saved whole and adopted whole; `session/order` is
+  omitted when it is the identity, so nobody who plays in order pays for it.
+  Verified across a quit and a restart, byte for byte identical.
+
+  Nothing resumes playing: the position is restored so Play continues where it
+  left off, and a player that starts on its own because it was playing when it
+  closed makes noise in a quiet room. Three awkward cases were driven rather
+  than reasoned about — command-line paths add to the restored session and
+  suppress the seek, an order that does not describe its playlist is refused
+  with the contents kept, and clearing the playlist removes the keys and the
+  file.
+
+  `PlaylistModel` gains `playOrder()` and `adoptOrder()`, the latter refusing
+  anything that is not a permutation of exactly the rows present: an order
+  indexing entries that are not there is a crash rather than a wrong order.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

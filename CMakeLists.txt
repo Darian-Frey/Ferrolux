@@ -38,6 +38,8 @@ qt_add_executable(ferrolux
     src/platform/MediaKeys.h
     src/platform/MprisService.cpp
     src/platform/MprisService.h
+    src/platform/Session.cpp
+    src/platform/Session.h
     src/platform/Settings.cpp
     src/platform/Settings.h
     src/app/Player.cpp

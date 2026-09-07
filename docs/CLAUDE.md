@@ -35,6 +35,9 @@ across six suites** pass in both Debug and Release.
   offers the transport surface the desktop services need. `app/` is the only
   module allowed to depend on several peers; the other four still include
   nothing from one another, which is what keeps each testable alone
+- `src/platform/Session.{h,cpp}` — F-015. Contents to a playlist file, track,
+  position and play *order* to the settings. The order is the permutation, not
+  the shuffle flag
 - `src/platform/SingleInstance.{h,cpp}` and `CommandLine.{h,cpp}` — F-052. The
   name is claimed before the pipeline exists, so a second launch never opens the
   audio device. `Q_CLASSINFO("D-Bus Interface", ...)` is **required** on an
@@ -63,10 +66,10 @@ across six suites** pass in both Debug and Release.
   `frame_bench`, which is a tool rather than a test
 - `tools/` — `make-fonts.sh`, `make-test-fixtures.sh`, `measure-frames.sh`
   (AV-002's detection), `verify-scaling.sh` (AV-005's)
-- `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`
-  and `CommandLine`; session restore and the desktop entry are the rest of
-  Phase 6. `Qt6::DBus` is linked by the application target alone, and none of
-  the five is covered by a test suite — IMP-010
+- `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`,
+  `CommandLine` and `Session`; the desktop entry is the rest of Phase 6.
+  `Qt6::DBus` is linked by the application target alone, and none of the six is
+  covered by a test suite — IMP-010
 
 **No open bugs and no suggested improvements.** Twenty-two bugs found so far,
 twenty-one fixed and one won't-fix upstream (BUG-006). Read BUGS.md before
@@ -91,9 +94,9 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
 which is done: the wiring is out of `main()` before four more consumers went
 into it. `platform/Settings`, `platform/MprisService` (F-050), `platform/MediaKeys`
-(F-051) and `platform/SingleInstance` with `platform/CommandLine` (F-052) are
-done. What remains is session restore (F-015), keyboard control (F-043) and the
-desktop entry.
+(F-051), `platform/SingleInstance` with `platform/CommandLine` (F-052) and
+`platform/Session` (F-015) are done. What remains is keyboard control (F-043)
+and the desktop entry.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
@@ -127,6 +130,11 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **A shuffle is an order that is *held*, not a flag that regenerates one.**
+  F-012 says so and F-015 depends on it: restoring `playback/shuffle` and
+  letting the model reshuffle looks completely correct — shuffle on, list
+  shuffled — while silently changing what comes next. The permutation is saved
+  and adopted whole.
 - **`Engine::Paused` means two different things**, and telling them apart needs
   state the engine does not carry. A track loaded from the command line sits at
   `Paused` on row 0 having never made a sound; so does a session paused halfway

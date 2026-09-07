@@ -591,6 +591,31 @@ void PlaylistModel::setCurrentRow(int row)
     emit currentEntryChanged(m_entries.at(row).url);
 }
 
+bool PlaylistModel::adoptOrder(const QList<int> &order, int row)
+{
+    if (order.size() != m_entries.size())
+        return false;
+
+    // Every row exactly once. Checked rather than assumed because the order
+    // comes from a file that a hand edit, a crash mid-write or a playlist saved
+    // by an older version could each leave inconsistent with the entries.
+    QList<bool> seen(m_entries.size(), false);
+    for (int value : order) {
+        if (value < 0 || value >= m_entries.size() || seen.at(value))
+            return false;
+        seen[value] = true;
+    }
+
+    m_order = order;
+    emitOrderSignals();
+
+    // Prepared, not played. Restoring a session should put the panel back where
+    // it was, and starting to play on launch is a decision only the user makes.
+    if (row >= 0)
+        selectWithoutPlaying(row);
+    return true;
+}
+
 void PlaylistModel::selectWithoutPlaying(int row)
 {
     if (row < 0 || row >= m_entries.size())

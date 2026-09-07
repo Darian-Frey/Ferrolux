@@ -98,6 +98,20 @@ public:
 
     const PlaylistEntry &entryAt(int row) const { return m_entries.at(row); }
 
+    // The play order itself, as a permutation of row indices — not the shuffle
+    // *flag*, which says only how the permutation was made. F-012's whole point
+    // is that the order is held rather than recomputed on each advance, so
+    // F-015 cannot restore it by turning shuffle back on and reshuffling: that
+    // is the recomputation F-012 forbids, performed across a restart.
+    QList<int> playOrder() const { return m_order; }
+
+    // Adopts an order saved from a previous run and selects `row` in it without
+    // starting playback. Refuses anything that is not a permutation of exactly
+    // the rows now present — a session file that has drifted out of step with
+    // the playlist beside it would otherwise leave `m_order` indexing entries
+    // that are not there, which is a crash rather than a wrong order.
+    bool adoptOrder(const QList<int> &order, int row);
+
     QString currentTitle() const;
     QString currentArtist() const;
     QString currentAlbum() const;

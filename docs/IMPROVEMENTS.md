@@ -101,17 +101,22 @@ the failure it could introduce is not.
 **Found:** 2026-09-06, gathering the keys into `platform/Settings`
 **Related:** F-015, F-042, SPEC.md §Settings
 
-The table lists twenty-seven keys with a type, a default and a note. Three of
-them are not read or written by any code in the tree — `ui/geometry`,
+The table listed twenty-seven keys with a type, a default and a note. Three of
+them were not read or written by any code in the tree — `ui/geometry`,
 `session/playlist` and `session/position` — and nothing in the table
-distinguishes them from the twenty-four that are.
+distinguished them from the twenty-four that were. It is twenty-nine keys and
+one such row now; see below.
 
-Two of the three are honestly pending: `session/playlist` and `session/position`
-are F-015, which is still to come in this phase. `ui/geometry` belongs to no
-feature entry at all, which is why it is worth recording rather than assuming
-somebody has it in hand — a documented setting that nothing implements and
-nothing is committed to implementing is a promise the file is making on the
-application's behalf.
+Two of the three were honestly pending — `session/playlist` and
+`session/position` were F-015's, and F-015 landed on 2026-09-07, bringing
+`session/track` and `session/order` with it. **`ui/geometry` is the one that
+remains, and it belongs to no feature entry at all**, which is why it was worth
+recording rather than assuming somebody had it in hand: a documented setting
+that nothing implements and nothing is committed to implementing is a promise
+the file is making on the application's behalf.
+
+That the count went from three to one without anybody checking is the argument
+for the fix rather than against it. Nothing would have said so.
 
 **Trade-offs:** A status column adds a field that has to be kept true, and a
 document that lies about its own status column is worse than one that says
