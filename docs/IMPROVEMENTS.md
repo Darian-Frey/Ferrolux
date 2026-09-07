@@ -22,6 +22,28 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
+### IMP-011 The window still calls itself a Phase 5 harness
+**Status:** suggested
+**Effort:** trivial
+**Found:** 2026-09-07, implementing F-043
+**Related:** F-050, F-040
+
+`Main.qml` sets the window title to `Ferrolux RS-1 — Phase 5 harness`. It was
+accurate when it was written and it is what the window manager, the task
+switcher and every screenshot have said since. MPRIS reports the same
+application as `Ferrolux RS-1`, so the desktop is already being told two
+different names for it.
+
+"Harness" in particular stopped being true somewhere in Phase 5, when the panel
+became the application rather than a scaffold around one.
+
+**Trade-offs:** None technically — it is one string. It is logged rather than
+changed because what the window should be called is a presentation decision
+about the product, not a defect: `Ferrolux RS-1` matches MPRIS and the badge on
+the panel, but the author may want the version, the playing track, or nothing
+but `Ferrolux`. Picking one silently would be choosing on the author's behalf,
+and the choice shows up in every screenshot of the project.
+
 ### IMP-010 `platform/` has four classes and no automated coverage
 **Status:** suggested
 **Effort:** medium

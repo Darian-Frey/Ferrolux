@@ -55,7 +55,9 @@ across six suites** pass in both Debug and Release.
   dependency to remember a fold
 - `src/main.cpp` — entry point, QML context, fonts and the command line. 205
   lines, down from 378, and it no longer contains a `connect` or a settings key
-- `qml/` — fifteen components and `shaders/`. `Main.qml` is the window's
+- `qml/` — seventeen components and `shaders/`. `Shortcuts.qml` has no
+  appearance: it is the keyboard table F-043 binds from and `KeyGuide.qml`
+  prints, so the reference cannot disagree with the bindings. `Main.qml` is the window's
   layout; everything it draws with is panel chrome. `SettingsWindow.qml` is a
   second top-level window rather than a panel drawer, so that a display stays
   visible and running while its proportions are dragged
@@ -94,9 +96,11 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
 which is done: the wiring is out of `main()` before four more consumers went
 into it. `platform/Settings`, `platform/MprisService` (F-050), `platform/MediaKeys`
-(F-051), `platform/SingleInstance` with `platform/CommandLine` (F-052) and
-`platform/Session` (F-015) are done. What remains is keyboard control (F-043)
-and the desktop entry.
+(F-051), `platform/SingleInstance` with `platform/CommandLine` (F-052),
+`platform/Session` (F-015) and keyboard control (F-043) are done. **The desktop
+entry, icon set and MIME associations are all that remain in Phase 6** — and
+they would also let `MprisRoot` gain the `DesktopEntry` property left out until
+that file exists.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
@@ -130,6 +134,10 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **A `Shortcut` at window scope fires while a text field has focus.** A bare
+  letter binding is therefore a letter that cannot be typed into the preset
+  dialog. The set is disabled whenever the focused item has a `selectedText`,
+  and the sequences avoid bare letters as well.
 - **A shuffle is an order that is *held*, not a flag that regenerates one.**
   F-012 says so and F-015 depends on it: restoring `playback/shuffle` and
   letting the model reshuffle looks completely correct — shuffle on, list

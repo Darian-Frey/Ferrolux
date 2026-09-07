@@ -56,7 +56,22 @@ Item {
     // they describe the scale and never change, so they are `ink` and unlit.
     property int ticks: 0
 
+    // What one press of an arrow key moves the value by, and what one press of
+    // Page Up or Page Down moves it by. F-043 wants the equaliser reachable
+    // from the keyboard, and a fader is not reachable if the only way to set it
+    // is to aim at a lever a few pixels wide. Defaults are a twentieth and a
+    // fifth of the range, which suit a level; a gain in decibels overrides
+    // `step` to 1 so that arrowing lands on the whole numbers the readout
+    // prints, rather than a fifth of a decibel short of them every time.
+    property real step: Math.abs(to - from) / 20
+    property real pageStep: Math.abs(to - from) / 5
+
     readonly property alias held: drag.pressed
+
+    // Reachable by Tab. Only the continuous controls take focus this way: the
+    // buttons are all on shortcuts, and a Tab order that stops at twenty things
+    // is a Tab order nobody uses.
+    activeFocusOnTab: enabled
 
     // Emitted continuously during a drag and once on a click, always clamped
     // into range and settled onto the detent when near it. What to do with it
@@ -75,6 +90,39 @@ Item {
     function fractionOf(v) { return Math.max(0, Math.min(1, (v - from) / span)) }
     readonly property real fraction: fractionOf(value)
     readonly property real originFraction: fractionOf(origin)
+
+    // Arrow keys move by `step`, Page Up and Page Down by `pageStep`, Home and
+    // End to the ends. Both axes are accepted whichever way the slot runs: a
+    // vertical fader answers to Up and Down, and to Left and Right as well,
+    // because which of them a person reaches for is not worth being strict
+    // about. Emitted through `moved` like every other route, so the caller's
+    // policy — seek on release, set at once — is applied to a keypress exactly
+    // as it is to a drag.
+    Keys.onPressed: function (event) {
+        let delta = 0
+        switch (event.key) {
+        case Qt.Key_Right: case Qt.Key_Up:     delta = slot.step; break
+        case Qt.Key_Left:  case Qt.Key_Down:   delta = -slot.step; break
+        case Qt.Key_PageUp:                    delta = slot.pageStep; break
+        case Qt.Key_PageDown:                  delta = -slot.pageStep; break
+        case Qt.Key_Home:
+            slot.moved(slot.from); slot.released(); event.accepted = true; return
+        case Qt.Key_End:
+            slot.moved(slot.to); slot.released(); event.accepted = true; return
+        default:
+            return
+        }
+
+        const next = Math.max(Math.min(slot.from, slot.to),
+                              Math.min(Math.max(slot.from, slot.to), slot.value + delta))
+        slot.moved(next)
+
+        // `released` too, because a control whose caller only acts on release —
+        // the position bar does, per BUG-009 — would otherwise take the key and
+        // do nothing with it.
+        slot.released()
+        event.accepted = true
+    }
 
     // The slot itself, cut into the chassis and therefore dark.
     Rectangle {
@@ -143,6 +191,21 @@ Item {
         }
     }
 
+    // Which control has the keyboard, drawn rather than borrowed. Everything
+    // else in the panel is, and a focus ring supplied by a desktop style would
+    // be the one part of the chassis that came from somewhere else.
+    Rectangle {
+        anchors.fill: track
+        anchors.margins: -Tokens.hairline * 2
+        radius: track.radius + Tokens.hairline * 2
+        color: "transparent"
+        border.width: Tokens.hairline * 2
+        border.color: Tokens.readout
+        opacity: slot.activeFocus ? 0.7 : 0.0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Tokens.travelMs } }
+    }
+
     MouseArea {
         id: drag
         anchors.fill: parent
@@ -163,7 +226,13 @@ Item {
             slot.moved(next)
         }
 
-        onPressed: function(mouse) { report(mouse.x, mouse.y) }
+        // Taking the keyboard as well as the value, so that working a control
+        // with the mouse and then nudging it with an arrow key is one gesture
+        // rather than two unrelated ones.
+        onPressed: function(mouse) {
+            slot.forceActiveFocus(Qt.MouseFocusReason)
+            report(mouse.x, mouse.y)
+        }
         onPositionChanged: function(mouse) { if (pressed) report(mouse.x, mouse.y) }
         onReleased: slot.released()
     }

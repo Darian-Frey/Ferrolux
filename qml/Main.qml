@@ -54,6 +54,47 @@ ApplicationWindow {
         // the application quitting at all. See BUG-021.
     }
 
+    // Every keyboard shortcut, and the reference that prints them. One table
+    // serves both, so the printed list cannot describe a key that does nothing.
+    // F-043.
+    Shortcuts {
+        id: keys
+        playing: window.stateNames[Engine.state] === "Playing"
+
+        onFoldRequested: window.compact = !window.compact
+        onSettingsRequested: {
+            settingsWindow.visible = !settingsWindow.visible
+            if (settingsWindow.visible)
+                settingsWindow.raise()
+        }
+        onGuideRequested: {
+            keyGuide.visible = !keyGuide.visible
+            if (keyGuide.visible)
+                keyGuide.raise()
+        }
+        onAddFilesRequested: addFilesDialog.open()
+        onSavePlaylistRequested: savePlaylistDialog.open()
+    }
+
+    KeyGuide {
+        id: keyGuide
+        groups: keys.groups
+    }
+
+    // Moves the selection by `delta` rows and brings it into view. The anchor
+    // and modifier rules are `selectRow`'s, so a shift-arrow extends a range
+    // exactly as a shift-click does rather than in a second dialect.
+    function stepSelection(delta, modifiers) {
+        if (Playlist.count === 0)
+            return
+        const from = window.selection.length > 0
+                   ? window.selection[window.selection.length - 1] : -1
+        const next = from < 0 ? (delta > 0 ? 0 : Playlist.count - 1)
+                              : Math.max(0, Math.min(Playlist.count - 1, from + delta))
+        window.selectRow(next, modifiers)
+        list.positionViewAtIndex(next, ListView.Contain)
+    }
+
     // The height to come back to, kept up to date rather than snapshotted when
     // the panel folds. A window the user has resized should come back the size
     // they left it, and a snapshot taken at the toggle is only right if nothing
@@ -435,6 +476,55 @@ ApplicationWindow {
                 anchors.margins: Tokens.padRow
                 clip: true
                 model: PlaylistView
+
+                // The list is what the keyboard talks to unless a fader has
+                // been tabbed to, which is the arrangement people expect from
+                // a player: the programme is the thing being worked on.
+                focus: true
+                activeFocusOnTab: true
+
+                // Handled here rather than by `keyNavigationEnabled`, which
+                // moves `currentIndex` and knows nothing about the selection —
+                // and the selection is what every command in the toolbar acts
+                // on. See `stepSelection`.
+                Keys.onUpPressed: function (event) {
+                    window.stepSelection(-1, event.modifiers); event.accepted = true
+                }
+                Keys.onDownPressed: function (event) {
+                    window.stepSelection(1, event.modifiers); event.accepted = true
+                }
+                Keys.onPressed: function (event) {
+                    switch (event.key) {
+                    case Qt.Key_Home:
+                        window.selectRow(0, event.modifiers)
+                        list.positionViewAtBeginning()
+                        break
+                    case Qt.Key_End:
+                        window.selectRow(Playlist.count - 1, event.modifiers)
+                        list.positionViewAtEnd()
+                        break
+                    case Qt.Key_PageUp:
+                        window.stepSelection(-10, event.modifiers)
+                        break
+                    case Qt.Key_PageDown:
+                        window.stepSelection(10, event.modifiers)
+                        break
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                        if (window.selection.length > 0)
+                            Playlist.currentRow = window.selection[0]
+                        break
+                    case Qt.Key_Delete:
+                        if (window.selection.length > 0) {
+                            Playlist.removeRows(window.selection)
+                            window.selection = []
+                        }
+                        break
+                    default:
+                        return
+                    }
+                    event.accepted = true
+                }
                 // Virtualised by default, which is what keeps a 20,000-entry
                 // playlist scrolling at frame rate. See AV-008.
                 cacheBuffer: 200

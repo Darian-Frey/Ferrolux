@@ -261,7 +261,17 @@ Note this is the *feature's* acceptance, all of which is objective. ROADMAP.md P
 **Acceptance:**
 - Full transport, playlist navigation and equaliser reachable from the keyboard
 - Shortcuts discoverable from an in-app reference
-**Status:** Not started (Phase 6)
+**Status:** **Met** 2026-09-07 (Phase 6). `qml/Shortcuts.qml` holds every binding and `qml/KeyGuide.qml` prints them.
+
+**One table serves both, and that is the design rather than a convenience.** `KeyGuide` renders the same list `Shortcuts` binds from, so the reference cannot describe a key that does nothing or omit one that does something. The alternative shape — `Shortcut` objects beside a hand-written list of what they do — is one edit away from lying at all times, and a reference that lies is worse than none because it is believed.
+
+Transport is on shortcuts; **the equaliser is reachable because `Slot` became keyboard-operable**, which was the substantial part. Arrow keys move a fader by `step`, Page Up and Page Down by `pageStep`, Home and End to the ends, and every one goes out through `moved` and `released` exactly as a drag does — so the caller's policy (seek on release for the position bar, per BUG-009; set at once for a volume) applies to a keypress without the control knowing which is which. A gain in decibels overrides `step` to 1 so that arrowing lands on the whole numbers the readout prints. Focus is drawn rather than borrowed, like everything else on the chassis.
+
+Verified against a running panel with synthesised keys: Space toggles play and pause; Ctrl+Left and Ctrl+Right move track and Ctrl+Left inside three seconds restarts, so F-002's rule survives the route; Shift+Right seeks five seconds; Ctrl+Up and Ctrl+Down move volume by 0.05; Ctrl+E switches the equaliser in and out; Ctrl+H toggles shuffle; Ctrl+K folds the panel from 780 px to 206 and back; F1 and Ctrl+, open the guide and the settings; Ctrl+Q exits cleanly. In the playlist, arrows move the selection with the modifier rules of a click, Home, End and Page Up/Down jump, Return plays and Delete removes. Tab cycles the faders and the ring follows.
+
+**Bare letters are deliberately unused.** A `Shortcut` at window scope fires while a text field has focus, so a bare `S` for stop would be a letter that cannot be typed into a preset name. The set is additionally disabled whenever the focused item takes typed characters, so the sequence choice is a second line of defence rather than the only one. The bare arrows are absent for the same class of reason: they belong to whatever has focus.
+
+Two things are honestly imperfect and neither is claimed otherwise. The Tab order follows the item tree rather than the panel's reading order, so it runs volume, playlist, balance, position. And the playlist shows no focus ring of its own — the selected row is lit either way, so there is no way to see whether the list or a fader has the keyboard until a key is pressed.
 
 ### F-044 Theme variants
 **Priority:** Could

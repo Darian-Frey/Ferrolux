@@ -481,6 +481,37 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   anything that is not a permutation of exactly the rows present: an order
   indexing entries that are not there is a crash rather than a wrong order.
 
+- Keyboard control (F-043): `qml/Shortcuts.qml` holds every binding and
+  `qml/KeyGuide.qml` prints them, **from the same table**. That shape is the
+  design rather than a convenience — a reference kept separately from the
+  bindings it describes is one edit away from lying, and it is believed for
+  months afterwards.
+
+  The substantial part was not the shortcuts but making `Slot` keyboard-operable,
+  which is what puts the equaliser bands, the volume, the balance and the seek
+  bar within reach: a fader is not reachable from the keyboard if the only way
+  to set it is to aim at a lever a few pixels wide. Arrows move by `step`, Page
+  Up and Down by `pageStep`, Home and End to the ends, and every one leaves
+  through `moved` and `released` exactly as a drag does, so the caller's policy —
+  seek on release for the position bar per BUG-009, set at once for a volume —
+  applies to a keypress without the control knowing which is which. Focus is
+  drawn rather than borrowed, like everything else on the chassis.
+
+  Bare letters are deliberately unused: a `Shortcut` at window scope fires while
+  a text field has focus, so a bare `S` for stop would be a letter that could not
+  be typed into a preset name. The set is disabled whenever the focused item
+  takes typed characters as well, so the sequence choice is a second line rather
+  than the only one.
+
+  Verified against a running panel with synthesised keys, including that a
+  third top-level window does not bring back BUG-021: the application exits
+  cleanly with the guide open, closed by the manager, and never opened.
+
+- IMP-011 logged, not applied: the window still calls itself
+  `Ferrolux RS-1 — Phase 5 harness` while MPRIS reports `Ferrolux RS-1`, so the
+  desktop is told two names for one application. What it should say is a
+  presentation decision rather than a defect.
+
 ### Fixed
 - BUG-022: every menu opening logged tens of binding-loop warnings. The width
   binding assigned `metrics.text` and read `metrics.width`, writing to the object

@@ -111,6 +111,8 @@ qt_add_qml_module(ferrolux
         qml/EntryField.qml
         qml/SettingsWindow.qml
         qml/SettingRow.qml
+        qml/Shortcuts.qml
+        qml/KeyGuide.qml
 )
 
 # The four bundled faces (D-012) and the token sets (SPEC.md §Design tokens),
