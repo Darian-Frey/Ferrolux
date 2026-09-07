@@ -78,11 +78,13 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**One open bug and no suggested improvements.** Twenty-five bugs found so far,
-twenty-three fixed and one won't-fix upstream (BUG-006). BUG-025 is open: a file
-that will not load stalls the playlist instead of advancing, which is half of
-F-001's second acceptance clause, and fixing it touches the engine's error
-handling and what `Loading` is allowed to mean. Read BUGS.md before
+**Two open bugs and no suggested improvements.** Twenty-seven bugs found so far,
+twenty-four fixed and one won't-fix upstream (BUG-006). BUG-027 is open — a
+broken *next* playlist entry stops the track that is playing, because
+`playbin3` reports a failure to prepare the next URI on the same bus as a
+failure of the current one and `Engine` cannot tell them apart. BUG-026 is open
+and small: `errorBanner` is called twice in `Main.qml` and defined nowhere, so
+two failure messages are `ReferenceError` instead. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -141,6 +143,11 @@ Things established the hard way, which will cost time if forgotten:
 - **`readout-dim` is not a body-text colour** at 3.76:1, and distinguishing one
   item among many means lighting its ground rather than dimming its neighbours.
   BUG-020, now a check in `tokens_test`.
+- **The panel has one place for a message and no transient banner**, so an
+  error that competes with a state change has to be held on a timer rather than
+  shown and dismissed. Clearing a playback error the moment the next track
+  started was correct and useless: a skip takes a fraction of a second and the
+  message flashed past unread. BUG-025, and BUG-026 for the missing component.
 - **A decoder is only reachable if something identifies the stream first**, and
   the two are registered independently — so a format can be perfectly decodable
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled

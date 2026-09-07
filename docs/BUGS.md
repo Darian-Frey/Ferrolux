@@ -19,10 +19,63 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-025 A file that will not load stalls the playlist instead of advancing
+### BUG-027 A broken *next* entry stops the track that is playing
 **Status:** open
 **Severity:** medium
+**Found:** 2026-09-07, fixing BUG-025
+**Related:** F-005, F-001, BUG-025
+
+Playing a good file whose *next* playlist entry does not exist stops playback
+part-way through the good one. Measured: `format.ogg` played to 4.0 s, the
+gapless preload of the missing entry reported `Resource not found`, and the
+engine went to `Error`.
+
+The cause is that `playbin3` reports a failure to prepare the *next* URI on the
+same bus as a failure of the one playing, and `Engine::fail` cannot tell them
+apart — so a fault in a file nobody is listening to yet ends the one they are.
+F-005 caches the next URI ahead of time precisely so the streaming thread never
+has to ask for it, which is what makes the failure arrive early and out of
+context.
+
+**It predates BUG-025's fix**, confirmed by stashing that work and reproducing
+the same six errors and the same stop on the committed code. BUG-025's advance
+makes the aftermath tidier — the playlist moves on rather than sitting there —
+but the good track is still cut short.
+
+Not fixed here. Telling the two apart means knowing which URI an error refers
+to, which is a change to how `Engine` tracks the prepared source, and that is
+worth doing deliberately rather than alongside something else.
+
+### BUG-026 `errorBanner` is called twice and does not exist
+**Status:** open
+**Severity:** low
+**Found:** 2026-09-07, deciding where a playback error should be shown
+**Related:** F-022, BUG-025
+
+`Main.qml` calls `errorBanner.show(...)` in two places — when a preset name
+contains a slash, and when an `.eqf` import fails — and nothing anywhere defines
+`errorBanner`. Both are `ReferenceError` at the moment they are needed, so the
+two failures they exist to report are silent.
+
+Neither path runs at startup, which is why nothing has ever shown it: the id is
+only resolved when the code is reached, and both are reached only on a failure
+somebody has to cause on purpose.
+
+The gap is wider than the two calls. There is no transient notification surface
+at all — the panel has exactly one place for a message, the display's second
+line, and it is bound to `Engine.errorText`. That is why BUG-025 had to hold its
+error there on a timer: with a banner it would have been the banner's job.
+
+Not fixed inline. It is a new component and a decision about where notifications
+belong on a panel that has so far had none.
+
+## Fixed
+
+### BUG-025 A file that will not load stalls the playlist instead of advancing
+**Status:** fixed
+**Severity:** medium
 **Found:** 2026-09-07, verifying F-001's format list
+**Fixed:** 2026-09-07
 **Related:** F-001, F-010, BUG-024
 
 F-001's second acceptance clause: "unsupported or corrupt files produce a
@@ -55,7 +108,44 @@ Not fixed inline, per Maintenance Rule 8. It is a change to the engine's error
 handling and to what `Loading` is allowed to mean, and both deserve a decision
 rather than a patch.
 
-## Fixed
+**Fixed 2026-09-07**, and the table above was partly wrong. Two of its four rows
+were artefacts of the test rather than defects.
+
+`addPaths` **sorts**, so a bad file named `no-such-file.flac` sorted last and had
+nothing to advance *to*. Renaming it so it sorted first showed it advancing
+correctly all along. And the truncated FLAC is not broken in the way it looked:
+its header declares the full 32.5 seconds, so the player honours that, plays
+silence past the cut and advances at the end. What looked like a stall was a
+file playing exactly as its own header describes it.
+
+The two real defects were both in the engine.
+
+**A file that fails to load is never retried into working.** `play()` on a
+source already in `Error` set the state back to `Loading` and asked the pipeline
+to start; nothing new was attempted, so no new error arrived, and the player sat
+in `Loading` for ever — which MPRIS reports as playing, with a position that
+never moves. Asking to play something that has already failed is itself a failed
+attempt, and `Engine::play` now says so rather than pretending. Nothing is lost
+by not retrying: a file that failed to load will fail again.
+
+**Nothing turned a failure into an advance.** `Engine` now emits `sourceFailed`
+with the file, the message and whether playback had been asked for, and `Player`
+steps past it. A track that was merely *selected* and turns out to be broken
+stays selected — nothing was playing, so there is nothing to carry on from. The
+advance is queued rather than direct, so a run of broken files does not recurse
+once per file, and it stops after one full pass: every entry having failed means
+there is nothing to advance to, and under repeat-all the alternative is an
+endless circuit. Measured: two broken files settle at fourteen GStreamer errors
+and stay there, at idle CPU.
+
+**The visible error needed a second attempt.** Clearing it when playback resumed
+was correct and useless — a skip takes a fraction of a second, so the message
+flashed past unread, which is not the visible error the clause asks for. It is
+held for six seconds after playback moves on, and a fresh failure replaces it
+and restarts the wait. Confirmed on the panel: three seconds after a skip it
+reads `Internal data stream error.` over the track now playing, and at nine
+seconds it is gone.
+
 
 ### BUG-024 WavPack is offered and accepted, and cannot be played
 **Status:** fixed

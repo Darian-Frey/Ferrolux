@@ -99,6 +99,14 @@ private:
     // Every connection between the peers, in one place and made once.
     void wire();
 
+    // How many entries have failed since anything last played. A file that will
+    // not play is stepped over (F-001, BUG-025), and a playlist where none of
+    // them will play would otherwise be walked end to end at the speed
+    // GStreamer can refuse them. One full pass is the bound: after that there
+    // is nothing to advance *to*, and continuing would be a loop rather than a
+    // search.
+    int m_failuresSinceProgress = 0;
+
     // Declaration order is destruction order reversed, and that matters here.
     // `MetadataReader` runs a worker pool that signals into `m_playlist`, and
     // `m_view` proxies it; both must go before the model they refer to. The

@@ -14,6 +14,11 @@ Q_LOGGING_CATEGORY(lcCore, "ferrolux.core")
 namespace ferrolux::core {
 namespace {
 
+// How long a failure stays on the panel once playback has moved on. Long enough
+// to read one line, short enough that it is gone before it could describe the
+// wrong track. F-001, BUG-025.
+constexpr int kErrorHoldMs = 6000;
+
 constexpr qint64 kPreviousTrackWindowNs = 3'000'000'000; // F-002: three seconds
 
 // audiomixmatrix takes an array of out-channel rows, each an array of
@@ -303,10 +308,12 @@ void Engine::setSource(const QUrl &url)
     m_bitrateKbps = 0;
     refreshStreamFormat();
 
-    if (!m_errorText.isEmpty()) {
-        m_errorText.clear();
-        emit errorTextChanged();
-    }
+    // **The error text is deliberately not cleared here.** Loading the next
+    // source is exactly what happens when a broken one is stepped over, and
+    // clearing it at that moment would wipe the message off the panel in the
+    // same instant it became true — F-001 asks for a visible error *and* an
+    // advance, and doing both meant the error surviving the advance. It is
+    // cleared when something actually plays instead; see `setState`.
 
     g_object_set(m_pipeline, "uri", url.toString().toUtf8().constData(), nullptr);
 
@@ -332,12 +339,27 @@ void Engine::play()
     if (!m_pipeline || m_source.isEmpty())
         return;
 
+    // Asking to play something that has already failed is itself a failed
+    // attempt to play it, and saying so is the only way anything can react.
+    // Without this the source that could not be loaded is silently retried: the
+    // state goes back to `Loading`, the retry produces no new error because
+    // nothing new is attempted, and the player sits in `Loading` for ever —
+    // which MPRIS reports as playing, with a position that never moves. That
+    // was the visible half of BUG-025.
+    //
+    // A file that failed to load will fail again, so nothing is lost by not
+    // retrying it. What is gained is that the playlist can move past it.
+    if (m_state == Error) {
+        emit sourceFailed(m_source, m_errorText, true);
+        return;
+    }
+
     m_playRequested = true;
 
     // Playing from Stopped means the pipeline is in READY and has to preroll
     // again, so it re-enters Loading and reaches Playing on ASYNC_DONE. Without
     // this the state would stay Stopped while audio was audibly running.
-    if (m_state == Stopped || m_state == Error)
+    if (m_state == Stopped)
         setState(Loading);
 
     if (gst_element_set_state(m_pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
@@ -757,14 +779,48 @@ void Engine::setState(State state)
         return;
     m_state = state;
     qCDebug(lcCore) << "state ->" << state;
+
+    // Something is playing, so whatever went wrong before it is over — but not
+    // yet. Skipping a broken file takes a fraction of a second, so clearing the
+    // message here made it flash past unread, and an error nobody can read is
+    // not the visible one F-001 asks for. It is held for a few seconds instead,
+    // and a fresh failure in the meantime replaces it and starts the wait
+    // again. See BUG-025.
+    if (state == Playing && !m_errorText.isEmpty()) {
+        if (!m_errorHold) {
+            m_errorHold = new QTimer(this);
+            m_errorHold->setSingleShot(true);
+            m_errorHold->setInterval(kErrorHoldMs);
+            connect(m_errorHold, &QTimer::timeout, this, [this] {
+                if (m_errorText.isEmpty())
+                    return;
+                m_errorText.clear();
+                emit errorTextChanged();
+            });
+        }
+        m_errorHold->start();
+    }
+
     emit stateChanged();
 }
 
 void Engine::fail(const QString &text)
 {
+    // A new failure replaces the last one and restarts its time on screen,
+    // rather than being hidden by a hold started for the previous file.
+    if (m_errorHold)
+        m_errorHold->stop();
+
     m_errorText = text;
     emit errorTextChanged();
+
+    // Read before the state changes, because a consumer that reacts by moving
+    // to the next track will have changed both by the time it can ask.
+    const QUrl failed = m_source;
+    const bool wasPlaying = m_playRequested;
+
     setState(Error);
+    emit sourceFailed(failed, text, wasPlaying);
 }
 
 } // namespace ferrolux::core

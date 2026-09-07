@@ -17,13 +17,15 @@ People who keep a local music library on Linux and want a player with the charac
 **Acceptance:**
 - Plays FLAC, MP3, Ogg Vorbis, Opus, AAC/M4A, WAV, AIFF, WavPack, Musepack and ALAC from local paths
 - Unsupported or corrupt files produce a visible error and advance the playlist rather than stalling
-**Status:** Partial (Phase 1, 2026-09-02; format list verified 2026-09-07) — **all ten formats play**, each checked by loading it into the player and watching the position advance rather than by asking whether GStreamer could decode it. FLAC, MP3, Ogg Vorbis, Opus, AAC, ALAC, WAV, AIFF, WavPack and Musepack all play. **The first acceptance clause is met**; the feature stays Partial only for the second one. `tools/make-test-fixtures.sh` generates one file per format so this is repeatable; two of them need encoders GStreamer does not have (`wavpack` and `mpcenc`), which are named in the script and skipped with a note when absent.
+**Status:** **Complete** (Phase 1, 2026-09-02; acceptance verified in full 2026-09-07) — **all ten formats play**, each checked by loading it into the player and watching the position advance rather than by asking whether GStreamer could decode it. FLAC, MP3, Ogg Vorbis, Opus, AAC, ALAC, WAV, AIFF, WavPack and Musepack all play. **Both acceptance clauses are met.** `tools/make-test-fixtures.sh` generates one file per format so this is repeatable; two of them need encoders GStreamer does not have (`wavpack` and `mpcenc`), which are named in the script and skipped with a note when absent.
 
 **All ten play**, WavPack included since BUG-024 was fixed on 2026-09-07. That one needed a type finder rather than a decoder: GStreamer's own does not recognise WavPack — across five files, one of them from the reference encoder, it reported `video/x-h264` twice and nothing at all three times — while `wavpackparse ! wavpackdec` decoded every one of them perfectly. A decoder is only reachable if something identifies the stream first, and the two are registered independently, so the format was fully decodable and completely unplayable at the same time. `core/TypeFinders` supplies the missing identification.
 
-**The second clause is half met — BUG-025.** A file that will not load does produce a visible error: the panel prints it and it is legible. It does not reliably advance. Of four kinds of bad file, only the one that fails earliest — at the typefinder — moves on; random bytes, a truncated FLAC and a missing path all stall, and two of them report `Playing` to the desktop with a position that never moves.
+**The second clause is met too, since BUG-025 was fixed on 2026-09-07.** A file that cannot be played reports itself and is stepped over: random bytes and a missing path both advance to the next playable entry. The error is held on the panel for six seconds after playback moves on, because a skip takes a fraction of a second and clearing it the moment something played made it flash past unread — an error nobody can read is not the visible one this clause asks for.
 
-The clause about advancing was written when F-010 did not exist. It does now, so the clause is testable, and it fails.
+Two of the four cases that originally looked like failures were artefacts of the test rather than defects: `addPaths` sorts, so a file named to sort last had nothing to advance *to*, and a truncated FLAC declares its full duration in its header, so playing silence past the cut and advancing at the end is the file being honoured rather than a stall.
+
+The clause about advancing was written when F-010 did not exist. It does now, so it is testable, and it holds.
 **Notes:** Format coverage is delegated to GStreamer plugin sets — see D-002.
 
 ### F-002 Transport controls

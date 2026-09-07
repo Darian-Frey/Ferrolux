@@ -592,7 +592,37 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   word. `CommandLine` now accepts a `file:` URL as well as a path, because `%F`
   is specified to pass local paths and not every launcher honours that.
 
+- BUG-026 and BUG-027 logged, not fixed. `errorBanner` is called twice in
+  `Main.qml` and defined nowhere, so two failure messages are `ReferenceError`
+  — and the panel has no transient notification surface at all, which is why
+  BUG-025 had to hold its error on a timer. A broken *next* playlist entry stops
+  the track that is playing, because `playbin3` reports a failure to prepare the
+  next URI on the same bus as a failure of the current one; it predates BUG-025's
+  fix, confirmed by reproducing it on the committed code.
+
 ### Fixed
+- **BUG-025: a file that would not load stalled the playlist instead of
+  advancing**, which was half of F-001's second acceptance clause. Two defects,
+  both in the engine. `play()` on a source already in `Error` set the state back
+  to `Loading` and asked the pipeline to start, so nothing new was attempted, no
+  new error arrived, and the player sat in `Loading` for ever — which MPRIS
+  reports as playing with a position that never moves. And nothing turned a
+  failure into an advance: `Engine` now emits `sourceFailed` and `Player` steps
+  past it, queued so a run of broken files does not recurse, and bounded to one
+  full pass so an entirely broken playlist under repeat-all does not circle for
+  ever.
+
+  A track that was merely *selected* and turns out to be broken stays selected —
+  nothing was playing, so there is nothing to carry on from. The error is held
+  on the panel for six seconds after playback moves on: clearing it when the next
+  track started was correct and useless, because a skip takes a fraction of a
+  second and the message flashed past unread.
+
+  Two of the four cases originally recorded as failures were artefacts of the
+  test. `addPaths` sorts, so a file named to sort last had nothing to advance to;
+  and a truncated FLAC declares its full duration in its header, so playing
+  silence past the cut and advancing at the end is the file being honoured
+  rather than a stall. **F-001 is Complete** — both clauses, ten formats.
 - **BUG-024: WavPack was advertised in three places and played in none**, fixed
   by supplying the piece that was missing rather than by choosing between the
   two options the entry had framed. Neither was needed. A decoder is only

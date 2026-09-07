@@ -77,6 +77,43 @@ void Player::wire()
     // failed — advances normally, which does start playback.
     connect(&m_engine, &Engine::endOfStream, &m_playlist,
             [this] { m_playlist.advance(); });
+
+    // A file that will not play is stepped over rather than stalled on, which
+    // is the second half of F-001's acceptance and was BUG-025. The panel keeps
+    // showing what went wrong, because `Engine` no longer clears its message
+    // when the next source loads.
+    connect(&m_engine, &Engine::sourceFailed, this,
+            [this](const QUrl &, const QString &, bool wasPlaying) {
+                // A track that was only selected stays selected. Nothing was
+                // playing, so there is nothing to carry on from, and moving the
+                // cursor because a file the user merely looked at turned out to
+                // be broken would be a surprise.
+                if (!wasPlaying)
+                    return;
+
+                // One full pass and no further. Every entry having failed means
+                // there is nothing to advance to, and the alternative under
+                // repeat-all is an endless circuit of the same broken list.
+                if (++m_failuresSinceProgress >= m_playlist.rowCount())
+                    return;
+
+                m_playlist.advance();
+            },
+            // Queued, so the advance happens on the next turn of the event loop
+            // rather than inside the call that reported the failure. Advancing
+            // starts the next entry, which can fail in turn, which would
+            // otherwise recurse once per broken file — a stack as deep as the
+            // playlist is long.
+            Qt::QueuedConnection);
+
+    // Anything playing means the search found something, so the count starts
+    // again. Without this a playlist that fails intermittently would eventually
+    // exhaust its budget and stop skipping, having played perfectly well in
+    // between.
+    connect(&m_engine, &Engine::stateChanged, this, [this] {
+        if (m_engine.state() == Engine::Playing)
+            m_failuresSinceProgress = 0;
+    });
     connect(&m_engine, &Engine::previousTrackRequested, &m_playlist,
             [this] { m_playlist.retreat(); });
 

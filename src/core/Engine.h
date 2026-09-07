@@ -46,6 +46,7 @@
 #include <QMutex>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QLoggingCategory>
 
@@ -179,6 +180,13 @@ signals:
     void streamFormatChanged();
 
     void endOfStream();
+
+    // A source could not be played. Carries the file, the message shown to the
+    // user, and whether playback had actually been asked for — a track that was
+    // merely selected and turned out to be broken should report itself and stay
+    // put, while one that was playing should be stepped over. F-001's second
+    // acceptance clause, BUG-025.
+    void sourceFailed(const QUrl &url, const QString &text, bool wasPlaying);
     void previousTrackRequested();
 
     // Analysis, parsed from element messages on the bus and handed on as plain
@@ -232,6 +240,12 @@ private:
     double m_volume = 0.7;              // SPEC.md §Settings default
     double m_balance = 0.0;
     QString m_errorText;
+
+    // Holds the last error on screen for a few seconds after playback resumes.
+    // Skipping a broken file takes well under a second, so clearing the message
+    // the moment something plays makes it flash past unread — which is not the
+    // "visible error" F-001 asks for. See BUG-025.
+    QTimer *m_errorHold = nullptr;
 
     // Rebuilt from these whenever any of them changes; see streamFormat.
     void refreshStreamFormat();
