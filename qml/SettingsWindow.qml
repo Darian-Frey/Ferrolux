@@ -146,6 +146,19 @@ Window {
                         }
                         Item { Layout.fillWidth: true }
                     }
+
+                    // How fast a cap falls once it has finished holding.
+                    // F-031 asks for this to be configurable and it was a
+                    // constant until 2026-09-07 — the clause had gone unmet
+                    // without anybody noticing, because the caps plainly
+                    // worked. It belongs to the meter rather than to the
+                    // shader, so it is `Meters` and not `Visuals`.
+                    SettingRow {
+                        Layout.fillWidth: true
+                        label: qsTr("cap fall"); from: 2; to: 60; places: 1
+                        value: Meters.peakFall
+                        onMoved: function (to) { Meters.peakFall = to }
+                    }
                 }
             }
 

@@ -8,11 +8,11 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-**Phases 1 to 6 built.** Phase 6 is feature-complete as of 2026-09-07. Phase 5 is feature-complete
+**Phases 1 to 6 built, Phase 7 open since 2026-09-07.** Phase 5 is feature-complete
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **361 checks
+its own panel — nothing in the window comes from a desktop theme. **379 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -102,13 +102,22 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 ## Active task
 
-Phase 6, desktop integration. **Opened 2026-09-06 with `app/Player`** (IMP-005),
-which is done: the wiring is out of `main()` before four more consumers went
-into it. `platform/Settings`, `platform/MprisService` (F-050), `platform/MediaKeys`
-(F-051), `platform/SingleInstance` with `platform/CommandLine` (F-052),
-`platform/Session` (F-015), keyboard control (F-043) and the desktop entry are
-all done. **Phase 6 is feature-complete as of 2026-09-07**; what remains is to
-judge its acceptance clause, and then Phase 7.
+**Phase 7, the RS-1 release**, opened 2026-09-07. Its first work is not new
+capability but the Must-priority acceptance clauses earlier phases left Partial —
+the ones that needed instrumentation or fixtures that did not exist yet.
+F-001 (every format in SPEC.md, and a broken file stepped over), F-002 (next and
+previous, and the 100 ms transport bound) and F-031 (60 fps at 4K, and caps whose
+decay is genuinely configurable) have gone Complete this way. Four remain: F-004,
+F-020, F-032 and F-033 — see ROADMAP.md §Phase 7, which says what each is waiting
+on. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
+after them.
+
+Phase 6, desktop integration, is **feature-complete as of 2026-09-07** and all
+of it is in: `platform/Settings`, `platform/MprisService` (F-050),
+`platform/MediaKeys` (F-051), `platform/SingleInstance` with
+`platform/CommandLine` (F-052), `platform/Session` (F-015), keyboard control
+(F-043) and the desktop entry. It opened with `app/Player` (IMP-005), which got
+the wiring out of `main()` before four more consumers went into it.
 
 `platform/` now exists and holds `Settings`; the rest of the phase goes in
 beside it. The point of that directory is that nothing else acquires a
@@ -168,6 +177,21 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **A missing QML context property is a default value, not a failure.** Every
+  `Visuals.*` binding in `frame_bench` raised `ReferenceError` and each uniform
+  silently took its type's default, so the benchmark measured shaders drawn with
+  parameters the application cannot produce — understating the flame by 72% and
+  reporting the most expensive mode as the cheapest. It ran, it looked
+  reasonable, and it passed. Two of the three measurement tools have now been
+  wrong in the flattering direction; check a new figure against something known
+  independently before quoting it in an acceptance status. BUG-028, and the
+  second half of IMP-003.
+- **A clause can be satisfied only in the half you can see.** F-031 asked for
+  peak-hold caps with *configurable* decay. The caps held, they fell, they
+  looked right, and the rate was a compile-time constant for three phases — the
+  visible half of the requirement kept the invisible half from being read.
+  Acceptance text is a checklist of words, and each word has to be pointed at
+  something in the code.
 - **`gst-launch playbin3` is not the player.** It reported Musepack as failing;
   Ferrolux plays it. A format list has to be checked by loading each file into
   the application and watching the position advance — anything else measures

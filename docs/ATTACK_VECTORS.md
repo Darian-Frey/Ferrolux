@@ -49,6 +49,14 @@ mode holds, worst interval 16.03 ms against a 16.667 ms budget, zero late frames
 Offscreen pass at 3840x2160: every mode holds with between 46% and 64% of the
 budget spare, zero late frames, worst mode flame at 8.0 ms.
 
+Re-measured 2026-09-07, after BUG-028 — F-036 had turned the shaders' literals
+into `Visuals.*` bindings and left the benchmark with none, so everything
+measured between the two dates drew with undefined parameters. Offscreen at
+3840x2160 with the property bound: every mode still holds, between **40.6% and
+61.3%** of the budget spare, worst mode now the VU at 9.897 ms. The requirement
+is 30%. The flame reads 8.190 ms, within variance of the Phase 4 figure, which
+is what establishes that the Phase 4 run was measuring the right thing.
+
 **The detection found the defect it was written for.** On its first run that
 could reach 4K, flame took 26.9 ms per frame — 37 fps — with 377 of 600 frames
 late, and the level sweep then showed that the quiet passages nobody would think

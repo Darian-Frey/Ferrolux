@@ -34,7 +34,13 @@ The clause about advancing was written when F-010 did not exist. It does now, so
 - Play, pause, stop, previous, next respond within 100 ms of input
 - Stop resets position to zero; pause preserves it
 - Previous within the first 3 seconds of a track goes to the previous track, otherwise restarts the current one
-**Status:** Partial (Phase 1, 2026-09-02) — play, pause and stop verified, including stop resetting position to zero and pause preserving it. Previous restarts the current track outside the three-second window and otherwise emits `previousTrackRequested()`, because play order belongs to the playlist model (invariant 5). Next has no meaning until F-012 and is wired to stop in the harness.
+**Status:** **Complete** (Phase 1, 2026-09-02; the remaining clauses verified 2026-09-07). Play, pause and stop were verified from the start, including stop resetting position to zero and pause preserving it.
+
+**Next and previous went unverified for four phases because the harness could not reach them.** Play order belongs to the playlist model (invariant 5), so neither can be exercised against `Engine` alone — and the status said "next has no meaning until F-012", which stopped being true when F-012 landed in Phase 2. What made them testable was `app/Player`, which owns both. The transport suite now links it.
+
+Verified: next advances and the new entry *plays* rather than merely being selected; previous past three seconds restarts the current track and stays on the same entry; previous inside the window moves to the entry before; and previous at the first entry stays there rather than wrapping.
+
+**The 100 ms clause had never been measured.** It is now, and what is timed is the call — how long the application takes to accept the command — rather than how long GStreamer takes to have audio coming out, which is a different promise and one no player can make from a cold pipeline. All five transport commands return in 0 ms. The check earns its place as a guard rather than a discovery: `gst_element_set_state` can be made to block, and a transport that blocks is one that feels broken.
 
 ### F-003 Seeking
 **Priority:** Must
@@ -176,7 +182,18 @@ The second criterion is met by construction rather than by care: both elements p
 - Logarithmic frequency mapping with no visible bin collapse below 200 Hz — see AV-011
 - Peak-hold caps with configurable decay
 - Holds 60 fps at 4K on the reference hardware in BUILD.md
-**Status:** Partial (Phase 4, 2026-09-02) — bars and the mirrored variant drawn per fragment from the meter texture, with antialiased edges resolved by smoothstep over one fragment rather than by a hard comparison, and peak-hold caps that go dark at rest. Bass spreads across many bands rather than collapsing; the four lowest of 24 are interpolated and SPEC.md §Meters records the consequence. Outstanding: the 60 fps measurement, which needs AV-002's instrumentation.
+**Status:** Complete (Phase 7, 2026-09-07) — bars and the mirrored variant drawn per fragment from the meter texture, with antialiased edges resolved by smoothstep over one fragment rather than by a hard comparison, and peak-hold caps that go dark at rest. Bass spreads across many bands rather than collapsing; the four lowest of 24 are interpolated and SPEC.md §Meters records the consequence.
+
+Measured on BUILD.md's reference hardware (ThinkPad P15 Gen 2i, i7-11850H, NVIDIA T1200) at 3840×2160 by `tools/measure-frames.sh`, offscreen with a fence after each frame: **spectrum 6.721 ms mean, 59.7% headroom against the 16.67 ms budget; the mirrored variant 6.452 ms, 61.3%.** Zero late frames in both, and every other mode passes the same sweep.
+
+Those are the second set of figures. The first read 4.807 ms and 71.2%, and they were wrong — the benchmark was drawing the bars with undefined parameters, which is BUG-028. They are recorded here because a status that quotes a measurement should say which measurement, and because the flattering number is the one that would have been believed.
+
+Two of the three clauses had been met since Phase 4. The other two closings are worth recording, because neither was visible from the panel:
+
+- **The measurement was against the wrong shader.** `frame_bench` never set the `Visuals` context property, so every shader parameter fell back to the default of its type — BUG-028. The figures above are from the corrected benchmark.
+- **The decay was not configurable.** The caps held and fell exactly as the clause describes, but `kPeakFallDbPerSecond` was a compile-time constant, and a status that read as satisfied was satisfied only in the half a user can see. It is now `meters/peak-fall`, on the panel beside the meter's other two settings, clamped to 2–60 dB/s — at zero a cap does not decay slowly, it sticks, and nothing on the display would distinguish that from a signal that is genuinely still there. `meters_test` checks the rate against the number asked for rather than only checking that the cap comes down.
+
+The fall belongs to `MeterSource` and not to `VisualSettings`: it is a property of how the meter reads, like `meters/reference-level`, rather than of how the bars are drawn, like `spectrum/cap`. The hold stays fixed at 1500 ms, which is a fact about how long a person needs to catch a peak rather than a matter of taste.
 
 ### F-032 Shader-rendered VU display
 **Priority:** Must

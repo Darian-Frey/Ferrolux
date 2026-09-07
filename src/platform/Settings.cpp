@@ -101,6 +101,8 @@ bool Settings::restore()
                                              MeterSource::kDefaultReferenceDb).toDouble());
     meters->setBandCount(settings.value(QStringLiteral("meters/bands"),
                                         MeterSource::kSpectrumBands).toInt());
+    meters->setPeakFall(settings.value(QStringLiteral("meters/peak-fall"),
+                                       MeterSource::kDefaultPeakFallDbPerSecond).toDouble());
 
     // The proportions of the displays. `VisualSettings` reads its own nine keys
     // because it also clamps them, and clamping on load as well as on write is
@@ -167,6 +169,7 @@ void Settings::save() const
     settings.setValue(QStringLiteral("meters/mode"), meters->mode());
     settings.setValue(QStringLiteral("meters/reference-level"), meters->referenceLevel());
     settings.setValue(QStringLiteral("meters/bands"), meters->bandCount());
+    settings.setValue(QStringLiteral("meters/peak-fall"), meters->peakFall());
 
     m_visuals->save();
 

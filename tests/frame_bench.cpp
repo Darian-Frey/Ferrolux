@@ -63,11 +63,13 @@
 #include "meters/MeterSource.h"
 #include "meters/MeterTexture.h"
 #include "ui/ThemeTokens.h"
+#include "ui/VisualSettings.h"
 
 using ferrolux::meters::FrameTimer;
 using ferrolux::meters::MeterSource;
 using ferrolux::meters::MeterTexture;
 using ferrolux::ui::ThemeTokens;
+using ferrolux::ui::VisualSettings;
 
 namespace {
 
@@ -177,6 +179,10 @@ int main(int argc, char *argv[])
     }
 
     ThemeTokens theme;
+
+    // Left at the values the displays ship with, deliberately: the figure this
+    // reports has to be the one a user gets before touching anything.
+    VisualSettings visuals;
     if (!theme.load(QStringLiteral(FERROLUX_RESOURCE_DIR "/themes/ferric.json"))) {
         std::fprintf(stderr, "%s\n", qPrintable(theme.lastError()));
         return 2;
@@ -242,6 +248,16 @@ int main(int argc, char *argv[])
 
         engine.rootContext()->setContextProperty(QStringLiteral("Meters"), &meters);
         engine.rootContext()->setContextProperty(QStringLiteral("Theme"), &theme);
+
+        // The display proportions of F-036. **Without these the benchmark
+        // measures a different shader from the one that ships**: every
+        // `Visuals.*` binding in `MeterDisplay.qml` raises
+        // `ReferenceError: Visuals is not defined`, the uniforms keep whatever
+        // a default-constructed property holds, and the flame in particular
+        // draws an undefined number of ranks — the one parameter BUG-016 showed
+        // dominates its cost. A measurement that cannot say what it measured is
+        // worse than none, and this one was quietly reporting on nothing.
+        engine.rootContext()->setContextProperty(QStringLiteral("Visuals"), &visuals);
 
         QQmlComponent component(&engine, QUrl::fromLocalFile(
                                              QStringLiteral(FERROLUX_QML_DIR "/MeterDisplay.qml")));

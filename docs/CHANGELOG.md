@@ -611,7 +611,64 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   ever follows, so the playlist never advances. Ignoring alone would trade "cut
   short and stopped" for "complete and stuck".
 
+- F-002 is Complete. Next and previous had gone unverified for four phases
+  because the transport harness could not reach them: play order belongs to the
+  playlist (invariant 5), so neither can be exercised against `Engine` alone, and
+  the status still said "next has no meaning until F-012" — which stopped being
+  true when F-012 landed in Phase 2. `app/Player` owns both, so the harness now
+  links it and checks that next advances *and plays*, that previous past three
+  seconds restarts the track and stays put, that inside the window it steps back,
+  and that at the first entry it neither wraps nor stops.
+
+  The 100 ms clause had never been measured at all. It is now: all five commands
+  return in 0 ms. What is timed is the call rather than the time to audible
+  output, which is a different promise — the point is that a transport must not
+  block, and `gst_element_set_state` can be made to. 375 checks.
+
+- F-031 is Complete, and closing it needed both of its unmet clauses opened up
+  rather than one. The 60 fps measurement now exists: on BUILD.md's reference
+  hardware at 3840×2160 the spectrum runs at **6.721 ms mean, 59.7% headroom**
+  and the mirrored variant at **6.452 ms, 61.3%**, offscreen with a fence after
+  each frame and zero late frames. Every mode passes the same sweep, the worst
+  now being the VU at 9.897 ms and 40.6% — against AV-002's requirement of 30%.
+
+  The first run of that measurement said 4.807 ms and 71.2%, and closing the
+  clause on it would have been closing it on nothing: the benchmark was drawing
+  with undefined shader parameters, which is BUG-028 below.
+
+  The second clause asks for peak-hold caps with *configurable* decay, and the
+  rate had been a compile-time constant since Phase 4 — a requirement that read
+  as satisfied because the visible half of it was. `meters/peak-fall` is now a
+  setting, on the panel beside the meter's other two, clamped to 2–60 dB/s:
+  at zero a cap does not fall slowly, it sticks, and the display gives a viewer
+  no way to tell that from a signal still present. It belongs to `MeterSource`
+  and not to `VisualSettings`, because it is a property of how the meter reads
+  rather than of how the bars are drawn; the 1500 ms *hold* stays fixed, being a
+  fact about how long a person needs to catch a peak rather than a matter of
+  taste. `meters_test` checks the resulting rate against the number requested,
+  not merely that the cap comes down. 379 checks.
+
 ### Fixed
+- **BUG-028: `frame_bench` measured shaders whose parameters were undefined.**
+  The benchmark registered every context property the display needs except
+  `Visuals`, so each `Visuals.*` binding raised `ReferenceError` and each
+  uniform took its type's default. It ran, reported believable per-frame figures
+  and passed — while drawing something the application cannot draw. The flame
+  went from 4.292 ms to 7.374 ms once the property was bound: the benchmark had
+  been understating the most expensive mode by **72%**, because `flameRanks`
+  sets how many layers that shader composites and BUG-016 established it is what
+  dominates the cost. This is the tool the 60 fps clauses of F-031, F-032 and
+  F-033 are judged by, and it was the second of three measurement tools to be
+  wrong in the flattering direction.
+
+  It is a regression rather than a defect the benchmark was born with, and the
+  shape of it is the lesson. Phase 4 measured these shaders correctly, because
+  the proportions were literals in the QML then. F-036 turned nine of them into
+  `Visuals.*` bindings on 2026-09-06 — a change confined to `qml/` and `src/ui/`
+  that broke a test which does not compile against either, because the coupling
+  is by name at run time. Nothing could have failed to build, and QML's answer
+  to an unknown name is a default value. The Phase 4 numbers stand; every
+  measurement taken in the day between are the ones that do not.
 - **BUG-026: `errorBanner` was called twice and defined nowhere**, so a preset
   that could not be named and an `.eqf` that would not import both raised a
   `ReferenceError` instead of saying so. Fixed with the surface the panel

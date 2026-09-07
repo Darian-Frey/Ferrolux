@@ -105,6 +105,65 @@ fixed.
 
 ## Fixed
 
+### BUG-028 `frame_bench` measured shaders with undefined parameters
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-07, measuring F-031's 60 fps clause at 4K
+**Fixed:** 2026-09-07
+**Introduced:** 2026-09-06 by F-036, in a file F-036 did not touch
+**Related:** F-031, F-036, F-033, AV-002, BUG-016, IMP-003
+
+`tests/frame_bench.cpp` builds its own `QQmlApplicationEngine` and registers the
+context properties the display needs — but not `Visuals`. Every `Visuals.*`
+binding in the shader items therefore raised `ReferenceError: Visuals is not
+defined`, and each affected uniform took the default of its declared type
+instead: zero for the numbers, which is not a number the panel can ever produce.
+
+So the benchmark ran, reported plausible per-frame figures, and passed. What it
+did not do is measure the shaders the application draws.
+
+The size of the error depends on which parameter went missing. For the flame it
+is the whole result: `Visuals.flameRanks` sets how many layers the fragment
+shader composites, which BUG-016 established is what dominates that shader's
+cost. Measured on the reference hardware at 3840×2160:
+
+| | mean frame |
+|---|---|
+| flame, `Visuals` undefined | 4.292 ms |
+| flame, `Visuals` bound | 7.374 ms |
+
+The benchmark had been understating the most expensive mode in the player by
+**72%**, and it was the tool the 60 fps clauses of F-031, F-032 and F-033 were
+all going to be judged by. Both figures pass, which is why nothing looked wrong;
+had the flame been near the budget, this would have reported headroom that did
+not exist and the failure would have been found by somebody watching it stutter.
+
+Fixed by constructing a `VisualSettings` in the benchmark and setting it as the
+`Visuals` context property, alongside the ones already there, and adding
+`src/ui/VisualSettings.cpp` to the target.
+
+**It is a regression, and the shape of it matters more than the size.** The
+benchmark was correct when Phase 4 closed: the shaders carried their proportions
+as literals then, so there was no context property to be missing. F-036 turned
+those nine literals into `Visuals.*` bindings on 2026-09-06 — a change entirely
+within `qml/` and `src/ui/`, which broke a test in `tests/` that neither
+compiles against them nor mentions them. Nothing could have failed: the coupling
+is by name at run time, and the failure mode of a missing name in QML is a
+default, not a stop. The Phase 4 figures in ROADMAP.md and AV-002 are therefore
+sound as measured; what was invalidated is every measurement taken in the day
+between F-036 and this entry, which is why F-031's status quotes a re-measurement
+rather than the run that found the bug.
+
+**The general lesson is the second half of IMP-003's.** A missing context
+property in QML is not an error the process notices — it is a message on stderr
+and a default value, and a benchmark is precisely the kind of program nobody
+reads the stderr of. Two of the three measurement tools now in `tools/` have
+been wrong in a way that made the product look better than it was, and in both
+cases the number was believable. A measurement that cannot fail loudly should be
+sanity-checked against a figure obtained another way before it is quoted in an
+acceptance status, which is how this one was caught: the flame is visibly the
+heaviest mode and was reporting the cheapest number.
+
 ### BUG-026 `errorBanner` is called twice and does not exist
 **Status:** fixed
 **Severity:** low

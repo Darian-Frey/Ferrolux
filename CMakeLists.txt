@@ -191,6 +191,8 @@ qt_add_executable(frame_bench
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
     src/meters/MeterTexture.h
+    src/ui/VisualSettings.cpp
+    src/ui/VisualSettings.h
 )
 target_include_directories(frame_bench PRIVATE src)
 target_link_libraries(frame_bench PRIVATE Qt6::Quick Qt6::OpenGL)
@@ -220,6 +222,15 @@ qt_add_shaders(frame_bench "frame_bench_meter_shaders"
 qt_add_executable(acceptance_transport
     tests/acceptance_transport.cpp
     tests/Check.h
+    # F-002's next and previous cannot be exercised against `Engine` alone: play
+    # order belongs to the playlist (invariant 5) and only `app::Player` holds
+    # both. That is why those clauses went unverified for four phases.
+    src/app/Player.cpp
+    src/app/Player.h
+    src/library/PlaylistFilter.cpp
+    src/library/PlaylistFilter.h
+    src/library/MetadataReader.cpp
+    src/library/MetadataReader.h
     src/core/Engine.cpp
     src/core/Engine.h
     src/core/Equaliser.cpp
@@ -232,7 +243,7 @@ qt_add_executable(acceptance_transport
     src/meters/MeterSource.h
 )
 target_include_directories(acceptance_transport PRIVATE src)
-target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer)
+target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer PkgConfig::TagLib)
 
 # Phase 5 token set. Asserts that resources/themes/ferric.json still says what
 # SPEC.md §Design tokens says it says, that every token qml/Tokens.qml names is

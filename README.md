@@ -6,13 +6,15 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 to 5 built. Phase 6, desktop integration, is next.**
+> **Status: Phases 1 to 6 built. Phase 7, release engineering, is under way.**
 > Transport, a 20,000-entry playlist, shuffle, repeat, playlist file I/O,
-> gapless playback, a ten-band equaliser, five shader-rendered displays and the
-> cassette futurism panel itself all work. Nothing in the window is drawn from a
-> desktop theme. Every display holds 60 fps at 3840×2160 with at least 46% of
-> the frame budget spare, and the panel is correct at 1×, 1.5×, 2× and 3× device
-> pixel ratio — both measured rather than asserted. See [Status](#status) below.
+> gapless playback, a ten-band equaliser, five shader-rendered displays, the
+> cassette futurism panel itself, and desktop integration — MPRIS2, media keys,
+> a single instance with a command line, and the session restored as it was left
+> — all work. Nothing in the window is drawn from a desktop theme. Every display
+> holds 60 fps at 3840×2160 with at least 40% of the frame budget spare, and the
+> panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio — both measured
+> rather than asserted. See [Status](#status) below.
 
 ---
 
@@ -67,7 +69,7 @@ which is what it is.
 | | |
 |---|---|
 | ![Flame display](docs/images/meters.png) | ![Equaliser](docs/images/equaliser.png) |
-| Five display modes over one texture and one meter source, cycled by clicking. Every mode holds 60 fps at 3840×2160 with at least 46% of the frame budget spare — measured, not assumed. | Ten bands and a preamp, with lit gain readouts over unlit ghosts and silkscreened band centres. Values are lit; legends are printed; the two are never confused. |
+| Five display modes over one texture and one meter source, cycled by clicking. Every mode holds 60 fps at 3840×2160 with at least 40% of the frame budget spare — measured, not assumed. | Ten bands and a preamp, with lit gain readouts over unlit ghosts and silkscreened band centres. Values are lit; legends are printed; the two are never confused. |
 
 Compact mode folds the panel to the strip that reports and controls what is
 playing, keeping the window position and the playback:
@@ -171,7 +173,7 @@ Dependencies, per-distribution package lists and troubleshooting are in
 intention. Everything built so far needs Qt 6 Base, Declarative and Shader
 Tools, GStreamer 1.20 with its base, good and bad plugin sets, and TagLib.
 
-Eight test suites, 361 checks:
+Eight test suites, 379 checks:
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \

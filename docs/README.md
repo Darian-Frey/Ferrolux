@@ -2,15 +2,16 @@
 
 > **Status:** Active
 > **Provenance:** Shane Hartley (author, primary developer); Claude (documentation scaffolding, design review)
-> **Last reviewed:** 2026-09-06
-> **Why this status:** Phases 1 to 6 are built. Transport, a 20,000-entry
+> **Last reviewed:** 2026-09-07
+> **Why this status:** Phases 1 to 6 are built and Phase 7 is open.
+> Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 361 checks across eight suites pass in Debug and Release.
+> invertible. 379 checks across eight suites pass in Debug and Release.
 >
 > Two acceptance criteria are measured rather than asserted, and both are the
 > reason the project exists. AV-002: every display holds 60 fps at 3840×2160
-> with at least 46% of the frame budget spare, by `tools/measure-frames.sh`.
+> with at least 40% of the frame budget spare, by `tools/measure-frames.sh`.
 > AV-005: the panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio, by
 > `tools/verify-scaling.sh`. Both tools first reported defects that turned out
 > to be their own — a clamped window, a maximised one, an overheated GPU — and
@@ -23,9 +24,12 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> No open bugs and no suggested improvements. Twenty-three bugs found,
-> twenty-two fixed and one won't-fix upstream. Phase 6 is feature-complete;
-> Phase 7, release engineering, is next.
+> One open bug at low severity and no suggested improvements. Twenty-eight
+> bugs found, twenty-six fixed, one won't-fix upstream and BUG-027 open: a
+> corrupt *next* playlist entry still costs the track that is playing its last
+> two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
+> the Must-priority acceptance clauses earlier phases left Partial — F-001,
+> F-002 and F-031 have closed, four remain.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.
 

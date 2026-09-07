@@ -250,8 +250,16 @@ has an unlit ghost and the title does not.
 
 ## Phase 7 — RS-1 release
 **Goal:** Something other people can install.
-**Status:** Not started
-**Features delivered:** — (release engineering, no new capabilities)
+**Status:** In progress (started 2026-09-07)
+**Features delivered:** — (release engineering, no new capabilities). The phase
+does close out Must-priority acceptance clauses left Partial by earlier phases,
+which is the second deliverable below rather than new capability: F-001, F-002
+and F-031 have gone Complete this way. Four Musts remain — F-004 (persistence,
+now testable through `tools/verify-desktop.sh`), F-020 (the audible check for
+zipper noise, which needs AV-006), F-032 (the comparison against a reference
+deck, a judgement rather than a measurement) and F-033 (switching must not drop
+a frame, which `measure-frames.sh` does not cover: it sweeps modes in steady
+state, not across a switch).
 **Deliverables:**
 - [ ] Licence settled and `LICENSE` committed (D-010)
 - [ ] All Must-priority features Complete or explicitly Withdrawn

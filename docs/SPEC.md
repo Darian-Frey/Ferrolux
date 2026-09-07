@@ -343,6 +343,7 @@ Both formats are read tolerantly — unknown directives are ignored rather than 
 | `meters/mode` | string | `spectrum` | Identifier from the display mode table |
 | `meters/reference-level` | double | −9.0 | dBFS for 0 VU. Not the −18 broadcast figure — see §Meters and BUG-014 |
 | `meters/bands` | int | 24 | Display bands: 24 or 48. See §Frequency mapping |
+| `meters/peak-fall` | double | 20.0 | How fast a peak-hold cap falls once its hold expires, in dB/s. F-031 asks for caps with *configurable* decay; it was a compile-time constant until 2026-09-07. Clamped to 2–60: at zero a cap never comes down, which is not a slow decay but a broken one |
 | `meters/spectrum-gap` | double | 0.18 | Space between bars, in band widths. F-036 |
 | `meters/spectrum-cap` | double | 0.035 | Peak cap thickness, as a fraction of height |
 | `meters/flame-ranks` | int | 9 | Receding silhouettes. Capped at 16, the shader's own limit. Each rank costs up to five texture taps per pixel — see BUG-016 |

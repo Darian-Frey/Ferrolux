@@ -21,11 +21,13 @@
 #include <functional>
 
 #include "Check.h"
+#include "app/Player.h"
 #include "core/Engine.h"
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
 #include "meters/MeterSource.h"
 
+using ferrolux::app::Player;
 using ferrolux::core::Engine;
 using ferrolux::library::PlaylistModel;
 using ferrolux::meters::MeterSource;
@@ -207,6 +209,104 @@ void runFile(const QString &path)
 //
 // Checked against the engine's own pipeline rather than a chain assembled by
 // the test, because the chain the test assembles is exactly what missed it.
+// F-002's remaining clauses, which needed two things that did not exist when the
+// status was written. Next has no meaning without a playlist to advance through
+// — that arrived with F-012 in Phase 2 — and neither next nor previous can be
+// exercised against `Engine` alone, because play order belongs to the model
+// (invariant 5) and only `app::Player` holds both. The note saying "next is
+// wired to stop in the harness" has been stale for four phases.
+void runPlayOrder(const QString &first, const QString &second)
+{
+    std::printf("\nplay order and the previous-track rule (F-002)\n");
+
+    Player player;
+    Engine &engine = *player.engine();
+    PlaylistModel &playlist = *player.playlist();
+
+    playlist.addPaths({ QUrl::fromLocalFile(first), QUrl::fromLocalFile(second) });
+    check(playlist.rowCount() == 2, "two entries to move between",
+          QStringLiteral("%1 rows").arg(playlist.rowCount()));
+    if (playlist.rowCount() != 2)
+        return;
+
+    playlist.setCurrentRow(0);
+    check(spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000),
+          "the first entry plays");
+
+    // ---- next ------------------------------------------------------------
+    player.next();
+    check(spin(engine, [&] { return playlist.currentRow() == 1; }, 5000),
+          "next moves to the second entry",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+    check(spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000),
+          "and it plays rather than merely being selected");
+
+    // ---- previous, outside the window -------------------------------------
+    // Past three seconds, previous means "start this one again" — the rule a
+    // transport gets wrong by treating the key as a plain step backwards.
+    engine.seek(5 * kSecond);
+    check(spin(engine, [&] { return engine.position() > 4 * kSecond; }, 5000),
+          "seeks past the three-second window", ms(engine.position()));
+
+    player.previous();
+    const bool restarted = spin(engine, [&] { return engine.position() < 2 * kSecond; }, 5000);
+    check(restarted, "previous restarts the track when past the window",
+          ms(engine.position()));
+    check(playlist.currentRow() == 1,
+          "and stays on the same entry",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+
+    // ---- previous, inside the window --------------------------------------
+    // Within three seconds it means the entry before. The position was just
+    // reset by the restart above, so this is the window without contriving one.
+    player.previous();
+    check(spin(engine, [&] { return playlist.currentRow() == 0; }, 5000),
+          "previous inside the window moves to the entry before",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+
+    // ---- previous at the start of the list ---------------------------------
+    // Nothing before the first entry. It must not wrap, and it must not stop.
+    player.previous();
+    spin(engine, [&] { return false; }, 1200);
+    check(playlist.currentRow() == 0,
+          "previous at the first entry stays there rather than wrapping",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+}
+
+// The clause nobody had measured: "play, pause, stop, previous, next respond
+// within 100 ms of input". What is timed is the call itself — how long the
+// application takes to accept the command — rather than how long GStreamer takes
+// to have audio coming out, which is a different promise and one no player can
+// make from a cold pipeline. A transport that blocks is a transport that feels
+// broken, and that is what this is about.
+void runTransportLatency(const QString &path)
+{
+    std::printf("\ntransport response (F-002)\n");
+
+    Player player;
+    Engine &engine = *player.engine();
+    PlaylistModel &playlist = *player.playlist();
+    playlist.addPaths({ QUrl::fromLocalFile(path) });
+    playlist.setCurrentRow(0);
+    spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000);
+
+    constexpr qint64 kBudgetMs = 100; // F-002
+
+    const auto timed = [&](const char *what, const std::function<void()> &action) {
+        QElapsedTimer clock;
+        clock.start();
+        action();
+        const qint64 took = clock.elapsed();
+        check(took < kBudgetMs, what, QStringLiteral("%1 ms").arg(took));
+    };
+
+    timed("pause responds within 100 ms", [&] { player.pause(); });
+    timed("play responds within 100 ms", [&] { player.play(); });
+    timed("next responds within 100 ms", [&] { player.next(); });
+    timed("previous responds within 100 ms", [&] { player.previous(); });
+    timed("stop responds within 100 ms", [&] { player.stop(); });
+}
+
 void runPipelineFormat(const QString &path)
 {
     std::printf("\nfilter chain format (BUG-007)\n");
@@ -447,6 +547,9 @@ int main(int argc, char *argv[])
     // settling on a known value says more than one twitching at a percussive
     // fixture. Falls back to the first file so the suite still runs without it.
     runMeters(files.size() > 2 ? files.at(2) : files.first());
+
+    runPlayOrder(files.first(), files.at(1));
+    runTransportLatency(files.first());
 
     runGapless(files.first(), files.at(1));
 

@@ -57,6 +57,12 @@ class MeterSource : public QObject
     Q_PROPERTY(QList<double> channelPeaks READ channelPeakLevels NOTIFY updated)
     Q_PROPERTY(double referenceLevel READ referenceLevel WRITE setReferenceLevel NOTIFY referenceLevelChanged)
 
+    // How fast a peak-hold cap falls once its hold has expired, in decibels per
+    // second. F-031 asks for peak-hold caps "with configurable decay" and this
+    // was a compile-time constant until 2026-09-07 — the clause had never been
+    // met, and nothing said so because the caps plainly worked.
+    Q_PROPERTY(double peakFall READ peakFall WRITE setPeakFall NOTIFY peakFallChanged)
+
 public:
     // SPEC.md §Meters. Display band counts are provisional, chosen for
     // legibility at typical panel widths.
@@ -74,9 +80,20 @@ public:
     static constexpr double kAttack = 0.6;
     static constexpr double kRelease = 0.15;
 
-    // Peak-hold: rises instantly to any new maximum, holds, then decays.
+    // Peak-hold: rises instantly to any new maximum, holds, then decays. The
+    // hold is fixed; the fall is the user's, per F-031. They are different kinds
+    // of quantity — the hold is how long a peak stays legible, which is a fact
+    // about reading a display, while the fall is a matter of taste about how
+    // long the trace lingers.
     static constexpr double kPeakHoldMs = 1500.0;
-    static constexpr double kPeakFallDbPerSecond = 20.0;
+    static constexpr double kDefaultPeakFallDbPerSecond = 20.0;
+
+    // Bounds. Slow enough that a cap crawls and fast enough that it barely
+    // holds at all, and no further: at zero the caps would never fall and the
+    // display would fill in and stay filled, which is not a slow decay but a
+    // broken one.
+    static constexpr double kMinPeakFall = 2.0;
+    static constexpr double kMaxPeakFall = 60.0;
 
     // VU ballistics, IEC 60268-17: 99% of full deflection at 300 ms with 1% to
     // 1.5% overshoot. A **second-order** system — a first-order one is
@@ -144,6 +161,9 @@ public:
 
     double referenceLevel() const { return m_referenceDb; }
     void setReferenceLevel(double decibels);
+
+    double peakFall() const { return m_peakFallDbPerSecond; }
+    void setPeakFall(double decibelsPerSecond);
     Q_INVOKABLE double peakIndicator(int channel) const;
 
     // Analysis input, applied immediately. Both take the values a GStreamer
@@ -211,6 +231,7 @@ signals:
     void bandCountChanged();
     void modeChanged();
     void referenceLevelChanged();
+    void peakFallChanged();
     void updated();
 
 private:
@@ -250,6 +271,7 @@ private:
     std::array<double, kChannels> m_channelPeak {};
     std::array<double, kChannels> m_channelPeakHoldMs {};
     double m_referenceDb = kDefaultReferenceDb;
+    double m_peakFallDbPerSecond = kDefaultPeakFallDbPerSecond;
 };
 
 } // namespace ferrolux::meters

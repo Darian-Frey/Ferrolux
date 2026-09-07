@@ -245,6 +245,75 @@ void testPeakHold()
           QStringLiteral("%1").arg(source.peaks().at(band), 0, 'f', 3));
 }
 
+// F-031 asks for peak-hold caps with *configurable* decay. The hold was always
+// there and the fall was always there, but the rate was a compile-time constant
+// until 2026-09-07 — a clause that read as satisfied because the caps visibly
+// worked. What follows is the difference between a cap that falls and a cap
+// that falls at the rate it was asked to.
+void testPeakFallConfigurable()
+{
+    std::printf("\nconfigurable cap decay (F-031)\n");
+
+    // Bounds first. Zero is the value that matters: a cap that never comes down
+    // is not a slow decay, it is a stuck maximum, and nothing on the panel would
+    // say which of the two you were looking at.
+    MeterSource bounds;
+    bounds.setPeakFall(0.0);
+    check(bounds.peakFall() >= MeterSource::kMinPeakFall,
+          "zero is refused rather than freezing the caps",
+          QStringLiteral("%1 dB/s").arg(bounds.peakFall(), 0, 'f', 1));
+    bounds.setPeakFall(1000.0);
+    check(bounds.peakFall() <= MeterSource::kMaxPeakFall,
+          "and an absurd rate is clamped, not honoured",
+          QStringLiteral("%1 dB/s").arg(bounds.peakFall(), 0, 'f', 1));
+
+    // Two meters given the same signal and the same silence, differing only in
+    // the setting. Run past the hold, then measure how far each cap has come
+    // down over an identical stretch of time.
+    const QList<float> loud = toneAt(23, 0.0f);
+    const QList<float> silent(kBins, float(MeterSource::kFloorDb));
+
+    const auto fallOver = [&](double rate, double elapsedMs) {
+        MeterSource source;
+        source.setPeakFall(rate);
+        for (int i = 0; i < 40; ++i)
+            source.consumeSpectrum(loud, kRate);
+
+        int band = 0;
+        for (int i = 1; i < source.magnitudes().size(); ++i)
+            if (source.magnitudes().at(i) > source.magnitudes().at(band))
+                band = i;
+
+        // Past the hold, so that what is measured next is decay and not the TTL.
+        for (double held = 0.0; held < MeterSource::kPeakHoldMs + 32.0; held += 16.0) {
+            source.consumeSpectrum(silent, kRate);
+            source.advance(16.0);
+        }
+        const float from = source.peaks().at(band);
+        for (double t = 0.0; t < elapsedMs; t += 16.0) {
+            source.consumeSpectrum(silent, kRate);
+            source.advance(16.0);
+        }
+        return double(from - source.peaks().at(band));
+    };
+
+    const double slowFall = fallOver(5.0, 320.0);
+    const double fastFall = fallOver(40.0, 320.0);
+    check(fastFall > slowFall * 4.0,
+          "eight times the rate falls markedly further in the same time",
+          QStringLiteral("%1 against %2 normalised units")
+              .arg(fastFall, 0, 'f', 4).arg(slowFall, 0, 'f', 4));
+
+    // And the number means what it says. The cap is normalised against the
+    // floor, so a rate in dB/s covers `rate / |floor|` of the scale per second.
+    const double expected = (20.0 / -MeterSource::kFloorDb) * 0.320;
+    const double measured = fallOver(20.0, 320.0);
+    check(std::abs(measured - expected) < expected * 0.15,
+          "and 20 dB/s falls by 20 dB worth of scale in a second",
+          QStringLiteral("%1 against an expected %2")
+              .arg(measured, 0, 'f', 4).arg(expected, 0, 'f', 4));
+}
+
 // AV-012. The single most important behaviour in the meter design, and the one
 // most easily destroyed by a smoothing change made for the spectrum.
 void testVuBallistics()
@@ -637,6 +706,7 @@ int main(int argc, char *argv[])
     testToneLandsInItsOwnBand();
     testSmoothingAsymmetry();
     testPeakHold();
+    testPeakFallConfigurable();
     testVuBallistics();
     testScalesAgainstRealMaterial();
     testRestAndHold();

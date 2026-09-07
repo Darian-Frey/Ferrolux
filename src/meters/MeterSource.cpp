@@ -190,6 +190,18 @@ void MeterSource::consumeSpectrum(const QList<float> &magnitudesDb, int sampleRa
     emit updated();
 }
 
+void MeterSource::setPeakFall(double decibelsPerSecond)
+{
+    // Clamped here rather than trusted, like every other setting that reaches a
+    // running display: this arrives from a slider and from a settings file that
+    // can be edited by hand, and a fall of zero is a cap that never comes down.
+    const double clamped = std::clamp(decibelsPerSecond, kMinPeakFall, kMaxPeakFall);
+    if (qFuzzyCompare(clamped, m_peakFallDbPerSecond))
+        return;
+    m_peakFallDbPerSecond = clamped;
+    emit peakFallChanged();
+}
+
 void MeterSource::setReferenceLevel(double decibels)
 {
     decibels = qBound(-40.0, decibels, 0.0);
@@ -287,7 +299,7 @@ void MeterSource::advance(double elapsedMs)
     // Per-channel hold, tracking the deflection the ladder actually shows. Held
     // after the needle has moved this step, so the mark can never lag behind
     // the run it is meant to sit above.
-    const double channelFallPerMs = (kPeakFallDbPerSecond / 1000.0) / 20.0;
+    const double channelFallPerMs = (m_peakFallDbPerSecond / 1000.0) / 20.0;
     for (int channel = 0; channel < kChannels; ++channel) {
         const size_t i = size_t(channel);
         if (m_vu[i] >= m_channelPeak[i]) {
@@ -304,7 +316,7 @@ void MeterSource::advance(double elapsedMs)
 
     // Peak-hold caps: hold, then fall at a fixed rate in decibels per second,
     // converted into the normalised scale the texture carries.
-    const double fallPerMs = (kPeakFallDbPerSecond / 1000.0) / (0.0 - kFloorDb);
+    const double fallPerMs = (m_peakFallDbPerSecond / 1000.0) / (0.0 - kFloorDb);
     for (int band = 0; band < m_peaks.size(); ++band) {
         if (m_peakHoldMs.at(band) > 0.0) {
             m_peakHoldMs[band] -= elapsedMs;
