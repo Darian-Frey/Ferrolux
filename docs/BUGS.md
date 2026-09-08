@@ -171,6 +171,41 @@ which is where a user can act on it.
 
 ## Fixed
 
+### BUG-032 The build and the binary reported different version numbers
+**Status:** fixed
+**Severity:** low
+**Found:** 2026-09-07, noticed while checking what Phase 7 still needs
+**Fixed:** 2026-09-09
+**Related:** D-008, ROADMAP.md Phase 7
+
+`CMakeLists.txt` declared `project(ferrolux VERSION 0.1.0)` and `main.cpp`
+called `setApplicationVersion("0.2.0")`. Both are real: the first is what CMake
+gives a package built from the tree, and the second is what `ferrolux --version`
+prints. They had disagreed since Phase 2.
+
+Nothing had gone wrong yet because nothing has been packaged and nothing has been
+tagged. That is also what made it easy to leave: the disagreement has no symptom
+until the first `.deb` is built, at which point the package says one number and
+the binary inside it says another, and the person who notices is a user rather
+than the author.
+
+D-008 settles the policy — git tags, package versions and `CHANGELOG.md` all use
+semantic versioning — but a policy about which scheme to use says nothing about
+where the number lives. Two copies of a number that must agree will not.
+
+Fixed by keeping one: `project(... VERSION 0.2.0 ...)` is the source, CMake
+passes it to the code as `FERROLUX_VERSION`, and `main.cpp` reports that. Proved
+by setting the CMake version to 9.9.9 and watching `--version` follow, then
+setting it back. `spec_test` holds the arrangement — that CMake declares a
+semantic version, hands it over, and that no literal has crept back into the line
+that reports it — because a second copy reintroduced later would be silent in
+exactly the same way.
+
+**0.2.0 rather than a new number**, because it is what the application has been
+telling anyone who asked, and inventing a third value to reconcile two would be
+its own small dishonesty. Phase 7's `v1.0.0` tag is where this next changes, and
+it now changes in one place.
+
 ### BUG-031 Three measurement tools wrote a settings file the application does not read
 **Status:** fixed
 **Severity:** medium

@@ -7,7 +7,7 @@
 > Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 421 checks across eight suites pass in Debug and Release.
+> invertible. 425 checks across eight suites pass in Debug and Release.
 >
 > Four criteria are measured rather than asserted, and they are the reasons
 > the project exists. AV-002: every display holds 60 fps at 3840×2160 with at
@@ -32,7 +32,7 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug and one suggested improvement. Thirty-one found, twenty-nine
+> One open bug and one suggested improvement. Thirty-two found, thirty
 > fixed and one won't-fix upstream. BUG-027 remains at low severity, narrowed to
 > a next playlist entry whose type is recognised and whose contents will not
 > decode, which costs the track before it 1.46 s of its tail. Phase 6 is complete; Phase 7 is under way, and its first work is

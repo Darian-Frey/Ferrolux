@@ -874,6 +874,27 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   report, and this is a release gate. 413 checks.
 
 ### Fixed
+- **BUG-032: the build and the binary reported different version numbers.**
+  `CMakeLists.txt` declared `project(ferrolux VERSION 0.1.0)` while `main.cpp`
+  called `setApplicationVersion("0.2.0")`. Both are real — the first is what
+  CMake gives a package built from the tree, the second is what `--version`
+  prints — and they had disagreed since Phase 2.
+
+  Nothing had gone wrong because nothing has been packaged or tagged, which is
+  also what made it easy to leave: the disagreement has no symptom until the
+  first `.deb` exists, and then the package says one number, the binary inside
+  says another, and the person who notices is a user. D-008 settles which
+  versioning scheme to use and says nothing about where the number lives; two
+  copies of a number that must agree will not.
+
+  Fixed by keeping one. `project(... VERSION 0.2.0 ...)` is the source, CMake
+  passes it as `FERROLUX_VERSION`, and `main.cpp` reports that — proved by
+  setting the CMake version to 9.9.9, watching `--version` follow, and setting it
+  back. `spec_test` holds the arrangement, including that no literal has crept
+  back into the line that reports it. 0.2.0 rather than a new number, because it
+  is what the application has been telling anyone who asked; Phase 7's `v1.0.0`
+  tag is where it next changes, and it now changes in one place. 425 checks.
+
 - **BUG-027: a corrupt *next* playlist entry truncated the track that was
   playing.** `playbin3` reports a failure to prepare the next URI on the same
   bus as a failure of the one playing, so a fault in a file nobody was listening

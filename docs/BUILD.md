@@ -171,7 +171,7 @@ cmake --build build
 
 ## Tests
 
-Eight suites, 421 checks. Six are self-contained and need nothing but the build;
+Eight suites, 425 checks. Six are self-contained and need nothing but the build;
 `tokens_test` and `spec_test` take the source directory, because they read the
 tree rather than the build: `spec_test` holds SPEC.md §Settings and the code to
 each other in both directions, so an undocumented key and a documented one that

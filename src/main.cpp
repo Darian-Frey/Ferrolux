@@ -99,7 +99,11 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("ferrolux"));
     QCoreApplication::setApplicationName(QStringLiteral("ferrolux"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.2.0"));
+    // From CMake, not from here. A literal in this line disagreed with
+    // `project(... VERSION ...)` for five phases, and `--version` printed one
+    // number while any package built from the tree would have carried the
+    // other. BUG-032.
+    QCoreApplication::setApplicationVersion(QStringLiteral(FERROLUX_VERSION));
     QSettings::setDefaultFormat(QSettings::IniFormat);
 
     // Names the desktop entry this application is. Wayland uses it as the

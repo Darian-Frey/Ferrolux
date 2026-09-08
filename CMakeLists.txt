@@ -9,8 +9,12 @@
 
 cmake_minimum_required(VERSION 3.21)
 
+# The one place the version is written. `main.cpp` had its own copy and the two
+# disagreed for five phases — 0.1.0 here against 0.2.0 there — so a package built
+# from this tree would have carried a different number from the binary inside it.
+# See BUG-032. `FERROLUX_VERSION` below is how the code gets it.
 project(ferrolux
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "A cassette futurism audio player for Linux"
     LANGUAGES CXX
 )
@@ -152,6 +156,9 @@ qt_add_resources(ferrolux "ferrolux_panel_assets"
         resources/themes/ember.json
 )
 
+target_compile_definitions(ferrolux PRIVATE
+    FERROLUX_VERSION="${PROJECT_VERSION}"
+)
 target_include_directories(ferrolux PRIVATE src)
 
 # IMP-008. The media-key grab of last resort, for X11 sessions with no settings

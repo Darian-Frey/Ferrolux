@@ -543,5 +543,39 @@ int main(int argc, char *argv[])
               QStringLiteral("%1 faces, %2 OFL notices").arg(faces).arg(notices));
     }
 
+    // ---- D-008 -------------------------------------------------------------
+    // One version, in one place. `CMakeLists.txt` and `main.cpp` each carried
+    // their own and disagreed for five phases — 0.1.0 against 0.2.0 — so
+    // `--version` printed one number while a package built from the same tree
+    // would have carried the other. BUG-032.
+    //
+    // What is checked is not that the two agree, because they no longer can:
+    // the code takes the number from CMake through `FERROLUX_VERSION`. It is
+    // that the code still does that, and that nobody has put a literal back.
+    std::printf("\nOne version, in one place (D-008)\n");
+    {
+        const QString cmake = readAll(root + QStringLiteral("/CMakeLists.txt"));
+        const QString main = readAll(root + QStringLiteral("/src/main.cpp"));
+
+        static const QRegularExpression declared(
+            QStringLiteral("project\\s*\\(\\s*ferrolux\\s+VERSION\\s+(\\d+\\.\\d+\\.\\d+)"));
+        const auto match = declared.match(cmake);
+        check(match.hasMatch(), "CMakeLists.txt declares a semantic version",
+              match.hasMatch() ? match.captured(1) : QStringLiteral("no project(... VERSION ...) found"));
+
+        check(cmake.contains(QStringLiteral("FERROLUX_VERSION=\"${PROJECT_VERSION}\"")),
+              "and hands it to the code rather than letting the code repeat it");
+
+        check(main.contains(QStringLiteral("setApplicationVersion(QStringLiteral(FERROLUX_VERSION))")),
+              "which is what the application reports");
+
+        // The regression this exists for: a literal creeping back into that
+        // line, which is how the two came to disagree in the first place.
+        static const QRegularExpression literal(
+            QStringLiteral("setApplicationVersion\\s*\\(\\s*QStringLiteral\\s*\\(\\s*\""));
+        check(!literal.match(main).hasMatch(),
+              "and no version literal has crept back into it");
+    }
+
     return ferrolux::tests::summary();
 }
