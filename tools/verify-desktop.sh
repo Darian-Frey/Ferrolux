@@ -164,8 +164,34 @@ check $? "--enqueue does not disturb what is playing"
 # ---- session restore, F-015 ------------------------------------------------
 echo
 echo "Session restore (F-015)"
-call Play; sleep 4
+call Play; sleep 2
+
+# BUG-029. Playback carries on between the reading taken here and the quit
+# landing, so where it is when that reading is taken decides whether this
+# section is a test or a coin toss. Left to run on from wherever the earlier
+# checks finished, it read 9.12 s of a nine-second track — on the boundary,
+# every run — and a gapless handover in that window moves the session on to the
+# next track at position zero. The player is right to save that; the reading
+# taken four seconds earlier is what is stale.
+#
+# So playback is placed rather than found. Two seconds into a nine-second track
+# leaves the whole window clear of the boundary, and the quit still happens
+# while playing, which is the case F-015 is actually about — pausing first would
+# make this deterministic by no longer testing it.
+trackid=$(prop Metadata | grep -o "'mpris:trackid': <objectpath '[^']*'>" \
+          | sed "s/.*objectpath '\([^']*\)'.*/\1/")
+gdbus call $D --method org.mpris.MediaPlayer2.Player.SetPosition \
+    "objectpath '$trackid'" 2000000 >/dev/null 2>&1
+sleep 1
+
 saved_pos=$(prop Position | sed 's/^int64 //')
+# The placement is asserted rather than assumed. If `SetPosition` were ever to
+# stop working, everything below would still pass while measuring the race this
+# exists to remove.
+[ -n "$saved_pos" ] && [ "$saved_pos" -ge 1500000 ] && [ "$saved_pos" -lt 5000000 ]
+check $? "playback can be placed mid-track, clear of any handover" \
+      "asked for 2 s, reading ${saved_pos} µs"
+
 saved_track=$(prop Metadata | grep -o "'xesam:url': <[^>]*>" | head -1)
 stop
 check $? "the player quits when asked, rather than being killed"

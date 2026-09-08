@@ -32,13 +32,10 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> Two open bugs and one suggested improvement. Twenty-nine bugs found,
-> twenty-six fixed and one won't-fix upstream. BUG-027 is open at low severity:
-> a corrupt *next* playlist entry still costs the track that is playing its last
-> two seconds. BUG-029 is open at medium: `verify-desktop.sh`'s session check
-> lands on a track boundary by construction and fails about half the time on
-> correct behaviour, which is a false failure in the tool rather than a defect
-> in the player. Phase 6 is complete; Phase 7 is under way, and its first work is
+> One open bug and one suggested improvement. Twenty-nine bugs found,
+> twenty-seven fixed and one won't-fix upstream. BUG-027 is open at low
+> severity: a corrupt *next* playlist entry still costs the track that is
+> playing its last two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
 > F-002, F-031 and F-004 have closed, three remain. **All four Critical attack vectors
 > now have implemented detection**, AV-007 having closed on 2026-09-08.

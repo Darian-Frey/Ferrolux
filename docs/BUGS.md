@@ -19,55 +19,6 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-029 `verify-desktop.sh`'s session check races a track boundary and fails about half the time
-**Status:** open
-**Severity:** medium
-**Found:** 2026-09-08, adding F-004's persistence coverage
-**Related:** F-015, IMP-010, AV-006
-
-The session section of `tools/verify-desktop.sh` reads the current track and
-position over MPRIS, quits the player, restarts it, and asserts that both come
-back. Playback continues between the read and the quit landing — the script says
-so, and tolerates the position being *a little later* than the figure it
-observed. What it does not tolerate is the track having changed, and about half
-the time it has.
-
-The material is six tracks of nine seconds. By the time the session section
-runs, earlier checks have left playback partway through one, and `call Play;
-sleep 4` then puts the observed position at **9.12 s of a 9 s track** — that is,
-at the boundary, every run. Whether the handover falls before or after the quit
-is a coin flip, and the two symptoms seen are the two sides of it: the restored
-track not matching the one read, and the restored position being 0.
-
-**The player is right in both cases.** `Engine::position()` returns a cached
-value that a gapless handover resets to zero (`Engine.cpp`, the
-`gaplessAdvance` path), so a session saved just after a boundary correctly
-records the *new* track at position 0, and restore correctly brings back exactly
-that. The log from a failing run says `restored 6 entries at row 5` and the
-settings file says `track=5, position=0`, which is a faithful account of where
-playback was — not of where it was four seconds earlier when the script looked.
-
-So this is a false failure, and false failures are worse than no check: this one
-sits in the tool that F-004, F-015 and every settings key are now verified by, and
-the natural response to a check that fails half the time is to stop reading it.
-
-Three ways out, none of them obviously best, which is why this is logged rather
-than fixed:
-
-- **Pause before reading.** `call Pause` freezes the boundary, and the section
-  becomes deterministic — but it then stops covering the case F-015 is actually
-  about, which is quitting while playing.
-- **Read after quitting rather than before.** The saved settings file is the
-  authority on where playback was; comparing the restored state to the *file*
-  instead of to a reading taken four seconds earlier removes the race entirely
-  and keeps a playing quit. It weakens the check slightly, since the file is
-  both sides of the comparison.
-- **Give the session section its own long track**, so no boundary can fall in
-  the window. Deterministic and keeps the check strong, at the cost of one more
-  fixture and a longer run.
-
-Nothing about F-015 needs to change under any of them.
-
 ### BUG-027 A corrupt *next* entry truncates the track that is playing
 **Status:** open
 **Severity:** low
@@ -153,6 +104,61 @@ common case — a playlist pointing at files that have been moved or deleted —
 fixed.
 
 ## Fixed
+
+### BUG-029 `verify-desktop.sh`'s session check races a track boundary and fails about half the time
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-08, adding F-004's persistence coverage
+**Fixed:** 2026-09-08
+**Related:** F-015, IMP-010, AV-006
+
+The session section of `tools/verify-desktop.sh` reads the current track and
+position over MPRIS, quits the player, restarts it, and asserts that both come
+back. Playback continues between the read and the quit landing — the script says
+so, and tolerates the position being *a little later* than the figure it
+observed. What it does not tolerate is the track having changed, and about half
+the time it has.
+
+The material is six tracks of nine seconds. By the time the session section
+runs, earlier checks have left playback partway through one, and `call Play;
+sleep 4` then puts the observed position at **9.12 s of a 9 s track** — that is,
+at the boundary, every run. Whether the handover falls before or after the quit
+is a coin flip, and the two symptoms seen are the two sides of it: the restored
+track not matching the one read, and the restored position being 0.
+
+**The player is right in both cases.** `Engine::position()` returns a cached
+value that a gapless handover resets to zero (`Engine.cpp`, the
+`gaplessAdvance` path), so a session saved just after a boundary correctly
+records the *new* track at position 0, and restore correctly brings back exactly
+that. The log from a failing run says `restored 6 entries at row 5` and the
+settings file says `track=5, position=0`, which is a faithful account of where
+playback was — not of where it was four seconds earlier when the script looked.
+
+So this is a false failure, and false failures are worse than no check: this one
+sits in the tool that F-004, F-015 and every settings key are now verified by, and
+the natural response to a check that fails half the time is to stop reading it.
+
+**Fixed by placing playback rather than finding it.** The section now uses
+MPRIS `SetPosition` to put the stream two seconds into the current track before
+taking its reading, which leaves the entire window between the reading and the
+quit clear of the boundary. Nine consecutive runs pass, against roughly one in
+two before.
+
+Three ways out were considered. Pausing first would make the section
+deterministic by no longer testing what F-015 is about, which is quitting *while
+playing*. Comparing the restored state against the saved settings file instead
+of against a live reading would remove the race, but puts the file on both sides
+of the comparison and so weakens what is being asserted. Placing the position
+keeps a playing quit and keeps the comparison honest, and costs one extra
+check — that the placement actually happened, because otherwise a `SetPosition`
+that silently stopped working would leave everything below passing while
+measuring exactly the race this removes.
+
+Nothing in F-015 changed. The player was correct throughout, which is the
+uncomfortable part: the tool that verifies the session, the settings and now
+F-004 spent an unknown number of runs reporting a defect in code that had none,
+and the only reason it was caught is that a new section was added beside it and
+the failure had to be attributed before that work could be reported.
 
 ### BUG-028 `frame_bench` measured shaders with undefined parameters
 **Status:** fixed
