@@ -219,7 +219,15 @@ The fall belongs to `MeterSource` and not to `VisualSettings`: it is a property 
 - Cycle between spectrum bars, mirrored spectrum, stereo VU needles and LED peak ladder by clicking the display
 - Selection persists across restart
 - Switching does not interrupt audio or drop a frame
-**Status:** Partial (Phase 4, 2026-09-02) — all four modes read the same texture and the same meter source, so switching hides one shader and shows another and cannot touch the pipeline. Clicking the display cycles; the choice persists under the SPEC.md §Settings `meters/mode` key. Outstanding: the dropped-frame claim, which needs AV-002's instrumentation to assert rather than assume.
+**Status:** Complete (Phase 4, 2026-09-02; the dropped-frame clause measured 2026-09-08) — all four modes read the same texture and the same meter source, so switching hides one shader and shows another and cannot touch the pipeline. Clicking the display cycles; the choice persists under the SPEC.md §Settings `meters/mode` key.
+
+`tools/verify-mode-switch.sh` measures the third clause. `measure-frames.sh` never could: it sweeps the modes one at a time and measures each in steady state, settling the GPU between them, which is the right way to ask what a mode costs and the wrong way to ask what *changing* one costs — the event happens in the gap that tool leaves between its measurements.
+
+It measures with the swap interval left **on**, which is the opposite of what AV-002 does and for a precise reason: a dropped frame only exists where something is pacing them. With vsync off the loop free-runs and a missed frame is indistinguishable from a fast one; with vsync on, an interval over 1.5× the budget is one frame missed and nothing else.
+
+**Counting the run's dropped frames would not have answered it.** This machine drops one or two frames in twenty seconds while doing nothing, because it shares a GPU with a compositor — the first run of this tool showed the *steady* case dropping two and the switching case one, which says only that both are noisy. So each switch opens a 100 ms window and drops inside those windows are counted separately: a frame lost to a mode change lands within a frame or two of it, one lost to the compositor lands anywhere.
+
+Measured over 20 seconds at 60 Hz, playing: **51 switches, 0 dropped frames in any window, 0 sink underruns**, worst interval 22.9 ms switching against 23.9 ms steady. Confirmed against the defect by stalling 60 ms on each mode change, which the check caught as 37 of 38 switches followed by a dropped frame while the steady control stayed clean.
 
 ### F-035 Flame spectrum mode
 **Priority:** Could

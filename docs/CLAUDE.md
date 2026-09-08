@@ -76,7 +76,9 @@ across eight suites** pass in both Debug and Release.
   `stress-audio.sh` (AV-001's — playback under synthetic CPU and I/O load,
   timing the streaming thread from inside it and counting the sink's underruns),
   `verify-render-thread.sh` (AV-007's — the threaded loop on both RHI backends,
-  counting uploads against the thread they happened on)
+  counting uploads against the thread they happened on), `verify-mode-switch.sh`
+  (F-033's — vsync left on, and dropped frames attributed to the switch that
+  preceded them rather than merely counted)
 - `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`,
   `CommandLine` and `Session`; the desktop entry is the rest of Phase 6.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
@@ -114,7 +116,7 @@ previous, and the 100 ms transport bound), F-031 (60 fps at 4K, and caps whose
 decay is genuinely configurable), F-004 (volume and balance persisting, which
 needed a harness that quits through `aboutToQuit`) and F-020 (the audible
 absence of a click, measured) have gone Complete this way.
-Two remain: F-032 and F-033 — see ROADMAP.md §Phase 7, which says what
+One remains: F-032, the comparison against a reference deck — see ROADMAP.md §Phase 7, which says what
 each is waiting on. All four Critical attack vectors now have detection. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
 after them.
 
@@ -183,6 +185,12 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **A rate is not a cause.** F-033 asks that switching modes drops no frame,
+  and counting the run's dropped frames cannot answer it: this machine drops one
+  or two in twenty seconds while idle, so a switching run with one and a steady
+  run with two says only that both are noisy. Attributing them does answer it —
+  each switch opens a 100 ms window, and a frame lost to a switch lands inside
+  one while a frame lost to the compositor lands anywhere.
 - **Measure the fault, not the feature.** F-020's zipper-noise check took three
   metrics. The largest step between adjacent samples found nothing even for an
   unramped gain change, because `equalizer-nbands` moves biquad coefficients
@@ -325,7 +333,7 @@ Registering them with CTest requires `-DFERROLUX_TEST_FLAC=` and
 `-DFERROLUX_TEST_MP3=` at configure time; without those two, `ctest` silently
 runs four suites instead of six, which is easy to read as a pass.
 
-Five measurements are tools rather than tests, because each needs something a
+Six measurements are tools rather than tests, because each needs something a
 build machine may not have — a display, a window manager, a GPU, a session bus,
 an audio device — and a machine without it would report a failure that says
 nothing about the code:
@@ -336,6 +344,7 @@ nothing about the code:
 ./tools/verify-desktop.sh        # IMP-010 — MPRIS, single instance, session, settings
 ./tools/stress-audio.sh          # AV-001 — the streaming thread under load
 ./tools/verify-render-thread.sh  # AV-007 — uploads, threaded, opengl and vulkan
+./tools/verify-mode-switch.sh    # F-033 — a mode change costs no frame
 ```
 
 Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the

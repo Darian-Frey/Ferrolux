@@ -259,6 +259,7 @@ about the code. Both are AV detections and both are run by hand.
 ./tools/verify-desktop.sh        # IMP-010: platform/ against a real session
 ./tools/stress-audio.sh          # AV-001: the streaming thread, under load
 ./tools/verify-render-thread.sh  # AV-007: texture uploads, threaded, both backends
+./tools/verify-mode-switch.sh    # F-033: switching drops no frame, interrupts no audio
 ```
 
 `verify-render-thread.sh` forces `QSG_RENDER_LOOP=threaded` and runs under both

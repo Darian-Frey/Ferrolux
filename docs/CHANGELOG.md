@@ -799,6 +799,39 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   makes a click audible in the first place. Two Must-priority features remain,
   F-032 and F-033. 397 checks.
 
+- F-033 is Complete, leaving F-032 as the only Must-priority feature still open
+  — and its outstanding clause is a judgement about whether the VU needle reads
+  like a real deck, which no tool can make.
+
+  The clause here was that switching display modes must not interrupt audio or
+  drop a frame. `measure-frames.sh` never could answer it: it sweeps the modes
+  one at a time and measures each in steady state, settling the GPU between
+  them, which is the right way to ask what a mode costs and the wrong way to ask
+  what changing one costs. The event lives in the gap that tool leaves between
+  its measurements.
+
+  `tools/verify-mode-switch.sh` measures with the swap interval left **on**,
+  which is the reverse of what AV-002 does and deliberate: a dropped frame only
+  exists where something is pacing them. With vsync off the loop free-runs and a
+  missed frame is indistinguishable from a fast one. Switching goes through
+  `MeterSource::cycleMode`, the same call the panel makes when the display is
+  clicked, so the tool cannot pass by way of a path the user does not take.
+
+  **Counting the run's dropped frames would not have answered it, and the first
+  run proved that.** The steady case dropped two frames and the switching case
+  one — this machine drops one or two in twenty seconds while idle, sharing a
+  GPU with a compositor — which says only that both are noisy. Relaxing the
+  threshold until that passed would have been fitting the test to the answer. So
+  each switch now opens a 100 ms window and the drops inside those windows are
+  counted apart from the rest: a frame lost to a mode change lands within a
+  frame or two of it, and one lost to the compositor lands anywhere.
+
+  Measured over 20 seconds at 60 Hz with audio playing: **51 switches, no
+  dropped frame in any window, no sink underruns**, worst interval 22.9 ms
+  switching against 23.9 ms steady. Confirmed against the defect by stalling
+  60 ms on each mode change, which the check caught as 37 of 38 switches
+  followed by a dropped frame while the steady control stayed clean.
+
 ### Fixed
 - **BUG-029: `verify-desktop.sh`'s session check raced a track boundary and
   failed about half the time on correct behaviour.** It read the current track

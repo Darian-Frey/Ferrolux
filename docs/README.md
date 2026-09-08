@@ -37,7 +37,9 @@
 > severity: a corrupt *next* playlist entry still costs the track that is
 > playing its last two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
-> F-002, F-031, F-004 and F-020 have closed, two remain. **All four Critical attack vectors
+> F-002, F-031, F-004, F-020 and F-033 have closed. **One remains: F-032**,
+> which asks whether the VU needle is indistinguishable from a reference deck —
+> a judgement rather than a measurement. **All four Critical attack vectors
 > now have implemented detection**, AV-007 having closed on 2026-09-08.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.

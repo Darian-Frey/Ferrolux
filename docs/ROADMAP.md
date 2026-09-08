@@ -254,10 +254,10 @@ has an unlit ghost and the title does not.
 **Features delivered:** — (release engineering, no new capabilities). The phase
 does close out Must-priority acceptance clauses left Partial by earlier phases,
 which is the second deliverable below rather than new capability: F-001, F-002,
-F-031, F-004 and F-020 have gone Complete this way. Two Musts remain — F-032
-(the comparison against a reference deck, a judgement rather than a measurement)
-and F-033 (switching must not drop a frame, which `measure-frames.sh` does not
-cover: it sweeps modes in steady state, not across a switch).
+F-031, F-004, F-020 and F-033 have gone Complete this way. **One Must remains:
+F-032**, whose outstanding clause asks whether the VU needle is visually
+indistinguishable from a reference deck fed the same material. That is a
+judgement rather than a measurement, and it is the author's to make.
 **Deliverables:**
 - [ ] Licence settled and `LICENSE` committed (D-010)
 - [ ] All Must-priority features Complete or explicitly Withdrawn

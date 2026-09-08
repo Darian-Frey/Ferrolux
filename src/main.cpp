@@ -82,7 +82,15 @@ int main(int argc, char *argv[])
     // reach aboutToQuit, so the report would never be written.
     const int measureSeconds = qEnvironmentVariableIntValue("FERROLUX_FRAME_MEASURE");
     const bool measuring = measureSeconds > 0;
-    if (measuring) {
+
+    // AV-002 wants the swap interval off, so that the frame interval stops
+    // saturating at the refresh rate and becomes the true cost of a frame.
+    // F-033 wants the opposite: its clause is that switching modes must not
+    // *drop* a frame, and a dropped frame only exists when something is pacing
+    // them. With vsync on, an interval over 1.5x the budget is one frame
+    // missed and nothing else — which is what `FrameTimer` already counts.
+    const bool keepVsync = qEnvironmentVariableIntValue("FERROLUX_FRAME_MEASURE_VSYNC") > 0;
+    if (measuring && !keepVsync) {
         QSurfaceFormat format = QSurfaceFormat::defaultFormat();
         format.setSwapInterval(0);
         QSurfaceFormat::setDefaultFormat(format);
@@ -227,6 +235,47 @@ int main(int argc, char *argv[])
         // AV-002. Attached to the window rather than to the meters, because the
         // meters share their frame with everything else drawn in it.
         FrameTimer frameTimer;
+
+        // F-033. Cycle the display modes on a timer, so that a measured run
+        // spans switches rather than describing one steady mode. It goes
+        // through `cycleMode`, which is the same call the panel makes when the
+        // display is clicked — a switcher of its own would be a second way to
+        // change modes and could pass while the real one dropped frames.
+        //
+        // Counting the run's dropped frames is not enough to answer it. This
+        // machine drops one or two in twenty seconds while doing nothing at
+        // all — it shares a GPU with a compositor — so a switching run with one
+        // drop and a steady run with two says only that both are noisy. What
+        // the clause asks is whether switching *causes* a drop, which is a
+        // question about when they happen and not how many.
+        //
+        // So each switch opens a 100 ms window and the drops inside those
+        // windows are counted separately. A frame lost to a mode change lands
+        // within a frame or two of it; one lost to the compositor lands
+        // anywhere. Both figures are reported, because a count inside the
+        // windows means nothing without the share of the run they cover.
+        const int switchMs = qEnvironmentVariableIntValue("FERROLUX_MODE_SWITCH");
+        QTimer modeSwitcher;
+        int switches = 0;
+        int lateAfterSwitches = 0;
+        constexpr int kWindowMs = 100;
+        if (switchMs > 0) {
+            modeSwitcher.setInterval(switchMs);
+            QObject::connect(&modeSwitcher, &QTimer::timeout, player.meters(), [&] {
+                const int before = frameTimer.lateFrames();
+                ++switches;
+                player.meters()->cycleMode();
+                QTimer::singleShot(kWindowMs, &app, [&, before] {
+                    // `frameTimer` is reset a second into a measured run, so a
+                    // window open across that reset would subtract a larger
+                    // count from a smaller one. A negative delta is that, and
+                    // never a frame.
+                    lateAfterSwitches += std::max(0, frameTimer.lateFrames() - before);
+                });
+            });
+            modeSwitcher.start();
+        }
+
         if (auto *window = qobject_cast<QQuickWindow *>(qml.rootObjects().first())) {
             frameTimer.attach(window);
 
@@ -284,13 +333,19 @@ int main(int argc, char *argv[])
                 QTimer::singleShot(1000, &frameTimer, [&frameTimer] { frameTimer.reset(); });
 
                 QTimer::singleShot((measureSeconds + 1) * 1000, &frameTimer,
-                                   [&frameTimer, &app, window] {
+                                   [&frameTimer, &app, window, switchMs, kWindowMs,
+                                    &switches, &lateAfterSwitches] {
                                        // The size actually rendered, not the one
                                        // requested. A measurement that cannot say
                                        // what it measured is not a measurement.
                                        std::fprintf(stderr, "FRAMES size=%dx%d %s\n",
                                                     window->width(), window->height(),
                                                     qPrintable(frameTimer.summary()));
+                                       if (switchMs > 0)
+                                           std::fprintf(stderr,
+                                                        "SWITCH switches=%d late_in_windows=%d "
+                                                        "window_ms=%d\n",
+                                                        switches, lateAfterSwitches, kWindowMs);
                                        std::fflush(stderr);
                                        app.quit();
                                    });
