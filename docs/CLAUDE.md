@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **398 checks
+its own panel — nothing in the window comes from a desktop theme. **406 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -84,12 +84,11 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**One open bug and no suggested improvements.** Twenty-seven bugs found so far,
-twenty-five fixed and one won't-fix upstream (BUG-006). BUG-027 remains open at
-low severity: a next entry that exists, is readable and does not decode still
-costs the previous track its last two seconds. A next source that cannot be
-*opened* is no longer handed over at all, which covers the common case of a
-playlist pointing at files that have moved. Read BUGS.md before
+**No open bugs and one suggested improvement.** Thirty-one bugs found so far,
+thirty fixed and one won't-fix upstream (BUG-006, a GStreamer defect D-006
+commits the project to working around). IMP-012 is the suggestion: the gapless
+handover costs milliseconds on a streaming thread and nothing this project
+controls bounds it. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
 specification faults that looked entirely reasonable until they were measured.
 
@@ -186,6 +185,12 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **A source that cannot be prepared does not report once.** BUG-027's fix
+  classified the first error as the next source's and cleared its own flag, and
+  typefind then posted a second — "Internal data stream error" from the same
+  element — which fell through and ended the track exactly as before. The bug
+  reproduced through the machinery written to fix it. State that classifies a
+  failure has to outlive the failure, not the first message of it.
 - **A file written without error is not a file anybody reads.** Three
   measurement tools wrote `ferrolux.conf` to mute themselves; the application
   reads `ferrolux.ini`. Every run played at 0.7 while the tool's own header

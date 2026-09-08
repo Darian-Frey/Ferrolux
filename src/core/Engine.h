@@ -284,6 +284,13 @@ private:
     // the wrong entry.
     QByteArray m_handoverUri;
     QAtomicInt m_handoverPending{0};
+
+    // BUG-027. Set when the source armed for a gapless handover failed, so the
+    // current track was left to finish a stream that `playbin3` will never end.
+    // `poll()` watches for it running out and ends it.
+    bool m_handoverFailed = false;
+    qint64 m_lastPolledPosition = -1;
+    int m_stalledPolls = 0;
 };
 
 } // namespace ferrolux::core

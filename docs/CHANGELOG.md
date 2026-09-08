@@ -854,6 +854,44 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   398 checks.
 
 ### Fixed
+- **BUG-027: a corrupt *next* playlist entry truncated the track that was
+  playing.** `playbin3` reports a failure to prepare the next URI on the same
+  bus as a failure of the one playing, so a fault in a file nobody was listening
+  to yet ended the one they were. A next source that cannot be *opened* had
+  already been declined, covering a playlist pointing at files that have moved;
+  a `stat` cannot tell that a file will not decode, and that was what remained.
+
+  The entry had the diagnosis and two of three pieces since 2026-09-07. The
+  third was where to attribute an error from: `playbin`'s `uri` property is
+  shared state and has already been changed to the next file by the time the
+  error arrives, so asking it is asking the thing that caused the confusion to
+  resolve it. `Engine` already knew, because `aboutToFinish` writes
+  `m_handoverUri` — so the owning URI is walked out of the message source's
+  parents and compared against that, and the walk stops before the pipeline
+  itself for the same reason. An error that cannot be placed below it is treated
+  as the current stream's, which is the answer that was always given.
+
+  The missing EOS is supplied by `poll()`, which watches for a position that has
+  stopped moving within three seconds of a known duration, and only while a
+  handover is known to have failed — a still position is what finishing looks
+  like, but it is also what a stall looks like, and the duration says which.
+  That turns "complete and stuck" into "complete, ended and moved on".
+
+  **The first version of the fix reproduced the bug through its own
+  machinery.** It cleared the armed flag on the first error, and a source that
+  cannot be prepared does not report once: typefind said "Could not determine
+  type of stream" and then "Internal data stream error" from the same element,
+  and the second message fell through and ended the track exactly as before. The
+  classification now outlives the failure and is cleared when a new source is
+  set — the moment that URI stops being the next one and becomes the current one.
+
+  `acceptance_transport` carries the case in eight checks. A track whose next
+  entry is readable rubbish plays **32.507 s of 32.507 s**, against 30.493 s
+  through the same harness before the change and the 5.035 s of 6.966 s first
+  recorded. The playlist then moves on by itself, the broken entry fails as the
+  current source, and BUG-025's machinery steps over it onto the one after.
+  **No open bugs remain.** 406 checks.
+
 - **BUG-030: the VU face's scale marks were evenly spaced, so it did not crowd
   as a real one does.** SPEC.md §Meters says the scale crowds towards its left
   end because deflection is linear in amplitude; `vu.frag` drew its ticks as

@@ -7,7 +7,7 @@
 > Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 398 checks across eight suites pass in Debug and Release.
+> invertible. 406 checks across eight suites pass in Debug and Release.
 >
 > Four criteria are measured rather than asserted, and they are the reasons
 > the project exists. AV-002: every display holds 60 fps at 3840×2160 with at
@@ -32,10 +32,9 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug and one suggested improvement. Thirty-one bugs found,
-> twenty-nine fixed and one won't-fix upstream. BUG-027 is open at low severity:
-> a corrupt *next* playlist entry still costs the track that is playing its last
-> two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
+> **No open bugs** and one suggested improvement. Thirty-one found, thirty
+> fixed and one won't-fix upstream, that last being a GStreamer defect D-006
+> commits the project to working around rather than avoiding. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
 > **Every Must-priority feature is Complete**, F-032 having closed on
 > 2026-09-08. One acceptance clause in the project is still open and it belongs

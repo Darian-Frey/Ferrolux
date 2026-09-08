@@ -10,6 +10,8 @@
 // spin loop, standing in for the per-frame poll the QML harness does.
 
 #include <QCoreApplication>
+#include <QFile>
+#include <QTemporaryDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QUrl>
@@ -522,6 +524,123 @@ void runStopStartCycles(const QString &path, int cycles)
 
 } // namespace
 
+// BUG-027. A next entry that exists, is readable, and does not decode used to
+// cost the track before it its last two seconds.
+//
+// `playbin3` reports a failure to prepare the *next* URI on the same bus as a
+// failure of the one playing, so the engine ended a stream nobody had
+// complained about. `Engine::setNextSource` already declines a next source that
+// cannot be opened, which covers a playlist pointing at files that have moved
+// or been deleted — but a `stat` cannot tell that a file will not decode, and
+// this is what was left.
+//
+// The file here is bytes that are not audio under a name that says they are:
+// readable, so the existence check passes it, and undecodable, so preparing it
+// fails.
+void runCorruptNextEntry(const QString &good)
+{
+    std::printf("\ncorrupt next entry (BUG-027)\n");
+
+    QTemporaryDir scratch;
+    if (!scratch.isValid()) {
+        check(false, "a scratch directory to put the broken file in");
+        return;
+    }
+    // All three staged in the scratch directory under names that sort into the
+    // order wanted. `addPaths` sorts, and letting the real paths decide put the
+    // broken entry last rather than in the middle — the same trap that made two
+    // of BUG-025's four reported failures test artefacts.
+    const QString first = scratch.filePath(QStringLiteral("1-good.flac"));
+    const QString broken = scratch.filePath(QStringLiteral("2-broken.flac"));
+    const QString third = scratch.filePath(QStringLiteral("3-good.flac"));
+    if (!QFile::copy(good, first) || !QFile::copy(good, third)) {
+        check(false, "the good file could be staged twice");
+        return;
+    }
+    {
+        QFile file(broken);
+        if (!file.open(QIODevice::WriteOnly)) {
+            check(false, "the broken file could be written");
+            return;
+        }
+        // Not silence and not a truncated header: a truncated FLAC still
+        // declares its full duration and decodes part way, which made two of
+        // BUG-025's four reported failures test artefacts. This is refused by
+        // typefind outright.
+        QByteArray rubbish(64 * 1024, '\0');
+        for (int i = 0; i < rubbish.size(); ++i)
+            rubbish[i] = char((i * 37 + 11) & 0xff);
+        file.write(rubbish);
+    }
+
+    Player player;
+    Engine &engine = *player.engine();
+    PlaylistModel &playlist = *player.playlist();
+
+    playlist.addPaths({ QUrl::fromLocalFile(first),
+                        QUrl::fromLocalFile(broken),
+                        QUrl::fromLocalFile(third) });
+    check(playlist.rowCount() == 3, "three entries, the middle one broken",
+          QStringLiteral("%1 rows").arg(playlist.rowCount()));
+    if (playlist.rowCount() != 3)
+        return;
+
+    check(playlist.data(playlist.index(1, 0), PlaylistModel::UrlRole)
+              .toString().contains(QStringLiteral("2-broken")),
+          "and the broken one really is the middle entry",
+          playlist.data(playlist.index(1, 0), PlaylistModel::UrlRole).toString());
+
+    playlist.setCurrentRow(0);
+    check(spin(engine, [&] { return engine.state() == Engine::Playing; }, 8000),
+          "the good entry plays");
+    check(spin(engine, [&] { return engine.duration() > 0; }, 5000),
+          "and reports a duration", ms(engine.duration()));
+
+    const qint64 duration = engine.duration();
+
+    // Straight to the last few seconds. The handover is armed about a second
+    // before the end whatever the file's length, so this exercises the same
+    // path as playing the whole thing and does not spend half a minute doing it.
+    engine.seek(duration - 4 * kSecond);
+    check(spin(engine, [&] { return engine.position() > duration - 5 * kSecond; }, 5000),
+          "seeking to the last few seconds, where the handover is armed",
+          ms(engine.position()));
+
+    // Watch it to the end, keeping the furthest position seen. The engine's
+    // position resets when the stream ends, so the last value read before that
+    // is what says how much of the file was played.
+    qint64 furthest = 0;
+    const QUrl started = engine.source();
+    spin(engine, [&] {
+        furthest = std::max(furthest, engine.position());
+        return engine.source() != started || playlist.currentRow() != 0;
+    }, 15000);
+
+    check(duration > 0 && furthest >= duration - kSecond / 4,
+          "it plays to the end rather than being cut short by the broken entry",
+          QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
+
+    // And the other half: with the handover refused there is no EOS from
+    // `playbin3` at all, so a track that survived would simply sit there. The
+    // playlist has to move on by itself.
+    check(spin(engine, [&] { return playlist.currentRow() != 0; }, 15000),
+          "and the playlist moves on rather than sitting on a finished track",
+          QStringLiteral("row %1").arg(playlist.currentRow()));
+
+    // Where it moved on *to* is the broken entry, which fails as the current
+    // source and is stepped over by the machinery BUG-025 added. What matters
+    // here is that it ends up playing again rather than stopping.
+    // Read after the spin, not inside the same call. The order in which a
+    // function's arguments are evaluated is unspecified, and this reported
+    // "row 1" beside a passing check that requires row 2 — a detail string
+    // describing the state before the wait it is meant to describe.
+    const bool steppedOver = spin(engine, [&] {
+        return engine.state() == Engine::Playing && playlist.currentRow() == 2;
+    }, 15000);
+    check(steppedOver, "stepping over the broken entry onto the third",
+          QStringLiteral("row %1, state %2").arg(playlist.currentRow()).arg(engine.state()));
+}
+
 int main(int argc, char *argv[])
 {
     gst_init(&argc, &argv);
@@ -550,6 +669,7 @@ int main(int argc, char *argv[])
 
     runPlayOrder(files.first(), files.at(1));
     runTransportLatency(files.first());
+    runCorruptNextEntry(files.first());
 
     runGapless(files.first(), files.at(1));
 

@@ -30,6 +30,57 @@ bool readable(const QUrl &url)
 // wrong track. F-001, BUG-025.
 constexpr int kErrorHoldMs = 6000;
 
+// How still, and how near the end, a stream has to be before a failed handover
+// is taken to mean it has finished. Half a second of a position that has not
+// moved at a sixty-hertz poll, within three seconds of the duration — the
+// handover is armed about a second before the end, so a track that reaches this
+// state has played everything it had.
+constexpr int kStalledPollsAtEnd = 30;
+constexpr qint64 kEndToleranceNs = 3 * GST_SECOND;
+
+// Which URI an error belongs to.
+//
+// `playbin3` reports a failure to prepare the *next* URI on the same bus as a
+// failure of the one playing, and the message alone does not say which — so a
+// fault in a file nobody is listening to yet ended the one they were (BUG-027).
+// The element that posted it does know: walking up from the message source
+// through its parents reaches the `uridecodebin` handling that stream, and that
+// element carries the URI as a property.
+//
+// **The walk stops before the pipeline itself.** `playbin3` also has a `uri`
+// property, and it holds whatever was written to it last — which after
+// `about-to-finish` is the *next* file. Reaching that would attribute every
+// error to the next source, including the current stream's own, which is the
+// opposite of the mistake being fixed. An error that cannot be placed below the
+// pipeline returns nothing and is treated as the current stream's, because that
+// is the answer that was always given and the safe one to keep giving.
+QString uriOwningError(GstMessage *message, GstElement *pipeline)
+{
+    GstObject *object = GST_MESSAGE_SRC(message);
+    if (!object)
+        return {};
+
+    gst_object_ref(object);
+    QString found;
+    while (object && object != GST_OBJECT(pipeline)) {
+        if (g_object_class_find_property(G_OBJECT_GET_CLASS(object), "uri")) {
+            gchar *uri = nullptr;
+            g_object_get(object, "uri", &uri, nullptr);
+            if (uri) {
+                found = QString::fromUtf8(uri);
+                g_free(uri);
+                break;
+            }
+        }
+        GstObject *parent = gst_object_get_parent(object);
+        gst_object_unref(object);
+        object = parent;
+    }
+    if (object)
+        gst_object_unref(object);
+    return found;
+}
+
 constexpr qint64 kPreviousTrackWindowNs = 3'000'000'000; // F-002: three seconds
 
 // audiomixmatrix takes an array of out-channel rows, each an array of
@@ -325,6 +376,12 @@ void Engine::setSource(const QUrl &url)
     m_seekable = false;
     m_playRequested = false;
     m_handoverPending.storeRelease(0);
+
+    // A new source is a new stream; whatever the last one's handover did is no
+    // longer anybody's business. BUG-027.
+    m_handoverFailed = false;
+    m_lastPolledPosition = -1;
+    m_stalledPolls = 0;
     m_analysisRate = 0;
 
     // Cleared with the rest of the per-stream state. Tags are not re-sent for a
@@ -555,6 +612,34 @@ void Engine::poll()
             emit durationChanged();
         }
     }
+
+    // BUG-027, the other half. A handover that failed leaves `playbin3` with no
+    // EOS to post: the track plays to its end and the pipeline stops there,
+    // which would turn "cut short and skipped" into "complete and stuck" —
+    // not obviously an improvement. So the end is detected here instead.
+    //
+    // Both conditions are required. A position that has stopped moving is what
+    // finishing looks like, but it is also what a stall looks like; being within
+    // a few seconds of a known duration is what says which. Neither is checked
+    // unless a handover has actually failed, so nothing about ordinary playback
+    // goes near this.
+    if (m_handoverFailed && m_state == Playing) {
+        if (m_position == m_lastPolledPosition)
+            ++m_stalledPolls;
+        else
+            m_stalledPolls = 0;
+        m_lastPolledPosition = m_position;
+
+        const bool atTheEnd = m_duration > 0 && m_position >= m_duration - kEndToleranceNs;
+        if (m_stalledPolls >= kStalledPollsAtEnd && atTheEnd) {
+            qCInfo(lcCore) << "the track finished after a failed handover;"
+                           << "ending it so the playlist can move on";
+            m_handoverFailed = false;
+            m_stalledPolls = 0;
+            stop();
+            emit endOfStream();
+        }
+    }
 }
 
 qint64 Engine::runningTime() const
@@ -717,6 +802,53 @@ void Engine::handleMessage(GstMessage *message)
         gst_message_parse_error(message, &error, &debug);
         qCWarning(lcCore) << "error from" << GST_OBJECT_NAME(message->src)
                           << ":" << error->message << "|" << (debug ? debug : "");
+
+        // BUG-027. If this belongs to the source armed for a gapless handover
+        // rather than to the one playing, the track in progress is innocent.
+        // The comparison is against `m_handoverUri`, which this class wrote
+        // itself in `aboutToFinish`, and not against the pipeline's `uri`
+        // property: that property is shared state and has already been changed
+        // to the next file, so asking it would be asking the thing that caused
+        // the confusion to resolve it.
+        QByteArray armed;
+        {
+            QMutexLocker locker(&m_nextMutex);
+            armed = m_handoverUri;
+        }
+        // Armed, *or* already known to have failed. A source that cannot be
+        // prepared does not report once: typefind said "Could not determine
+        // type of stream" and then "Internal data stream error" from the same
+        // element, and the first version of this cleared the armed flag on the
+        // first message and let the second one end the track — the whole bug,
+        // reproduced through the machinery meant to fix it. The classification
+        // has to outlive the failure it is classifying, and it does: it is
+        // cleared when a new source is set, which is the point at which this
+        // URI stops being the next one and becomes the current one.
+        const bool handoverInPlay = m_handoverPending.loadAcquire() == 1 || m_handoverFailed;
+        const QString owner = uriOwningError(message, m_pipeline);
+        if (handoverInPlay && !armed.isEmpty() && !owner.isEmpty()
+            && owner == QString::fromUtf8(armed)) {
+            qCWarning(lcCore) << "the handover source failed, not the current one;"
+                              << "letting the track finish";
+
+            // The handover will not happen now, so nothing must later mistake a
+            // stream start for one.
+            m_handoverPending.storeRelease(0);
+
+            // And nothing will end this stream either. `playbin3` posts no EOS
+            // after a handover it could not prepare — measured at forty-five
+            // seconds of silence in BUG-027 — so the track plays out and the
+            // pipeline sits there. `poll()` watches for that and ends it.
+            m_handoverFailed = true;
+
+            // Deliberately no `fail()` and no message on the panel. The broken
+            // file is reported when the playlist reaches it and it fails as the
+            // *current* source, which is where a user can act on it.
+            g_clear_error(&error);
+            g_free(debug);
+            break;
+        }
+
         fail(QString::fromUtf8(error->message));
         g_clear_error(&error);
         g_free(debug);

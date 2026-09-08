@@ -19,10 +19,15 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
+*None.*
+
+## Fixed
+
 ### BUG-027 A corrupt *next* entry truncates the track that is playing
-**Status:** open
+**Status:** fixed
 **Severity:** low
 **Found:** 2026-09-07, fixing BUG-025
+**Fixed:** 2026-09-08
 **Related:** F-005, F-001, BUG-025
 
 Playing a good file whose *next* playlist entry does not exist stops playback
@@ -98,12 +103,43 @@ before it hands on**, against about 5.3 s and a stop before these two changes.
 that a file will not decode, so the check above cannot catch it; only the URI
 attribution can, and that still runs into the missing EOS described above.
 
-Left open at **low severity**, precisely scoped: a next entry that exists, is
-readable, and does not decode costs the previous track its last two seconds. The
-common case — a playlist pointing at files that have been moved or deleted — is
-fixed.
+**Fixed 2026-09-08**, with the third piece the entry above said was missing.
 
-## Fixed
+*The attribution is against this class's own record, not the pipeline's.* That
+was the sticking point: `playbin`'s `uri` property is shared state and has
+already been changed to the next file by the time the error arrives, so asking
+it is asking the thing that caused the confusion to resolve it. `Engine` already
+knew — `aboutToFinish` writes `m_handoverUri` — so the error's owning URI is
+walked out of the message source's parents and compared against that. The walk
+stops before the pipeline itself, for the same reason; an error that cannot be
+placed below it returns nothing and is treated as the current stream's, which is
+the answer that was always given and the safe one to keep giving.
+
+*The missing EOS is supplied.* `poll()` watches for a position that has stopped
+moving within three seconds of a known duration, and only while a handover is
+known to have failed. That converts "complete and stuck" into "complete, ended,
+and moved on". Both conditions are needed: a still position is what finishing
+looks like, but it is also what a stall looks like, and the duration is what
+says which.
+
+*And the classification outlives the failure.* The first version cleared the
+armed flag on the first error, and a source that cannot be prepared does not
+report once — typefind said "Could not determine type of stream" and then
+"Internal data stream error" from the same element, so the second message fell
+through and ended the track exactly as before. The bug reproduced through the
+machinery written to fix it. The state is now cleared when a new source is set,
+which is the moment that URI stops being the next one and becomes the current
+one.
+
+Measured in `acceptance_transport`, which now carries the case: a track whose
+next entry is readable rubbish plays **32.507 s of 32.507 s**, against 30.493 s
+through the same harness before the change and the 5.035 s of 6.966 s this entry
+first recorded. The playlist then moves on by itself, the broken entry fails as
+the *current* source, and BUG-025's machinery steps over it onto the one after.
+
+The broken file is deliberately not announced when it fails as a *next* source.
+It is reported when the playlist reaches it and it fails as the current one,
+which is where a user can act on it.
 
 ### BUG-031 Three measurement tools wrote a settings file the application does not read
 **Status:** fixed
