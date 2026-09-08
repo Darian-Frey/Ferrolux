@@ -211,7 +211,15 @@ The fall belongs to `MeterSource` and not to `VisualSettings`: it is a property 
 - Needle ballistics match the integration time in SPEC.md §Meters, not instantaneous RMS
 - Separate faster peak indicator alongside the needle
 - Face, scale marks and needle share one antialiasing model
-**Status:** Partial (Phase 4, 2026-09-02) — face, arc, tick marks, tapered needle, hub and peak lamp are all distance fields resolved by the same smoothstep over one fragment, so they share an antialiasing model by construction rather than by matching two techniques. Ballistics are not in the shader: deflection arrives already integrated from `MeterSource`, per D-005, measured at 302.0 ms to 99% with 1.16% overshoot. Outstanding: the comparison against a reference deck, which is a judgement rather than a measurement.
+**Status:** Complete (Phase 4, 2026-09-02; the face corrected 2026-09-08) — face, arc, tick marks, tapered needle, hub and peak lamp are all distance fields resolved by the same smoothstep over one fragment, so they share an antialiasing model by construction rather than by matching two techniques. Ballistics are not in the shader: deflection arrives already integrated from `MeterSource`, per D-005, measured at 302.0 ms to 99% with 1.16% overshoot.
+
+**All three clauses listed above are met.** What has been carried in this status as outstanding is Phase 4's acceptance clause, not one of F-032's own: that the needle be visually indistinguishable from a reference deck fed the same material.
+
+Part of that turned out not to be a judgement. `meters_test` holds the needle to the voltage law at eight marks from −20 dB to +3 dB, so the instrument reads where a deck's would across its whole range — and the face did not, drawing eight evenly spaced ticks where SPEC.md §Meters says the scale crowds towards its left end as a real one does. That was BUG-030, now fixed: the marks sit at the eleven standard positions, −20 through +3, and the arc ends at +3 dB exactly.
+
+Fixing it exposed two older defects on the same six lines. The marks had been rendering as faint specks because the band giving them their radial length collapsed to a fifteenth of its intended size, so the face carried no legible scale in either version. And testing eleven marks per fragment across the whole sweep cost 2.5 ms of a 16.7 ms frame at 4K, failing AV-002's headroom floor until the loop was confined to the band it draws into.
+
+**What remains is a judgement, and it is the author's.** ROADMAP.md Phase 4 asks that the needle be visually indistinguishable from a reference deck fed the same material. The obstacle that made that impossible to answer is gone; the ink colour, the needle's shape and whether numerals belong at all are matters for the eye rather than the law.
 
 ### F-033 Switchable display modes
 **Priority:** Must

@@ -105,6 +105,107 @@ fixed.
 
 ## Fixed
 
+### BUG-031 Three measurement tools wrote a settings file the application does not read
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-08, capturing the VU face and finding the mode setting ignored
+**Fixed:** 2026-09-08
+**Related:** F-004, AV-001, AV-007, F-033, IMP-010
+
+`stress-audio.sh`, `verify-render-thread.sh` and `verify-mode-switch.sh` each
+begin by writing `$XDG_CONFIG_HOME/ferrolux/ferrolux.conf` to set
+`playback/volume` to zero. The application uses `QSettings::IniFormat` with an
+application name of `ferrolux`, so it reads `ferrolux.ini`. The file those tools
+wrote was never opened.
+
+Every run of all three therefore played at the default volume of 0.7, and each
+tool's header — and BUILD.md — said in as many words that it plays at volume
+zero and is silent. The measurements are unaffected: muting is downstream of the
+streaming thread, the render thread and the frame clock alike, and the underrun
+counts come from the sink either way. What was affected is the room the machine
+is in, over two 45-second runs, two 12-second runs and two 20-second runs.
+
+Found by accident, which is the part worth recording. The same mistake in a
+capture script meant `meters/mode` was ignored too, so a screenshot taken to
+inspect the VU face came back showing the spectrum — the wrong display was the
+symptom that led to the wrong filename. Nothing else would have reported it:
+`XDG_CONFIG_HOME` pointed at a temporary directory, the file was written without
+error, and a player that ignores a settings file it cannot find starts perfectly
+happily on its defaults.
+
+`verify-desktop.sh` and `verify-scaling.sh` had the name right all along, which
+is how the wrong one went unnoticed beside them.
+
+### BUG-030 The VU face's scale marks are evenly spaced, so it does not crowd as SPEC.md says it does
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-08, working on F-032's outstanding clause
+**Fixed:** 2026-09-08
+**Related:** F-032, AV-012, SPEC.md §Meters, ROADMAP.md Phase 4
+
+SPEC.md §Meters says: "Deflection is linear in amplitude rather than in
+decibels, which is why a VU scale crowds towards its left end as a real one
+does." The first half is implemented and now checked across the whole range —
+`meters_test` holds the needle to the voltage law at eight marks from −20 dB to
++3 dB. The second half is not implemented at all.
+
+`qml/shaders/vu.frag` draws its ticks as `fract(sweep * 8.0)`: eight marks
+evenly spaced along the sweep, which is to say evenly spaced in *amplitude*.
+Nothing crowds. There are no numerals anywhere on the face either, in the shader
+or in `MeterDisplay.qml`.
+
+Because deflection is linear in amplitude, a decibel mark belongs at
+`10^(dB/20)` of the sweep, and the standard VU face marks these:
+
+| dB | −20 | −10 | −7 | −5 | −3 | −2 | −1 | 0 | +1 | +2 | +3 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| position | 0.100 | 0.316 | 0.447 | 0.562 | 0.708 | 0.794 | 0.891 | 1.000 | 1.122 | 1.259 | 1.413 |
+
+That is the crowding, and the size of it: ten decibels occupy the first fifth of
+the arc while the last three occupy nearly a third. It is the single most
+recognisable thing about a VU face — a viewer identifies the instrument by the
+bunched marks at the left long before reading any number on it.
+
+**This matters because of which clause it blocks.** Phase 4's acceptance, carried
+into F-032's status, asks that the needle be *visually indistinguishable from a
+reference deck fed the same programme material*. That has stood as a judgement
+nobody could make into a measurement — but part of it is not a judgement at all.
+A deck's face crowds; this one does not; and no amount of looking at the two will
+make them the same instrument until it does. What is genuinely aesthetic — the
+colour of the ink, the shape of the needle, whether the numerals are drawn and in
+which face — is what should be left to the author's eye.
+
+The three clauses listed under F-032 itself are all met, and this is not one of
+them. It is the phase clause, and this entry is what stands between it and a
+decision.
+
+**Fixed to the author's choice: marks at the standard positions, no numerals.**
+The crowding is what identifies the face, and type legible at 3× device pixel
+ratio in a full-height panel is not legible in compact mode at 1× — F-042 folds
+this display to a fraction of its height. The marks carry the shape; the
+readouts carry the numbers. The arc's travel was extended from 1.4 to 1.413,
+which is +3 dB exactly, so the last mark falls on the end of the scale rather
+than just outside it; the difference is under a pixel, but it was the one place
+on the face where the geometry did not come from the law.
+
+**Two further defects surfaced while looking at the result, both older than this
+entry.**
+
+The marks were rendering as faint specks rather than as ticks, in the corrected
+face and in the original alike. The radial extent read `(1 - smoothstep(r -
+0.075, r - 0.070, radius)) * step(r - 0.075, radius) * ...`, and those first two
+factors are non-zero together only between `r - 0.075` and `r - 0.070` — a
+sliver a fifteenth of the length the constant plainly intends. A scale that
+crowds correctly is no use if it cannot be seen to.
+
+And testing eleven marks per fragment across the whole sweep cost **2.5 ms of a
+16.7 ms frame at 3840×2160**, taking the VU mode from 40.6% headroom to 25.3%
+and failing AV-002's 30% floor outright. `measure-frames.sh` caught it on the
+first run after the change. The band is a thin annulus, so computing it before
+the loop and skipping the loop where it is zero lets almost every fragment in
+the face leave without testing anything: the mode now runs at **8.961 ms and
+46.2% headroom**, better than the 9.897 ms it managed before any of this.
+
 ### BUG-029 `verify-desktop.sh`'s session check races a track boundary and fails about half the time
 **Status:** fixed
 **Severity:** medium

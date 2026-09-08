@@ -254,13 +254,20 @@ has an unlit ghost and the title does not.
 **Features delivered:** — (release engineering, no new capabilities). The phase
 does close out Must-priority acceptance clauses left Partial by earlier phases,
 which is the second deliverable below rather than new capability: F-001, F-002,
-F-031, F-004, F-020 and F-033 have gone Complete this way. **One Must remains:
-F-032**, whose outstanding clause asks whether the VU needle is visually
-indistinguishable from a reference deck fed the same material. That is a
-judgement rather than a measurement, and it is the author's to make.
+F-031, F-004, F-020, F-033 and F-032 have gone Complete this way, which is
+**every Must-priority feature in the project**. The second deliverable below is
+met.
+
+What is left of Phase 4's own acceptance is the clause asking whether the VU
+needle is visually indistinguishable from a reference deck fed the same
+material. That is a judgement rather than a measurement, and the author's to
+make — but it is no longer blocked. The needle is held to the voltage law at
+eight marks from −20 dB to +3 dB, and as of BUG-030 the face is marked at the
+eleven standard positions rather than at eight evenly spaced ones, so it crowds
+towards its left end as SPEC.md §Meters says it does and as a real one does.
 **Deliverables:**
 - [ ] Licence settled and `LICENSE` committed (D-010)
-- [ ] All Must-priority features Complete or explicitly Withdrawn
+- [x] All Must-priority features Complete or explicitly Withdrawn — the last, F-032, on 2026-09-08
 - [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
 - [ ] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement
 - [ ] Packaging: Flatpak, and a `.deb` for Debian and Ubuntu derivatives

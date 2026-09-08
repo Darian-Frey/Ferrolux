@@ -45,7 +45,7 @@ pgrep -x ferrolux >/dev/null && {
 WORK=$(mktemp -d)
 export XDG_CONFIG_HOME="$WORK/config" XDG_DATA_HOME="$WORK/data"
 mkdir -p "$XDG_CONFIG_HOME/ferrolux" "$XDG_DATA_HOME"
-cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.conf" <<CONF
+cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.ini" <<CONF
 [playback]
 volume=0
 CONF

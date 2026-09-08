@@ -171,7 +171,7 @@ cmake --build build
 
 ## Tests
 
-Eight suites, 397 checks. Six are self-contained and need nothing but the build;
+Eight suites, 398 checks. Six are self-contained and need nothing but the build;
 `tokens_test` and `spec_test` take the source directory, because they read the
 tree rather than the build: `spec_test` holds SPEC.md §Settings and the code to
 each other in both directions, so an undocumented key and a documented one that
@@ -274,7 +274,9 @@ second itself: one spinning thread per core and continuous disc I/O, because
 every figure it collects is fine on an idle system and that is exactly why the
 vector survives to release. It plays at volume zero — the audio path runs in
 full, but muting is downstream of every thread it measures, and the run occupies
-the machine for two minutes without also occupying the room.
+the machine for two minutes without also occupying the room. That claim was
+false until 2026-09-08: the file it wrote to mute itself was named
+`ferrolux.conf`, and the application reads `ferrolux.ini`. See BUG-031.
 
 `verify-desktop.sh` is a tool for the same reason as the other two: an MPRIS
 service needs a session bus and a single-instance hand-off needs two processes,

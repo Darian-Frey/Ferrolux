@@ -107,8 +107,15 @@ Re-measured 2026-09-07, after BUG-028 — F-036 had turned the shaders' literals
 into `Visuals.*` bindings and left the benchmark with none, so everything
 measured between the two dates drew with undefined parameters. Offscreen at
 3840x2160 with the property bound: every mode still holds, between **40.6% and
-61.3%** of the budget spare, worst mode now the VU at 9.897 ms. The requirement
-is 30%. The flame reads 8.190 ms, within variance of the Phase 4 figure, which
+61.3%** of the budget spare, worst mode then the VU at 9.897 ms. The requirement
+is 30%.
+
+Measured again 2026-09-08, after BUG-030 put eleven marks on the VU face. The
+first run of that change reported the VU at 12.454 ms and **25.3%** — a fail,
+because eleven marks were being tested for every fragment of the sweep rather
+than for the thin band they are drawn into. With the loop confined, every mode
+holds between **46.2% and 60.1%**, the VU at 8.961 ms: better than before the
+marks existed. The flame reads 8.190 ms, within variance of the Phase 4 figure, which
 is what establishes that the Phase 4 run was measuring the right thing.
 
 **The detection found the defect it was written for.** On its first run that

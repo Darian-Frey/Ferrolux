@@ -64,7 +64,7 @@ check() {
 # Audible playback is the other half of the clause, and it has to be real
 # playback: the meters are fed from the audio path, so a silent run switches
 # between modes that all have nothing to draw.
-cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.conf" <<CONF
+cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.ini" <<CONF
 [playback]
 volume=0
 CONF

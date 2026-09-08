@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **397 checks
+its own panel — nothing in the window comes from a desktop theme. **398 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -116,7 +116,8 @@ previous, and the 100 ms transport bound), F-031 (60 fps at 4K, and caps whose
 decay is genuinely configurable), F-004 (volume and balance persisting, which
 needed a harness that quits through `aboutToQuit`) and F-020 (the audible
 absence of a click, measured) have gone Complete this way.
-One remains: F-032, the comparison against a reference deck — see ROADMAP.md §Phase 7, which says what
+**Every Must-priority feature is now Complete.** What is left of Phase 4's own
+acceptance is the reference-deck comparison — see ROADMAP.md §Phase 7, which says what
 each is waiting on. All four Critical attack vectors now have detection. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
 after them.
 
@@ -185,6 +186,13 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **A file written without error is not a file anybody reads.** Three
+  measurement tools wrote `ferrolux.conf` to mute themselves; the application
+  reads `ferrolux.ini`. Every run played at 0.7 while the tool's own header
+  said it was silent, and nothing could have reported it — the write succeeded,
+  the directory was temporary, and a player that cannot find a settings file
+  starts happily on its defaults. It surfaced only because the same mistake in a
+  capture script made a screenshot come back showing the wrong display. BUG-031.
 - **A rate is not a cause.** F-033 asks that switching modes drops no frame,
   and counting the run's dropped frames cannot answer it: this machine drops one
   or two in twenty seconds while idle, so a switching run with one and a steady

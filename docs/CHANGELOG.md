@@ -832,7 +832,70 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   60 ms on each mode change, which the check caught as 37 of 38 switches
   followed by a dropped frame while the steady control stayed clean.
 
+- F-032's three own acceptance clauses are confirmed met, and the clause that
+  has been carried in its status is Phase 4's rather than one of its own: that
+  the needle be visually indistinguishable from a reference deck fed the same
+  material. Part of that turns out not to be a judgement.
+
+  `meters_test` now holds the needle to the voltage law at eight marks from
+  −20 dB to +3 dB rather than at the single −6 dB point it checked before. That
+  is the law a VU face is marked against: because deflection is linear in
+  amplitude, −20 dB belongs at a tenth of the sweep and −3 dB at seven tenths.
+  The instrument reads where a deck's would across its whole range.
+
+  The face does not. `vu.frag` draws its ticks as `fract(sweep * 8.0)` — eight
+  marks evenly spaced in amplitude — and there are no numerals anywhere, while
+  SPEC.md §Meters says the scale crowds towards its left end as a real one does.
+  Nothing crowds. Logged as BUG-030 rather than fixed, because which marks a
+  face carries and whether they are numbered is a design decision and not a
+  correction: it is the most recognisable thing about a VU meter, and a viewer
+  identifies the instrument by the bunched marks at its left before reading any
+  number on it. F-032 stays Partial, now blocked on something specific.
+  398 checks.
+
 ### Fixed
+- **BUG-030: the VU face's scale marks were evenly spaced, so it did not crowd
+  as a real one does.** SPEC.md §Meters says the scale crowds towards its left
+  end because deflection is linear in amplitude; `vu.frag` drew its ticks as
+  `fract(sweep * 8.0)`, eight marks evenly spaced in amplitude, and nothing
+  crowded. It is the single feature by which a viewer recognises the instrument,
+  before reading any number on it, and it was what stood between Phase 4's
+  reference-deck clause and an answer.
+
+  Fixed to the author's choice: marks at the eleven standard positions, −20
+  through +3, and no numerals — the crowding carries the identification, and type
+  legible at 3× in a full panel is not legible in compact mode at 1×. The arc's
+  travel went from 1.4 to 1.413, which is +3 dB exactly, so the last mark lands
+  on the end of the scale rather than just outside it.
+
+  Looking at the result found two older defects on the same six lines. The marks
+  had been rendering as faint specks in both the old face and the corrected one,
+  because the band giving them their radial length read `(1 - smoothstep(r -
+  0.075, r - 0.070, radius)) * step(r - 0.075, radius)` — two factors non-zero
+  together only across a sliver a fifteenth of the intended length. And testing
+  eleven marks per fragment across the whole sweep cost **2.5 ms of a 16.7 ms
+  frame at 3840×2160**, taking the VU mode from 40.6% headroom to 25.3% and
+  failing AV-002's floor; `measure-frames.sh` caught that on the first run after
+  the change. With the loop confined to the thin band it draws into, the mode
+  runs at 8.961 ms and 46.2%, better than before any of this. Every mode now
+  holds between 46.2% and 60.1%.
+
+- **BUG-031: three measurement tools wrote a settings file the application does
+  not read.** `stress-audio.sh`, `verify-render-thread.sh` and
+  `verify-mode-switch.sh` each wrote `ferrolux.conf` to set the volume to zero;
+  `QSettings` writes and reads `ferrolux.ini`. Every run of all three played at
+  the default 0.7 while the tool's header, and BUILD.md, said it was silent. The
+  measurements are unaffected — muting is downstream of the streaming thread,
+  the render thread and the frame clock alike — but the room was not.
+
+  Nothing could have reported it: the write succeeded, `XDG_CONFIG_HOME` pointed
+  at a temporary directory, and a player that cannot find a settings file starts
+  perfectly happily on its defaults. It surfaced only because the same mistake in
+  a capture script meant `meters/mode` was ignored too, and a screenshot taken to
+  inspect the VU face came back showing the spectrum. `verify-desktop.sh` and
+  `verify-scaling.sh` had the name right all along, which is how the wrong one
+  went unnoticed beside them.
+
 - **BUG-029: `verify-desktop.sh`'s session check raced a track boundary and
   failed about half the time on correct behaviour.** It read the current track
   and position over MPRIS, quit, restarted, and expected both back — but the

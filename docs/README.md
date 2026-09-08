@@ -7,7 +7,7 @@
 > Transport, a 20,000-entry
 > playlist, a ten-band equaliser, five shader-rendered displays and the
 > cassette futurism panel itself all work, in four finishes with the display
-> invertible. 397 checks across eight suites pass in Debug and Release.
+> invertible. 398 checks across eight suites pass in Debug and Release.
 >
 > Four criteria are measured rather than asserted, and they are the reasons
 > the project exists. AV-002: every display holds 60 fps at 3840×2160 with at
@@ -32,14 +32,17 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug and one suggested improvement. Twenty-nine bugs found,
-> twenty-seven fixed and one won't-fix upstream. BUG-027 is open at low
-> severity: a corrupt *next* playlist entry still costs the track that is
-> playing its last two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
+> One open bug and one suggested improvement. Thirty-one bugs found,
+> twenty-nine fixed and one won't-fix upstream. BUG-027 is open at low severity:
+> a corrupt *next* playlist entry still costs the track that is playing its last
+> two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
-> F-002, F-031, F-004, F-020 and F-033 have closed. **One remains: F-032**,
-> which asks whether the VU needle is indistinguishable from a reference deck —
-> a judgement rather than a measurement. **All four Critical attack vectors
+> **Every Must-priority feature is Complete**, F-032 having closed on
+> 2026-09-08. One acceptance clause in the project is still open and it belongs
+> to a phase rather than a feature: ROADMAP.md Phase 4 asks whether the VU
+> needle is visually indistinguishable from a reference deck. That is a
+> judgement for the author, and the measurable obstacle to it — a face that did
+> not crowd — is gone. **All four Critical attack vectors
 > now have implemented detection**, AV-007 having closed on 2026-09-08.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.

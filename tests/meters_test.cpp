@@ -418,6 +418,40 @@ void testScalesAgainstRealMaterial()
           "typical music sits below 0 VU with room above",
           QStringLiteral("%1 for -15 dBFS RMS").arg(typical.first, 0, 'f', 3));
 
+    // The same law across the span a VU face is marked over, not at one point.
+    // This is what the drawn scale has to agree with: because deflection is
+    // linear in amplitude, a mark at -20 dB belongs at a tenth of the sweep and
+    // a mark at -3 dB belongs at seven tenths, which is why a real VU face
+    // crowds towards its left end — SPEC.md §Meters. A face whose marks are
+    // evenly spaced is drawn against a scale this instrument does not have; see
+    // BUG-030.
+    struct Mark { double db; double deflection; };
+    static const Mark scale[] = {
+        { -20.0, 0.100 }, { -10.0, 0.316 }, { -7.0, 0.447 }, { -5.0, 0.562 },
+        { -3.0, 0.708 }, { -1.0, 0.891 }, { 0.0, 1.000 }, { 3.0, 1.413 },
+    };
+    bool lawHolds = true;
+    QStringList departures;
+    for (const Mark &mark : scale) {
+        MeterSource source;
+        const QList<double> level { MeterSource::kDefaultReferenceDb + mark.db,
+                                    MeterSource::kDefaultReferenceDb + mark.db };
+        source.consumeLevel(level, silence, silence);
+        for (int i = 0; i < 2000; ++i)
+            source.advance(1.0);
+        const double reading = source.vuDeflection(0);
+        if (std::fabs(reading - mark.deflection) > 0.02 * std::max(1.0, mark.deflection)) {
+            lawHolds = false;
+            departures << QStringLiteral("%1 dB reads %2, wanted %3")
+                              .arg(mark.db, 0, 'f', 0).arg(reading, 0, 'f', 3)
+                              .arg(mark.deflection, 0, 'f', 3);
+        }
+    }
+    check(lawHolds,
+          "and the whole scale follows the voltage law, which is what makes it crowd",
+          lawHolds ? QStringLiteral("8 marks from -20 dB to +3 dB")
+                   : departures.join(QStringLiteral("; ")));
+
     const auto loudest = settle(-6.3, -1.0);
     check(loudest.first > 1.0 && loudest.first <= 1.4,
           "the loudest real material lands at the top of the travel without pegging",

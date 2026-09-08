@@ -82,7 +82,7 @@ check() {  # check <ok:0|1> <what> [detail]
 }
 
 # Silence, and a starting state that plays rather than waits to be told to.
-cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.conf" <<CONF
+cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.ini" <<CONF
 [playback]
 volume=0
 balance=0

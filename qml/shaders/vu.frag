@@ -45,9 +45,24 @@ const float kRadius = 0.96;
 const float kAngleAtRest = -0.86;   // radians from vertical
 const float kAngleAtZeroVu = 0.34;
 
+// Where the scale is marked, as fractions of the sweep. Deflection is linear in
+// amplitude, so a mark at d decibels sits at 10^(d/20): -20, -10, -7, -5, -3,
+// -2, -1, 0, +1, +2 and +3, which is the standard VU face. The values are
+// written out rather than computed because a fragment shader should not be
+// evaluating eleven logarithms per pixel to arrive at eleven constants.
+const int kMarkCount = 11;
+const float kMarks[kMarkCount] = float[kMarkCount](
+    0.100, 0.316, 0.447, 0.562, 0.708, 0.794, 0.891, 1.000, 1.122, 1.259, 1.413);
+
+// The travel ends at +3 dB, which is 1.413 and not the 1.4 SPEC.md rounded it
+// to. The difference is under a pixel, but the end of the arc is where the +3
+// mark goes, and a scale whose last mark falls just outside it would be the one
+// place on the face where the geometry did not come from the law.
+const float kFullScale = 1.413;
+
 float angleFor(float value)
 {
-    return mix(kAngleAtRest, kAngleAtZeroVu, clamp(value, 0.0, 1.4));
+    return mix(kAngleAtRest, kAngleAtZeroVu, clamp(value, 0.0, kFullScale));
 }
 
 // Distance from a point to a line segment, used as the needle's own field.
@@ -77,21 +92,55 @@ void main()
     // The scale arc.
     float arcRadius = kRadius * 0.86;
     float onArc = 1.0 - smoothstep(0.004, 0.004 + aa, abs(radius - arcRadius));
-    float withinSweep = step(kAngleAtRest - 0.04, angle) * step(angle, angleFor(1.4) + 0.03);
+    float withinSweep = step(kAngleAtRest - 0.04, angle) * step(angle, angleFor(kFullScale) + 0.03);
     // Above 0 VU the arc changes colour, so a needle in that region reads as
     // over reference rather than as a meter that has broken against its stop.
     float over = step(angleFor(1.0), angle);
     colour = mix(colour, mix(inkColour, overColour, over), onArc * withinSweep * 0.85);
 
-    // Tick marks, spaced along the sweep rather than at fixed pixel offsets.
+    // Tick marks, at the decibels a VU face is marked in.
+    //
+    // These were eight marks evenly spaced along the sweep, and the sweep is
+    // linear in amplitude, so nothing crowded — BUG-030. SPEC.md §Meters says
+    // the scale crowds towards its left end as a real one does, and that
+    // crowding is not decoration: it is the single feature by which a viewer
+    // recognises the instrument, before reading any number on it. Ten decibels
+    // occupy the first fifth of the arc and the last three occupy nearly a
+    // third, because a mark at d decibels belongs at 10^(d/20) of the sweep.
+    //
+    // No numerals. The crowding is what identifies the face, and type legible
+    // at 3x device pixel ratio in a full-height panel is not legible in compact
+    // mode at 1x — F-042 folds this display to a fraction of its height. The
+    // marks carry the shape; the readouts carry the numbers.
     float sweep = (angle - kAngleAtRest) / (kAngleAtZeroVu - kAngleAtRest);
-    if (withinSweep > 0.5 && sweep > -0.02) {
-        float ticks = fract(sweep * 8.0);
-        float tickWidth = fwidth(sweep * 8.0) * 1.2;
-        float onTick = 1.0 - smoothstep(tickWidth, tickWidth * 2.2, min(ticks, 1.0 - ticks));
-        float tickBand = (1.0 - smoothstep(arcRadius - 0.075, arcRadius - 0.070, radius))
-                       * step(arcRadius - 0.075, radius)
-                       * (1.0 - smoothstep(arcRadius, arcRadius + aa, radius));
+
+    // The radial extent of a mark: from a little inside the arc, out to it.
+    //
+    // This read `(1 - smoothstep(r - 0.075, r - 0.070, radius)) * step(r -
+    // 0.075, radius) * ...`, and those first two factors are non-zero together
+    // only between `r - 0.075` and `r - 0.070` — a sliver a fifteenth of the
+    // length the constant plainly intends. It is why the marks rendered as faint
+    // specks rather than as ticks, at every size, in both the old face and the
+    // corrected one. Part of BUG-030: a scale that crowds correctly is no use if
+    // it cannot be seen to.
+    float tickBand = smoothstep(arcRadius - 0.055 - aa, arcRadius - 0.055, radius)
+                   * (1.0 - smoothstep(arcRadius, arcRadius + aa, radius));
+
+    // Computed before the loop, and the loop skipped where it is zero. Eleven
+    // marks tested per fragment across the whole sweep cost 2.5 ms of a 16.7 ms
+    // frame at 3840x2160 — it took the VU mode from 40.6% headroom to 25.3% and
+    // failed AV-002's 30% floor outright. The band is a thin annulus, so almost
+    // every fragment in the face can leave without testing anything.
+    if (tickBand > 0.001 && withinSweep > 0.5 && sweep > -0.02) {
+        // Thin. A mark on an instrument face is a line, not a block: at 1.2
+        // fragments the marks either side of 0 VU merged into a solid band,
+        // which reads as a painted arc rather than as a scale.
+        float tickWidth = fwidth(sweep) * 0.45;
+        float onTick = 0.0;
+        for (int i = 0; i < kMarkCount; ++i)
+            onTick = max(onTick,
+                         1.0 - smoothstep(tickWidth, tickWidth * 2.2,
+                                          abs(sweep - kMarks[i])));
         colour = mix(colour, mix(inkColour, overColour, over), onTick * tickBand * 0.85);
     }
 
