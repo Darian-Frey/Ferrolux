@@ -537,9 +537,10 @@ void runStopStartCycles(const QString &path, int cycles)
 // The file here is bytes that are not audio under a name that says they are:
 // readable, so the existence check passes it, and undecodable, so preparing it
 // fails.
-void runCorruptNextEntry(const QString &good)
+void runCorruptNextEntry(const QString &good, bool recognisable)
 {
-    std::printf("\ncorrupt next entry (BUG-027)\n");
+    std::printf("\ncorrupt next entry, %s (BUG-027)\n",
+                recognisable ? "recognised but undecodable" : "not audio at all");
 
     QTemporaryDir scratch;
     if (!scratch.isValid()) {
@@ -570,6 +571,15 @@ void runCorruptNextEntry(const QString &good)
         QByteArray rubbish(64 * 1024, '\0');
         for (int i = 0; i < rubbish.size(); ++i)
             rubbish[i] = char((i * 37 + 11) & 0xff);
+
+        // The two halves of "will not decode", which behave differently and are
+        // fixed by different things. Without the magic, nothing recognises the
+        // file and `setNextSource` refuses the handover outright. With it,
+        // typefind says `audio/x-flac`, the handover is armed, and the failure
+        // happens inside `playbin3` — where the most that can be done is to
+        // keep the error off the current track.
+        if (recognisable)
+            rubbish.replace(0, 4, "fLaC");
         file.write(rubbish);
     }
 
@@ -616,9 +626,26 @@ void runCorruptNextEntry(const QString &good)
         return engine.source() != started || playlist.currentRow() != 0;
     }, 15000);
 
-    check(duration > 0 && furthest >= duration - kSecond / 4,
-          "it plays to the end rather than being cut short by the broken entry",
-          QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
+    if (!recognisable) {
+        // Refused before the handover was armed, so nothing ever went wrong
+        // inside the pipeline and the track is untouched.
+        check(duration > 0 && furthest >= duration - kSecond / 4,
+              "it plays to the end rather than being cut short by the broken entry",
+              QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
+    } else {
+        // The handover *was* armed, and `playbin3` shares one `uridecodebin3`
+        // between the current stream and the next — so tearing it down for the
+        // failed one takes the current stream's buffered tail with it. What is
+        // asserted here is what the fix actually delivers: the track is not
+        // ended at the moment of the error, it keeps playing into the last few
+        // seconds, and the playlist moves on by itself afterwards.
+        check(duration > 0 && furthest > duration - 3 * kSecond,
+              "it keeps playing past the failure rather than ending on it",
+              QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
+        std::printf("       [note] and still loses %s of the tail — BUG-027's"
+                    " remaining case, measured\n",
+                    qPrintable(ms(duration - furthest)));
+    }
 
     // And the other half: with the handover refused there is no EOS from
     // `playbin3` at all, so a track that survived would simply sit there. The
@@ -669,7 +696,8 @@ int main(int argc, char *argv[])
 
     runPlayOrder(files.first(), files.at(1));
     runTransportLatency(files.first());
-    runCorruptNextEntry(files.first());
+    runCorruptNextEntry(files.first(), false);
+    runCorruptNextEntry(files.first(), true);
 
     runGapless(files.first(), files.at(1));
 

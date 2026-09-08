@@ -269,6 +269,8 @@ Four reasons, in order of weight.
 - The author is not bound by his own licence and may relicense or dual-license at will **while sole copyright holder**. This is the answer to Option A's stated cost: what forecloses a future proprietary version is merging third-party contributions, not this decision.
 - GPLv3 §6 requires Installation Information for "User Products", so a locked-down device build would not comply. This bears directly on the hardware companion candidate in FEATURES.md and is the one place choosing v3 over v2 costs something.
 
+**Checked, from 2026-09-08.** The two claims this decision makes about the tree rather than about itself — that `LICENSE` carries the unmodified GPLv3, and that every source file carries an SPDX header naming the same licence — are held by `tests/spec_test`. Both were true when this was written and neither had anything keeping them true: a file added without a header is a licensing defect that no build, test or review step would report, and it would be found, if at all, by somebody auditing a release. The check also holds D-012's fonts to shipping with their own licence texts, that being the one licensing mistake this project could make by omission rather than by commission.
+
 **Reversal conditions.** Reversal is possible only while the author remains sole copyright holder; once third-party contributions are merged it requires every contributor's consent. If the hardware companion candidate is promoted and would ship on a locked device, revisit *before* accepting any outside contribution, because that is the point of no return. A CLA or DCO policy should therefore be settled before the first external pull request rather than after it.
 
 ### D-011 In-repository bug and improvement catalogues

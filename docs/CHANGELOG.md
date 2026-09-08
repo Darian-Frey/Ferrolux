@@ -853,6 +853,26 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   number on it. F-032 stays Partial, now blocked on something specific.
   398 checks.
 
+- D-010's deliverable is ticked, and what was outstanding turned out to be the
+  checking rather than the decision. The licence was settled on 2026-09-02 —
+  GPL-3.0-or-later — `LICENSE` has carried the unmodified GPLv3 since, both
+  READMEs state it, and all eighty-six source files already had their SPDX
+  headers. Nothing held any of that true.
+
+  `spec_test` now does: that `LICENSE` is the GPLv3 and contains the patent
+  grant version 3 was chosen for, that every `.cpp`, `.h`, `.qml`, `.frag`,
+  `.vert` and `.sh` in `src/`, `qml/`, `tests/` and `tools/` opens with an SPDX
+  header, and that each one names GPL-3.0-or-later. Build directories are not
+  walked, because holding Qt's generated moc sources to a decision about
+  Ferrolux would be holding the wrong thing. It also checks D-012's bundled
+  fonts ship with their own licence texts — the one licensing mistake this
+  project could make by omission rather than by commission.
+
+  Confirmed by adding an unmarked file and an MIT-marked one, each of which
+  fails its own check and is named in the failure. A file added without a header
+  is a licensing defect that no build, test or review step would otherwise
+  report, and this is a release gate. 413 checks.
+
 ### Fixed
 - **BUG-027: a corrupt *next* playlist entry truncated the track that was
   playing.** `playbin3` reports a failure to prepare the next URI on the same
@@ -885,12 +905,28 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   classification now outlives the failure and is cleared when a new source is
   set — the moment that URI stops being the next one and becomes the current one.
 
-  `acceptance_transport` carries the case in eight checks. A track whose next
-  entry is readable rubbish plays **32.507 s of 32.507 s**, against 30.493 s
-  through the same harness before the change and the 5.035 s of 6.966 s first
-  recorded. The playlist then moves on by itself, the broken entry fails as the
-  current source, and BUG-025's machinery steps over it onto the one after.
-  **No open bugs remain.** 406 checks.
+  A third change is what actually made it deterministic. Attribution and the
+  supplied EOS both act *after* `playbin3` has been told to prepare a file it
+  cannot, and `playbin3` shares one `uridecodebin3` between the current stream
+  and the next — so tearing it down for the failed one sometimes took the
+  current stream's buffered tail with it, at one run in three. `setNextSource`
+  now asks `gst_type_find_helper_for_buffer` about the first 16 kB on the main
+  thread, alongside the `stat` it already did. Refusing the handover cannot lose
+  that race, because the race never starts.
+
+  Measured in `acceptance_transport`, which carries both halves: a track whose
+  next entry is readable rubbish plays **32.507 s of 32.507 s** every run,
+  against 30.493 s through the same harness before these changes and the 5.035 s
+  of 6.966 s first recorded.
+
+  **BUG-027 is narrowed rather than closed.** A next entry whose *type* is
+  recognised and whose contents will not decode — a file beginning `fLaC` and
+  continuing with anything else — cannot be refused in advance, and the teardown
+  still costs the current track **1.464 s of its tail, deterministically**. It
+  no longer stops: it plays into its last second and a half, the playlist moves
+  on by itself, and the broken entry is stepped over. The test asserts full
+  length for the first case and only what is true of the second, printing the
+  measured shortfall as a note rather than a check. 421 checks.
 
 - **BUG-030: the VU face's scale marks were evenly spaced, so it did not crowd
   as a real one does.** SPEC.md §Meters says the scale crowds towards its left

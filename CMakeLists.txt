@@ -27,6 +27,10 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GStreamer REQUIRED IMPORTED_TARGET gstreamer-1.0>=1.20)
 pkg_check_modules(TagLib REQUIRED IMPORTED_TARGET taglib>=1.12)
 pkg_check_modules(GStreamerApp REQUIRED IMPORTED_TARGET gstreamer-app-1.0>=1.20)
+# For `gst_type_find_helper_for_buffer`, which lets a next source be refused
+# before it can damage the track playing — BUG-027. It ships with GStreamer core
+# rather than as a separate package, so this adds nothing to the requirements.
+pkg_check_modules(GStreamerBase REQUIRED IMPORTED_TARGET gstreamer-base-1.0>=1.20)
 
 qt_add_executable(ferrolux
     src/main.cpp
@@ -166,6 +170,7 @@ target_link_libraries(ferrolux PRIVATE
     # that nothing else acquires a dependency on D-Bus, and no test suite does.
     Qt6::DBus
     PkgConfig::GStreamer
+    PkgConfig::GStreamerBase
     PkgConfig::TagLib
 )
 
@@ -251,7 +256,7 @@ qt_add_executable(acceptance_transport
     src/meters/MeterSource.h
 )
 target_include_directories(acceptance_transport PRIVATE src)
-target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer PkgConfig::TagLib)
+target_link_libraries(acceptance_transport PRIVATE Qt6::Core PkgConfig::GStreamer PkgConfig::GStreamerBase PkgConfig::TagLib)
 
 # Phase 5 token set. Asserts that resources/themes/ferric.json still says what
 # SPEC.md §Design tokens says it says, that every token qml/Tokens.qml names is

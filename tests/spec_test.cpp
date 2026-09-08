@@ -466,5 +466,82 @@ int main(int argc, char *argv[])
               "the upload is instrumented, so AV-007's measured half has something to measure");
     }
 
+    // ---- D-010 -------------------------------------------------------------
+    // The licence, and the two claims the decision makes about the tree rather
+    // than about itself: that `LICENSE` carries the unmodified GPLv3, and that
+    // every source file carries an SPDX header naming the same licence.
+    //
+    // Both were true when D-010 was written and neither had anything holding
+    // them true. A file added without a header is a licensing defect that no
+    // build, test or review step would report, and it is discovered — if at all
+    // — by somebody auditing a release. This is a release gate, so it belongs
+    // in a test rather than in a habit.
+    std::printf("\nThe licence (D-010, D-012)\n");
+    {
+        const QString licence = readAll(root + QStringLiteral("/LICENSE"));
+        check(!licence.isEmpty(), "LICENSE is present and readable",
+              QStringLiteral("%1 characters").arg(licence.size()));
+        check(licence.contains(QStringLiteral("GNU GENERAL PUBLIC LICENSE"))
+                  && licence.contains(QStringLiteral("Version 3, 29 June 2007")),
+              "and it is the GNU General Public License, version 3");
+
+        // Version 3 rather than 2 was chosen for the patent grant — D-010's
+        // fourth reason — so the section granting it is worth naming here. A
+        // truncated or substituted licence file would pass a title check.
+        check(licence.contains(QStringLiteral("11. Patents.")),
+              "including the patent grant that version 3 was chosen for");
+
+        // Every source file in the tree the project wrote. Build directories are
+        // not walked: they contain generated sources that carry whatever their
+        // generator emitted, and holding those to this would be holding Qt's
+        // moc to a decision about Ferrolux.
+        static const QStringList dirs = { QStringLiteral("/src"), QStringLiteral("/qml"),
+                                          QStringLiteral("/tests"), QStringLiteral("/tools") };
+        static const QStringList patterns = {
+            QStringLiteral("*.cpp"), QStringLiteral("*.h"), QStringLiteral("*.qml"),
+            QStringLiteral("*.frag"), QStringLiteral("*.vert"), QStringLiteral("*.sh"),
+        };
+        QStringList unmarked;
+        QStringList wrongLicence;
+        int counted = 0;
+        for (const QString &dir : dirs) {
+            QDirIterator files(root + dir, patterns, QDir::Files, QDirIterator::Subdirectories);
+            while (files.hasNext()) {
+                const QString path = files.next();
+                ++counted;
+                // The header is at the top or it is not a header: a licence
+                // notice buried three hundred lines down is not one.
+                const QString opening = readAll(path).left(400);
+                if (!opening.contains(QStringLiteral("SPDX-License-Identifier:")))
+                    unmarked << QFileInfo(path).fileName();
+                else if (!opening.contains(QStringLiteral("SPDX-License-Identifier: GPL-3.0-or-later")))
+                    wrongLicence << QFileInfo(path).fileName();
+            }
+        }
+
+        check(counted > 50, "the tree was walked", QStringLiteral("%1 source files").arg(counted));
+        check(unmarked.isEmpty(), "every one of them carries an SPDX header",
+              unmarked.isEmpty() ? QStringLiteral("%1 files").arg(counted)
+                                 : unmarked.join(QStringLiteral(", ")));
+        check(wrongLicence.isEmpty(), "and every header names GPL-3.0-or-later",
+              wrongLicence.isEmpty() ? QStringLiteral("as D-010 decided")
+                                     : wrongLicence.join(QStringLiteral(", ")));
+
+        // D-012's four faces are separately licensed, and a bundled font whose
+        // licence is not bundled with it is the one licensing mistake this
+        // project could make by omission rather than by commission.
+        QDirIterator fonts(root + QStringLiteral("/resources/fonts"),
+                           QStringList() << QStringLiteral("*.ttf"), QDir::Files);
+        int faces = 0;
+        while (fonts.hasNext()) { fonts.next(); ++faces; }
+        QDirIterator texts(root + QStringLiteral("/resources/fonts"),
+                           QStringList() << QStringLiteral("OFL*.txt"), QDir::Files);
+        int notices = 0;
+        while (texts.hasNext()) { texts.next(); ++notices; }
+        check(faces > 0 && notices > 0,
+              "the bundled fonts ship with their own licences (D-012)",
+              QStringLiteral("%1 faces, %2 OFL notices").arg(faces).arg(notices));
+    }
+
     return ferrolux::tests::summary();
 }

@@ -19,15 +19,11 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-*None.*
-
-## Fixed
-
-### BUG-027 A corrupt *next* entry truncates the track that is playing
-**Status:** fixed
+### BUG-027 A *next* entry that is recognised but will not decode truncates the track before it
+**Status:** open
 **Severity:** low
 **Found:** 2026-09-07, fixing BUG-025
-**Fixed:** 2026-09-08
+**Narrowed:** 2026-09-08
 **Related:** F-005, F-001, BUG-025
 
 Playing a good file whose *next* playlist entry does not exist stops playback
@@ -103,7 +99,9 @@ before it hands on**, against about 5.3 s and a stop before these two changes.
 that a file will not decode, so the check above cannot catch it; only the URI
 attribution can, and that still runs into the missing EOS described above.
 
-**Fixed 2026-09-08**, with the third piece the entry above said was missing.
+**Three changes on 2026-09-08, and the bug is now a fraction of its original
+size — but it is not gone, and the title above has been narrowed to what is
+left rather than the entry closed.**
 
 *The attribution is against this class's own record, not the pipeline's.* That
 was the sticking point: `playbin`'s `uri` property is shared state and has
@@ -131,15 +129,47 @@ machinery written to fix it. The state is now cleared when a new source is set,
 which is the moment that URI stops being the next one and becomes the current
 one.
 
-Measured in `acceptance_transport`, which now carries the case: a track whose
-next entry is readable rubbish plays **32.507 s of 32.507 s**, against 30.493 s
-through the same harness before the change and the 5.035 s of 6.966 s this entry
-first recorded. The playlist then moves on by itself, the broken entry fails as
-the *current* source, and BUG-025's machinery steps over it onto the one after.
+*And a next source nothing can identify is refused before the handover is
+armed.* This is what made the difference. Attribution is right and the supplied
+EOS is right, but they act after `playbin3` has already been told to prepare a
+file it cannot — and `playbin3` shares one `uridecodebin3` between the current
+stream and the next, so tearing it down for the failed one sometimes takes the
+current stream's buffered tail with it. Measured at one run in three before this
+check existed. `setNextSource` now asks `gst_type_find_helper_for_buffer` about
+the first 16 kB, on the main thread, alongside the `stat` it already did:
+refusing the handover cannot lose that race, because the race never starts.
+
+**What is fixed, measured in `acceptance_transport`:** a track whose next entry
+is readable rubbish now plays **32.507 s of 32.507 s**, every run, against
+30.493 s through the same harness before these changes and the 5.035 s of
+6.966 s this entry first recorded.
+
+**What remains** is a next entry whose *type* is recognised and whose contents
+will not decode — a file beginning `fLaC` and continuing with anything else.
+Typefind accepts it, so it cannot be refused in advance; the handover is armed;
+and the teardown that follows costs the current track **1.464 s of its tail,
+deterministically**. The track no longer *stops* — it plays into its last
+second and a half, the playlist moves on by itself, the broken entry fails as
+the current source, and BUG-025's machinery steps over it onto the one after —
+but a second and a half is audible, and this entry stays open for it.
+
+Both cases are in `acceptance_transport`, which asserts full length for the
+first and only what is true of the second, printing the measured shortfall as a
+note rather than a check.
+
+Closing it would need the current stream's tail to survive a teardown this
+project does not perform and cannot see. That means either not using
+`playbin3`'s handover — reversing D-002's consequences for gapless — or
+buffering the current stream far enough ahead that the tail is already past the
+element being destroyed. Neither is proportionate to a second and a half on a
+file that is already broken, which is why the severity stays low.
 
 The broken file is deliberately not announced when it fails as a *next* source.
 It is reported when the playlist reaches it and it fails as the current one,
 which is where a user can act on it.
+
+
+## Fixed
 
 ### BUG-031 Three measurement tools wrote a settings file the application does not read
 **Status:** fixed

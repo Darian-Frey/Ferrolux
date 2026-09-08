@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **406 checks
+its own panel — nothing in the window comes from a desktop theme. **421 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -84,9 +84,11 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**No open bugs and one suggested improvement.** Thirty-one bugs found so far,
-thirty fixed and one won't-fix upstream (BUG-006, a GStreamer defect D-006
-commits the project to working around). IMP-012 is the suggestion: the gapless
+**One open bug and one suggested improvement.** Thirty-one bugs found so far,
+twenty-nine fixed and one won't-fix upstream (BUG-006, a GStreamer defect D-006
+commits the project to working around). BUG-027 is narrowed to a next entry
+whose type is recognised and whose contents will not decode, costing the track
+before it 1.46 s of its tail. IMP-012 is the suggestion: the gapless
 handover costs milliseconds on a streaming thread and nothing this project
 controls bounds it. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record

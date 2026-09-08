@@ -266,7 +266,7 @@ eight marks from −20 dB to +3 dB, and as of BUG-030 the face is marked at the
 eleven standard positions rather than at eight evenly spaced ones, so it crowds
 towards its left end as SPEC.md §Meters says it does and as a real one does.
 **Deliverables:**
-- [ ] Licence settled and `LICENSE` committed (D-010)
+- [x] Licence settled and `LICENSE` committed (D-010) — GPL-3.0-or-later, decided 2026-09-02; held to the tree by `spec_test` from 2026-09-08
 - [x] All Must-priority features Complete or explicitly Withdrawn — the last, F-032, on 2026-09-08
 - [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
 - [ ] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement

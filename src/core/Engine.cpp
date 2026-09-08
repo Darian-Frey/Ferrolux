@@ -5,12 +5,14 @@
 
 #include "core/StreamTimer.h"
 
+#include <QFile>
 #include <QFileInfo>
 #include <QtGlobal>
 #include <algorithm>
 #include <cmath>
 
 #include <gst/gst.h>
+#include <gst/base/gsttypefindhelper.h>
 
 Q_LOGGING_CATEGORY(lcCore, "ferrolux.core")
 
@@ -23,6 +25,48 @@ bool readable(const QUrl &url)
 {
     const QFileInfo info(url.toLocalFile());
     return info.exists() && info.isFile() && info.isReadable();
+}
+
+// Whether GStreamer can tell what a file is, from its opening bytes.
+//
+// Not whether it will decode — that cannot be known without decoding it — but
+// whether anything will recognise it at all, which is where a file of rubbish
+// under an audio name fails. `typefind` is the element that refuses such a file
+// inside the pipeline, and this asks the same question of the same registry,
+// on the main thread, before the handover is armed.
+//
+// It exists because the alternative did not work reliably. Attributing the
+// resulting error to the next URI and letting the current track finish is
+// implemented below and is right, but `playbin3` shares one `uridecodebin3`
+// between the current stream and the next: tearing it down for the failed one
+// sometimes takes the current stream's remaining buffers with it, and the track
+// still loses a second or so. Measured at one run in three. Refusing the
+// handover in the first place cannot lose that race, because the race never
+// starts. BUG-027.
+bool identifiable(const QUrl &url)
+{
+    QFile file(url.toLocalFile());
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+
+    // Enough for every container this project plays to declare itself. A
+    // typefinder that needs more than this is one whose format is identified by
+    // something other than a header, and `playbin3` gets the whole file.
+    const QByteArray head = file.read(16 * 1024);
+    if (head.isEmpty())
+        return false;
+
+    GstBuffer *buffer = gst_buffer_new_wrapped_full(
+        GST_MEMORY_FLAG_READONLY,
+        const_cast<char *>(head.constData()), gsize(head.size()),
+        0, gsize(head.size()), nullptr, nullptr);
+    GstCaps *caps = gst_type_find_helper_for_buffer(nullptr, buffer, nullptr);
+    gst_buffer_unref(buffer);
+
+    if (!caps)
+        return false;
+    gst_caps_unref(caps);
+    return true;
 }
 
 // How long a failure stays on the panel once playback has moved on. Long enough
@@ -430,7 +474,13 @@ void Engine::setNextSource(const QUrl &url)
     // Checked here rather than in `aboutToFinish`, which runs on a streaming
     // thread and may not touch the filesystem (AV-001). This runs on the main
     // thread, once per track change, and is one `stat`.
-    const bool usable = !url.isEmpty() && (!url.isLocalFile() || readable(url));
+    // Two questions, both cheap and both on this thread: can the file be
+    // opened, and does anything recognise what is in it. The first covers a
+    // playlist pointing at files that have moved or been deleted; the second
+    // covers a file that is present and readable and is not audio, which is what
+    // remained of BUG-027 after the first check.
+    const bool usable = !url.isEmpty()
+        && (!url.isLocalFile() || (readable(url) && identifiable(url)));
 
     const QByteArray encoded = usable ? url.toString().toUtf8() : QByteArray();
     QMutexLocker locker(&m_nextMutex);
