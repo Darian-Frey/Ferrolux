@@ -692,6 +692,56 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   hardware. The entry says what would have to change if it ever stops being.
   385 checks.
 
+- AV-007 has implemented detection, which was the last Critical vector without
+  one — Phase 7's third deliverable is met. The vector is a texture uploaded
+  from the wrong thread: legal under the basic render loop, where the render
+  thread and the GUI thread are the same thread, and undefined under the
+  threaded one, on somebody else's driver.
+
+  `spec_test` guards the line that decides it. The connection to
+  `beforeSynchronizing` must be `Qt::DirectConnection` so the slot runs on the
+  thread that emitted it, nothing in the file may be queued onto the GUI thread,
+  and the two halves of the split are brace-matched and held apart: the staging
+  path may touch no scene graph resource, and the synchronising path must be the
+  only place in the file a texture is created.
+
+  `tools/verify-render-thread.sh` is the half that runs. The new
+  `meters/RenderThreadGuard` records the thread each `MeterTexture` was built on
+  — the GUI thread, since QML instantiates items there — and counts every upload
+  and staging call against it. The tool plays a tone so there is something to
+  upload, forces `QSG_RENDER_LOOP=threaded`, and runs under `opengl` and then
+  `vulkan` with the validation layer requested. Both backends: **~700 uploads in
+  twelve seconds, none of them on the GUI thread, nothing from the validation
+  layer.**
+
+  **It refuses to pass a run that could not have failed.** Each backend is first
+  checked for having seen two distinct threads, and then for having uploaded
+  anything at all. Without those, a run under the basic loop and a run in
+  silence both report a flawless green, and the first of those is precisely the
+  false negative the vector is about.
+
+  Confirmed against the real defect, which behaved exactly as the entry written
+  five phases ago predicted. Making the connection queued — one word — put **489
+  of 489 uploads on the GUI thread under OpenGL, where the application carried on
+  running normally**, and **segfaulted within a second under Vulkan**. A
+  developer working under OpenGL and the basic loop would have shipped it.
+
+  The tool needed two corrections of its own before it could be believed. Its
+  first version counted Qt's line announcing that the validation layer was
+  *enabled*, so requesting validation was itself the finding, on both backends;
+  and it reported the segfault as a backend being unavailable, when a crash is
+  the vector happening rather than the vector going unmeasured. Both are
+  recorded, because that is now the fourth measurement tool in this project to
+  have first reported its own artefact.
+
+- AV-011 and AV-012 were found to be describing themselves wrongly. Both read
+  `not implemented` while `meters_test` had been checking exactly what each
+  asked for since Phase 4 — a tone at each display band's own bin peaking in
+  that band and no other, 20 of 20; and 99% needle deflection at 302.0 ms inside
+  IEC 60268-17's ±5%, overshooting 1.16% against a specified 1–1.5%. The
+  coverage was never missing, only the status, which is the same failure the
+  file is about one level up. 392 checks.
+
 ### Fixed
 - **BUG-028: `frame_bench` measured shaders whose parameters were undefined.**
   The benchmark registered every context property the display needs except

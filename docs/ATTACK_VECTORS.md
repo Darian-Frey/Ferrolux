@@ -6,7 +6,9 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 
 This file was written before the code, when every detection entry said `not implemented`. That was honest signal rather than a gap to be papered over: the distance between an identified failure mode and a working check for it is information, and it is worth reading which vectors closed early and which are still open.
 
-Phase 7 requires every Critical vector to have implemented detection before RS-1 ships. **Three of the four have it** — AV-001, AV-003 and AV-005. AV-007 does not, and is the outstanding one.
+Phase 7 requires every Critical vector to have implemented detection before RS-1 ships. **All four now have it** — AV-001, AV-003, AV-005 and AV-007, the last closing on 2026-09-08.
+
+Two entries were found to be describing themselves wrongly while that was being finished: AV-011 and AV-012 both read `not implemented` when `meters_test` had been checking exactly what they asked for since Phase 4. A status nobody re-reads is a status that stops being true quietly, which is the same failure this file is about, one level up.
 
 ---
 
@@ -217,21 +219,39 @@ is worse than none, because it will be believed.
 ### AV-007 Texture upload from the wrong thread
 **Severity:** Critical
 **Description.** Scene graph resources may only be touched during synchronisation and rendering on the render thread. Uploading meter data from a bus handler on the main thread will appear to work under some backends and crash or corrupt under others, which makes it a latent portability failure rather than an immediate one.
-**Detection.** Not implemented (would require running the test suite under both the OpenGL and Vulkan RHI backends, and with `QSG_RENDER_LOOP=threaded` forced, since the basic loop hides the bug).
+**Detection.** **Implemented**, in two halves, and the dynamic half does force both RHI backends and the threaded loop as this entry asked.
+
+*The static half* is a section of `spec_test`, which reads `src/meters/MeterTexture.cpp`. It guards the single line whose alteration causes the failure — the connection to `beforeSynchronizing` must be `Qt::DirectConnection`, so the slot runs on the thread that emitted the signal — and checks that nothing in the file is queued onto the GUI thread. It then brace-matches both halves of the split and holds them apart: the GUI-thread staging path must contain no `createTextureFromImage`, `QSGTexture`, `adopt` or `setFiltering`, and the render-thread path must be the only place in the file a texture is created.
+
+*The dynamic half* is `tools/verify-render-thread.sh`. `meters/RenderThreadGuard` records the thread each `MeterTexture` was constructed on — the GUI thread, since QML instantiates items there — and then counts every upload and every staging call against it. The tool plays a tone so the meters have something to upload, and runs the application under `QSG_RENDER_LOOP=threaded` with `QSG_RHI_BACKEND` set to `opengl` and then `vulkan`, asking for the Vulkan validation layer by name.
+
+**It refuses to pass on a run that could not have failed.** The first check of each backend is that the render thread and the GUI thread were seen to be *different*, because under the basic loop they are the same thread and every question about which one you are on is trivially satisfied. A green result obtained there is the precise false negative this vector describes, so the tool reports it as a failure rather than a pass. The second check is that textures were actually uploaded, for the same reason in the other direction: a silent run uploads nothing and violates nothing.
+
+**Measured 2026-09-08** on the reference hardware, 12 seconds per backend:
+
+| | uploads | on the GUI thread | threads distinct | validation |
+|---|---|---|---|---|
+| OpenGL | 721 | **0** | yes | silent |
+| Vulkan | 694 | **0** | yes | silent |
+
+**The detection was confirmed against the real defect, and the defect behaved exactly as this entry predicted it would.** Changing the connection to `Qt::QueuedConnection` — one word, the smallest expression of this violation — put **489 of 489 uploads on the GUI thread under OpenGL, where the application went on running normally**, and **segfaulted within a second under Vulkan**. That is "appears to work under some backends and crashes or corrupts under others", observed rather than argued, on one machine and one afternoon. A developer working under OpenGL and the basic loop would have shipped it.
+
+Two lessons are recorded in CLAUDE.md. The tool's first version counted Qt's own line announcing that the validation layer was enabled, so asking for validation was itself the finding, on both backends; and a crash must be reported as a crash, since the first version blamed an unavailable backend for a segfault that was the vector happening.
+
 **Related decisions.** D-004, D-005.
-**Related features.** F-030.
+**Related features.** F-030, F-031, F-032.
 
 ### AV-011 Low-frequency band collapse in the spectrum display
 **Severity:** Major
 **Description.** The `spectrum` element produces linearly spaced bands. Mapping those directly onto a logarithmic display without sufficient analysis resolution puts the bottom two octaves — everything below roughly 200 Hz — into a single display bar, so bass content is invisible. This is why SPEC.md specifies 512 analysis bands feeding 24 display bands rather than requesting 24 from the element.
-**Detection.** Not implemented (would require a synthetic sweep test asserting that a tone at each display band's centre frequency produces its maximum response in that band and no other).
+**Detection.** **Implemented** in `meters_test`, as the sweep this entry described: §logarithmic band mapping and §tone placement feed a tone at each display band's own bin and assert its maximum response falls in that band and no other — 20 of 20 at the last run. This entry said `not implemented` until 2026-09-08, by which time the checks had been passing since Phase 4; the status was stale rather than the coverage missing.
 **Related decisions.** D-004.
 **Related features.** F-031.
 
 ### AV-012 VU ballistics degenerating into a peak meter
 **Severity:** Major
 **Description.** A VU meter that responds instantaneously is a peak meter wearing the wrong face, and it reads immediately as fake to anyone who has used real hardware. The risk is not that the filter is written wrongly but that it is quietly bypassed — for instance by a smoothing change made to fix a spectrum problem being applied to both paths, since they share a source.
-**Detection.** Not implemented (would require a unit test on the ballistics filter asserting 99% deflection at 300 ms ±5% for a steady reference tone, with overshoot within 1–1.5%).
+**Detection.** **Implemented** in `meters_test` §VU ballistics, to the figures this entry specified: 99% deflection at **302.0 ms**, inside the ±5% of 300 ms that IEC 60268-17 asks for, overshooting by **1.16%** — which is inside the 1–1.5% band and, as the check says in as many words, is something a first-order system cannot do at all, so the test would fail if the filter were ever quietly replaced by one. Like AV-011, this entry read `not implemented` until 2026-09-08 while the checks had been passing since Phase 4.
 **Related decisions.** D-005.
 **Related features.** F-032.
 **History.** Identified during the design session before implementation, because the shared `MeterSource` makes the coupling easy to introduce accidentally.

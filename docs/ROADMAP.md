@@ -263,7 +263,7 @@ state, not across a switch).
 **Deliverables:**
 - [ ] Licence settled and `LICENSE` committed (D-010)
 - [ ] All Must-priority features Complete or explicitly Withdrawn
-- [ ] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection
+- [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
 - [ ] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement
 - [ ] Packaging: Flatpak, and a `.deb` for Debian and Ubuntu derivatives
 - [ ] `CHANGELOG.md` release section, tagged `v1.0.0`, badged RS-1

@@ -7,7 +7,10 @@
 
 #include <QQuickWindow>
 #include <QSGTexture>
+#include <QThread>
 #include <QSGTextureProvider>
+
+#include "meters/RenderThreadGuard.h"
 #include <QRunnable>
 
 #include <algorithm>
@@ -54,6 +57,10 @@ private:
 MeterTexture::MeterTexture(QQuickItem *parent)
     : QQuickItem(parent)
 {
+    // QML instantiates items on the GUI thread, so this is where AV-007's
+    // detection learns which thread that is. Nothing else in the process can
+    // say: Qt exposes the render thread only by emitting on it.
+    RenderThreadGuard::noteGuiThread(QThread::currentThread());
 }
 
 MeterTexture::~MeterTexture() = default;
@@ -110,6 +117,10 @@ void MeterTexture::setSource(MeterSource *source)
 // graph resource, which is the whole point of the split (AV-007).
 void MeterTexture::stage()
 {
+    // AV-007. Recorded before the early return: an item with no source still
+    // says which thread staged it, and the thread is the whole question.
+    RenderThreadGuard::noteStage(QThread::currentThread());
+
     if (!m_source)
         return;
 
@@ -163,6 +174,10 @@ void MeterTexture::itemChange(ItemChange change, const ItemChangeData &data)
 // replaced.
 void MeterTexture::synchronise()
 {
+    // AV-007. This must be the render thread, and under the threaded loop that
+    // means it must not be the thread the item was built on.
+    RenderThreadGuard::noteUpload(QThread::currentThread());
+
     if (!m_window || m_staging.isNull())
         return;
     if (!m_stagingDirty && textureProvider() && m_provider->texture())

@@ -45,6 +45,7 @@
 #include "core/Equaliser.h"
 #include "library/PlaylistModel.h"
 #include "meters/FrameTimer.h"
+#include "meters/RenderThreadGuard.h"
 #include "meters/MeterTexture.h"
 #include "ui/ThemeTokens.h"
 #include "ui/VisualSettings.h"
@@ -294,6 +295,21 @@ int main(int argc, char *argv[])
                                        app.quit();
                                    });
             }
+        }
+
+        // AV-007. Report which thread the meter texture was uploaded from,
+        // and quit. Meaningful only under `QSG_RENDER_LOOP=threaded`, which is
+        // why the summary carries whether the two threads were ever distinct
+        // rather than leaving that to be assumed — see
+        // `tools/verify-render-thread.sh`.
+        const int renderSeconds = qEnvironmentVariableIntValue("FERROLUX_RENDER_CHECK");
+        if (renderSeconds > 0) {
+            QTimer::singleShot(renderSeconds * 1000, &app, [&app] {
+                std::fprintf(stderr, "RENDER %s\n",
+                             qPrintable(ferrolux::meters::RenderThreadGuard::summary()));
+                std::fflush(stderr);
+                app.quit();
+            });
         }
 
         // AV-001. Report what the streaming thread was made to do, and quit.

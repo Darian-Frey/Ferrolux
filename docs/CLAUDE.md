@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **385 checks
+its own panel — nothing in the window comes from a desktop theme. **392 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -74,7 +74,9 @@ across eight suites** pass in both Debug and Release.
   (AV-002's detection), `verify-scaling.sh` (AV-005's), `verify-desktop.sh`
   (IMP-010's — drives `platform/` over a real session bus, hermetically),
   `stress-audio.sh` (AV-001's — playback under synthetic CPU and I/O load,
-  timing the streaming thread from inside it and counting the sink's underruns)
+  timing the streaming thread from inside it and counting the sink's underruns),
+  `verify-render-thread.sh` (AV-007's — the threaded loop on both RHI backends,
+  counting uploads against the thread they happened on)
 - `platform/` holds `Settings`, `MprisService`, `MediaKeys`, `SingleInstance`,
   `CommandLine` and `Session`; the desktop entry is the rest of Phase 6.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
@@ -179,6 +181,12 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **A check that cannot fail is not a check, and both of the ways it fails to
+  fail are easy to write.** AV-007's tool passes a backend only after
+  establishing that the render thread and the GUI thread were actually distinct
+  and that something was actually uploaded — without those, a run under the
+  basic loop or a silent run reports a flawless green. The same shape appears in
+  AV-001's harness, which refuses a run that never reached a handover.
 - **Time your own work and the library's separately, or the measurement names
   the wrong culprit.** Timed as one, `about-to-finish` read 2.4 ms with half its
   calls over budget on an idle machine — which is exactly what AV-001's defect
@@ -306,7 +314,7 @@ Registering them with CTest requires `-DFERROLUX_TEST_FLAC=` and
 `-DFERROLUX_TEST_MP3=` at configure time; without those two, `ctest` silently
 runs four suites instead of six, which is easy to read as a pass.
 
-Four measurements are tools rather than tests, because each needs something a
+Five measurements are tools rather than tests, because each needs something a
 build machine may not have — a display, a window manager, a GPU, a session bus,
 an audio device — and a machine without it would report a failure that says
 nothing about the code:
@@ -316,10 +324,14 @@ nothing about the code:
 ./tools/verify-scaling.sh        # AV-005 — the panel at 1x, 1.5x, 2x and 3x
 ./tools/verify-desktop.sh        # IMP-010 — MPRIS, single instance, session, settings
 ./tools/stress-audio.sh          # AV-001 — the streaming thread under load
+./tools/verify-render-thread.sh  # AV-007 — uploads, threaded, opengl and vulkan
 ```
 
 Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the
-render-thread violations described in AV-007.
+render-thread violations described in AV-007. How completely it hides them is
+now measured: making the synchronising connection queued put 489 of 489 uploads
+on the GUI thread and OpenGL carried on as though nothing were wrong, while
+Vulkan segfaulted in under a second.
 
 ## Conventions
 

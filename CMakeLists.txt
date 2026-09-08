@@ -57,6 +57,8 @@ qt_add_executable(ferrolux
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
+    src/meters/RenderThreadGuard.cpp
+    src/meters/RenderThreadGuard.h
     src/meters/MeterTexture.h
     src/meters/FrameTimer.cpp
     src/meters/FrameTimer.h
@@ -192,6 +194,8 @@ qt_add_executable(frame_bench
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
+    src/meters/RenderThreadGuard.cpp
+    src/meters/RenderThreadGuard.h
     src/meters/MeterTexture.h
     src/ui/VisualSettings.cpp
     src/ui/VisualSettings.h
@@ -330,6 +334,8 @@ qt_add_executable(meters_test
     src/meters/MeterSource.cpp
     src/meters/MeterSource.h
     src/meters/MeterTexture.cpp
+    src/meters/RenderThreadGuard.cpp
+    src/meters/RenderThreadGuard.h
     src/meters/MeterTexture.h
 )
 target_include_directories(meters_test PRIVATE src)

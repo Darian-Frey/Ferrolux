@@ -171,7 +171,7 @@ cmake --build build
 
 ## Tests
 
-Eight suites, 385 checks. Six are self-contained and need nothing but the build;
+Eight suites, 392 checks. Six are self-contained and need nothing but the build;
 `tokens_test` and `spec_test` take the source directory, because they read the
 tree rather than the build: `spec_test` holds SPEC.md §Settings and the code to
 each other in both directions, so an undocumented key and a documented one that
@@ -258,7 +258,15 @@ about the code. Both are AV detections and both are run by hand.
 ./tools/verify-scaling.sh        # AV-005: the panel at 1x, 1.5x, 2x and 3x
 ./tools/verify-desktop.sh        # IMP-010: platform/ against a real session
 ./tools/stress-audio.sh          # AV-001: the streaming thread, under load
+./tools/verify-render-thread.sh  # AV-007: texture uploads, threaded, both backends
 ```
+
+`verify-render-thread.sh` forces `QSG_RENDER_LOOP=threaded` and runs under both
+RHI backends, because the basic loop makes the render thread and the GUI thread
+the same thread and hides the failure completely. It fails a backend whose run
+could not have caught anything — one where the two threads were never distinct,
+or where nothing was ever uploaded — rather than reporting the green result such
+a run produces.
 
 `stress-audio.sh` needs an audio device and a busy machine, and supplies the
 second itself: one spinning thread per core and continuous disc I/O, because

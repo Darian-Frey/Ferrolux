@@ -400,5 +400,71 @@ int main(int argc, char *argv[])
                   : violations.join(QStringLiteral("; ")));
     }
 
+    // ---- AV-007 ------------------------------------------------------------
+    // ARCHITECTURE.md §Key invariants item 3: texture uploads happen only on
+    // the render thread. The measured half is `meters/RenderThreadGuard` and
+    // `tools/verify-render-thread.sh`; this is the half that runs on a build
+    // machine with no GPU, and it guards the one line whose alteration causes
+    // the failure — the connection type.
+    std::printf("\nAV-007, the render thread (ARCHITECTURE.md §Key invariants 3)\n");
+    {
+        const QString texture = readAll(root + QStringLiteral("/src/meters/MeterTexture.cpp"));
+
+        // Direct, so the slot runs on the thread that emitted the signal. Made
+        // queued, it runs on the GUI thread instead, which is the violation
+        // itself: measured, that change put 489 of 489 uploads on the wrong
+        // thread under OpenGL and segfaulted under Vulkan.
+        check(texture.contains(QStringLiteral("&MeterTexture::synchronise, Qt::DirectConnection")),
+              "the synchronising connection is direct, so it runs on the render thread");
+        check(!texture.contains(QStringLiteral("Qt::QueuedConnection")),
+              "and nothing in this file is queued onto the GUI thread");
+
+        // Where the scene graph may be touched. `stage()` runs on the GUI
+        // thread and must build nothing but a plain image.
+        const auto bodyOf = [&texture](const QString &signature) {
+            const int at = texture.indexOf(signature);
+            if (at < 0)
+                return QString();
+            const int open = texture.indexOf(QLatin1Char('{'), at);
+            int depth = 0;
+            for (int i = open; i < texture.size(); ++i) {
+                if (texture.at(i) == QLatin1Char('{'))
+                    ++depth;
+                else if (texture.at(i) == QLatin1Char('}') && --depth == 0)
+                    return texture.mid(open, i - open);
+            }
+            return QString();
+        };
+
+        const QString stage = bodyOf(QStringLiteral("void MeterTexture::stage()"));
+        const QString synchronise = bodyOf(QStringLiteral("void MeterTexture::synchronise()"));
+        check(!stage.isEmpty() && !synchronise.isEmpty(),
+              "both halves of the split were located",
+              QStringLiteral("stage %1 characters, synchronise %2")
+                  .arg(stage.size()).arg(synchronise.size()));
+
+        static const char *sceneGraph[] = {
+            "createTextureFromImage", "QSGTexture", "adopt(", "setFiltering",
+        };
+        QStringList inStage;
+        for (const char *token : sceneGraph)
+            if (stage.contains(QLatin1String(token)))
+                inStage << QLatin1String(token);
+        check(inStage.isEmpty(),
+              "the GUI-thread half touches no scene graph resource",
+              inStage.isEmpty() ? QStringLiteral("%1 constructs checked for").arg(int(std::size(sceneGraph)))
+                                : inStage.join(QStringLiteral(", ")));
+
+        check(synchronise.contains(QStringLiteral("createTextureFromImage")),
+              "and the render-thread half is the only place a texture is created");
+        check(texture.count(QStringLiteral("createTextureFromImage")) == 1,
+              "which is true of the whole file, not just of that function",
+              QStringLiteral("%1 occurrence(s)")
+                  .arg(texture.count(QStringLiteral("createTextureFromImage"))));
+
+        check(synchronise.contains(QStringLiteral("RenderThreadGuard::noteUpload")),
+              "the upload is instrumented, so AV-007's measured half has something to measure");
+    }
+
     return ferrolux::tests::summary();
 }
