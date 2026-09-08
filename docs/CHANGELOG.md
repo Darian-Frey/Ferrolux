@@ -742,6 +742,40 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   coverage was never missing, only the status, which is the same failure the
   file is about one level up. 392 checks.
 
+- F-004 is Complete. Its taper and its pan law were verified in Phase 1; the
+  third clause, that both persist across restart, had been checked by hand once
+  and by nothing since. Nothing could check it: the acceptance harness runs
+  headless and exits without `aboutToQuit`, which is where settings are written,
+  so it can only observe a file nobody saved. `tools/verify-desktop.sh` quits
+  over MPRIS and therefore can.
+
+  Six checks, seeded with a volume of 0.42 and a balance of −0.35 against
+  defaults of 0.7 and 0, so that a player ignoring the file cannot produce a
+  passing result. The restored volume is read directly off the engine through
+  MPRIS, changed while running, and found in the file after a clean quit and in
+  the next launch.
+
+  Balance has no D-Bus surface and cannot be observed in a running player, and
+  does not need to be. `Settings::save()` writes what the engine holds rather
+  than copying the file forward, so a distinctive balance that comes back out of
+  the file has been through the engine twice — restored on start, read back on
+  exit. Both halves were confirmed by breaking them: ignoring the stored volume
+  fails two checks and names the default it substituted, and ignoring the stored
+  balance alone fails one with a file that has come back as 0.
+
+  Three Must-priority features remain: F-020, F-032 and F-033.
+
+  Adding the coverage turned up BUG-029, logged rather than fixed. The session
+  section of the same tool reads the current track and position, quits, and
+  expects both back — but the material is six nine-second tracks and the section
+  reads a position of 9.12 s, so it sits on a track boundary every run and
+  whether the handover falls before or after the quit is a coin flip. The player
+  is right in both outcomes: a gapless handover resets the cached position, so a
+  session saved just after a boundary faithfully records the new track at zero,
+  and restore brings back exactly that. It is a false failure in the tool, which
+  is worse than no check, because the natural response to a check that fails half
+  the time is to stop reading it.
+
 ### Fixed
 - **BUG-028: `frame_bench` measured shaders whose parameters were undefined.**
   The benchmark registered every context property the display needs except

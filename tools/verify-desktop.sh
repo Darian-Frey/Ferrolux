@@ -57,6 +57,13 @@ D="--session --dest org.mpris.MediaPlayer2.ferrolux --object-path /org/mpris/Med
 prop() { gdbus call $D --method org.freedesktop.DBus.Properties.Get \
              org.mpris.MediaPlayer2.Player "$1" 2>/dev/null | sed 's/^(<//; s/>,)$//'; }
 call() { gdbus call $D --method "org.mpris.MediaPlayer2.Player.$1" ${2:+"$2"} >/dev/null 2>&1; }
+setprop() { gdbus call $D --method org.freedesktop.DBus.Properties.Set \
+                org.mpris.MediaPlayer2.Player "$1" "<$2>" >/dev/null 2>&1; }
+
+# Settings are doubles written through a text file and read back over D-Bus, so
+# nothing here compares them for equality.
+near() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a - b < 0.001 && b - a < 0.001) }'; }
+ini() { sed -n "s/^$1=//p" "$XDG_CONFIG_HOME/ferrolux/ferrolux.ini" | tail -1; }
 
 start() {  # start [args...]; waits until the player answers on the bus
     "$PLAYER" "$@" >"$WORK/player.log" 2>&1 &
@@ -184,6 +191,67 @@ restored=$(prop Position | sed 's/^int64 //')
     && [ "$restored" -lt $((saved_pos + 30000000)) ] 2>/dev/null
 check $? "and the position with it, at or just past where it was" \
       "observed ${saved_pos} µs before quitting, restored ${restored} µs"
+
+# ---- F-004 ------------------------------------------------------------------
+# The clause is "both persist across restart", and it had been verified by hand
+# in Phase 1 and by nothing since. The acceptance harness cannot cover it: it
+# runs headless and exits without going through `aboutToQuit`, which is where
+# settings are written, so it can only ever observe a file nobody saved.
+#
+# **What makes this a check on the player rather than on a file is the direction
+# `Settings::save()` reads in.** It does not copy the settings file forward; it
+# asks the engine for its current volume and balance and writes those. So a
+# distinctive value that is still in the file after a launch and a clean quit has
+# been through the engine twice — restored into it on start, read back out of it
+# on exit. A player that ignored the file on startup would overwrite it with the
+# defaults on the way out, and the seeded values are chosen to be nothing like
+# the defaults so that such a failure cannot look like a pass.
+echo
+echo "Volume and balance persist (F-004)"
+
+stop
+cat > "$XDG_CONFIG_HOME/ferrolux/ferrolux.ini" <<SEED
+[playback]
+volume=0.42
+balance=-0.35
+SEED
+
+start
+check $? "it starts on a settings file holding non-default values" \
+      "volume 0.42 against a default of 0.7, balance -0.35 against 0"
+
+# Directly observed, rather than inferred from the file: MPRIS reports the
+# engine's own taper position, so this is the value that is actually in effect.
+volume=$(prop Volume)
+near "$volume" 0.42
+check $? "the volume it restored is the one in the file, read back off the engine" \
+      "MPRIS reports $volume"
+
+# Change it while running, so that what is checked next is a save and not the
+# file that was already there.
+setprop Volume 0.9
+sleep 0.5
+near "$(prop Volume)" 0.9
+check $? "a volume set while running takes effect" "MPRIS reports $(prop Volume)"
+
+stop
+near "$(ini volume)" 0.9
+check $? "and a clean quit writes it" "the file says $(ini volume)"
+
+# Balance has no D-Bus surface — MPRIS has no such property — so it cannot be
+# observed directly in a running player. It does not need to be: `save()` writes
+# what the engine holds, so a balance that comes back out of the file unchanged
+# is one the engine was carrying, which it can only have got from the file on
+# startup.
+near "$(ini balance)" -0.35
+check $? "balance survives the same round trip, through the engine both ways" \
+      "the file says $(ini balance)"
+
+start
+near "$(prop Volume)" 0.9
+check $? "and the next launch comes up at the volume it was left at" \
+      "MPRIS reports $(prop Volume)"
+stop
 
 # ---- settings round trip ---------------------------------------------------
 echo

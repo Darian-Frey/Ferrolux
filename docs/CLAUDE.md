@@ -110,10 +110,11 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 capability but the Must-priority acceptance clauses earlier phases left Partial —
 the ones that needed instrumentation or fixtures that did not exist yet.
 F-001 (every format in SPEC.md, and a broken file stepped over), F-002 (next and
-previous, and the 100 ms transport bound) and F-031 (60 fps at 4K, and caps whose
-decay is genuinely configurable) have gone Complete this way. Four remain: F-004,
-F-020, F-032 and F-033 — see ROADMAP.md §Phase 7, which says what each is waiting
-on. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
+previous, and the 100 ms transport bound), F-031 (60 fps at 4K, and caps whose
+decay is genuinely configurable) and F-004 (volume and balance persisting, which
+needed a harness that quits through `aboutToQuit`) have gone Complete this way.
+Three remain: F-020, F-032 and F-033 — see ROADMAP.md §Phase 7, which says what
+each is waiting on. All four Critical attack vectors now have detection. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
 after them.
 
 Phase 6, desktop integration, is **feature-complete as of 2026-09-07** and all

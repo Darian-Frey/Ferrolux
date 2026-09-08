@@ -32,12 +32,15 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug at low severity and one suggested improvement. Twenty-eight
-> bugs found, twenty-six fixed, one won't-fix upstream and BUG-027 open: a
-> corrupt *next* playlist entry still costs the track that is playing its last
-> two seconds. Phase 6 is complete; Phase 7 is under way, and its first work is
+> Two open bugs and one suggested improvement. Twenty-nine bugs found,
+> twenty-six fixed and one won't-fix upstream. BUG-027 is open at low severity:
+> a corrupt *next* playlist entry still costs the track that is playing its last
+> two seconds. BUG-029 is open at medium: `verify-desktop.sh`'s session check
+> lands on a track boundary by construction and fails about half the time on
+> correct behaviour, which is a false failure in the tool rather than a defect
+> in the player. Phase 6 is complete; Phase 7 is under way, and its first work is
 > the Must-priority acceptance clauses earlier phases left Partial — F-001,
-> F-002 and F-031 have closed, four remain. **All four Critical attack vectors
+> F-002, F-031 and F-004 have closed, three remain. **All four Critical attack vectors
 > now have implemented detection**, AV-007 having closed on 2026-09-08.
 
 Ferrolux RS-1 is a full-featured audio player for Linux with a cassette futurism interface — the visual language of late-1970s and 1980s high-end tape decks, rendered as resolution-independent vector chrome rather than bitmap skins. It covers the same ground as Winamp did: transport, playlist management, a ten-band equaliser, and switchable VU and spectrum displays. It is aimed at people who want a local-file player with physical-instrument character on a modern high-DPI desktop, and its distinguishing choice is that the entire panel is drawn rather than blitted, so it is correct at any scale.

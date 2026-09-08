@@ -56,7 +56,11 @@ Verified: next advances and the new entry *plays* rather than merely being selec
 - Volume follows a cubic taper, not linear amplitude
 - Balance is a constant-power pan across the stereo field
 - Both persist across restart
-**Status:** Partial (Phase 1, 2026-09-02) — cubic taper and constant-power pan implemented per SPEC.md §Volume taper and verified. Balance is an `audiomixmatrix` diagonal whose placement in the pipeline is unspecified; see BUG-002. Persistence verified by hand on 2026-09-02: a clean exit writes `playback/volume` and `playback/balance` to `~/.config/ferrolux/ferrolux.ini`, matching SPEC.md §Settings. It is not covered by the acceptance harness, which runs headless and never quits through `aboutToQuit`.
+**Status:** Complete (Phase 1, 2026-09-02; persistence covered 2026-09-08) — cubic taper and constant-power pan implemented per SPEC.md §Volume taper and verified. Balance is an `audiomixmatrix` diagonal, its pipeline placement settled by BUG-002.
+
+Persistence had been verified by hand on 2026-09-02 and by nothing since. The acceptance harness cannot cover it: it runs headless and exits without going through `aboutToQuit`, which is where settings are written, so it can only ever observe a file nobody saved. `tools/verify-desktop.sh` can, because it quits the player over MPRIS, and it now does — six checks, seeded with a volume of 0.42 and a balance of −0.35 against defaults of 0.7 and 0. It observes the restored volume directly off the engine through MPRIS, changes it while running, quits cleanly, and finds the changed value in the file and in the next launch.
+
+**What makes those checks about the player rather than about a file is the direction `Settings::save()` reads in.** It does not copy the settings file forward; it asks the engine for its current volume and balance and writes those. A value still in the file after a launch and a clean quit has therefore been through the engine twice — restored into it on start, read back out of it on exit. That is what covers balance, which has no D-Bus surface and cannot be observed directly in a running player. Both halves were confirmed by breaking them: ignoring the stored volume fails two checks and reports the default it substituted, and ignoring the stored balance alone fails the balance check with a file that has come back as 0.
 
 ### F-005 Gapless playback
 **Priority:** Should
