@@ -767,6 +767,38 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 
   Adding the coverage turned up BUG-029 in the section beside it, fixed below.
 
+- F-020 is Complete. Its third clause — that adjusting a band takes effect
+  "without an audible click" — had been asserted since Phase 3 on the strength
+  of a check that the ramp *interpolates*, which is a statement about a number
+  in the process rather than about the signal coming out of it. It is now
+  measured: a 1 kHz tone captured in real time through the real elements while
+  band 4 is taken to +12 dB, once through the ramp and once written straight to
+  the element, with the high-frequency content of each 5 ms block measured
+  against the tone it rides on. Ramped, the worst 5 ms sits **103.2 dB below the
+  tone** against a capture floor of −117.2 dB. Sixty decibels down is already
+  inaudible in a quiet room.
+
+  **The measurement overturned the reason the ramp was written.** The unramped
+  change is inaudible too, at −98.2 dB: a 5 dB difference, not the difference
+  between a click and none. A gain change in `equalizer-nbands` moves biquad
+  coefficients while the filter state carries across, and the element re-reads
+  its gains once per buffer regardless — BUG-006 — so what would be a click in a
+  naive gain stage is already a smooth transition. The ramp stays, because it
+  measurably improves on that, because it gives the panel an applied-gain
+  readout, and because it would be what stood between this equaliser and a click
+  if the element were replaced. But it is insurance, and the status implied it
+  was the mechanism.
+
+  Three metrics were needed, and the two wrong ones are kept in the source
+  because each produced a plausible number. The largest step between adjacent
+  samples found no discontinuity even unramped — there is none to find, for the
+  reason above. Removing the best-fitting sinusoid and measuring the residual
+  found a large one for the ramped case too, because the fit assumes a constant
+  amplitude and a gain change is an amplitude change: it was measuring the
+  feature working. Only high-frequency content separates them, that being what
+  makes a click audible in the first place. Two Must-priority features remain,
+  F-032 and F-033. 397 checks.
+
 ### Fixed
 - **BUG-029: `verify-desktop.sh`'s session check raced a track boundary and
   failed about half the time on correct behaviour.** It read the current track

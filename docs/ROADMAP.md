@@ -254,11 +254,10 @@ has an unlit ghost and the title does not.
 **Features delivered:** — (release engineering, no new capabilities). The phase
 does close out Must-priority acceptance clauses left Partial by earlier phases,
 which is the second deliverable below rather than new capability: F-001, F-002,
-F-031 and F-004 have gone Complete this way. Three Musts remain — F-020 (the
-audible check for zipper noise, which needs AV-006), F-032 (the comparison
-against a reference deck, a judgement rather than a measurement) and F-033
-(switching must not drop a frame, which `measure-frames.sh` does not cover: it
-sweeps modes in steady state, not across a switch).
+F-031, F-004 and F-020 have gone Complete this way. Two Musts remain — F-032
+(the comparison against a reference deck, a judgement rather than a measurement)
+and F-033 (switching must not drop a frame, which `measure-frames.sh` does not
+cover: it sweeps modes in steady state, not across a switch).
 **Deliverables:**
 - [ ] Licence settled and `LICENSE` committed (D-010)
 - [ ] All Must-priority features Complete or explicitly Withdrawn

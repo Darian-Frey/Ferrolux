@@ -143,7 +143,13 @@ Three cases were driven rather than reasoned about. Paths on the command line ar
 - Ten bands at the centre frequencies in SPEC.md §Equaliser, each adjustable ±12 dB
 - Adjusting a band takes effect without a pipeline restart and without an audible click
 - Bypass toggle returns bit-identical output to the unprocessed signal
-**Status:** Partial (Phase 3, 2026-09-02) — ten bands at Winamp's centres, ±12 dB, adjusted by property write with no pipeline restart. Bypass is verified **bit-identical** against a captured reference, with a control check confirming the element is genuinely in circuit. Gains ramp over 30 ms rather than jumping: verified to interpolate linearly, to land exactly on target, and to start no ramp for a change that changes nothing. The *audible* absence of zipper noise is not measured; see ROADMAP.md Phase 3.
+**Status:** Complete (Phase 3, 2026-09-02; the audible clause measured 2026-09-08) — ten bands at Winamp's centres, ±12 dB, adjusted by property write with no pipeline restart. Bypass is verified **bit-identical** against a captured reference, with a control check confirming the element is genuinely in circuit. Gains ramp over 30 ms: verified to interpolate linearly, to land exactly on target, and to start no ramp for a change that changes nothing.
+
+The absence of an audible click is now measured rather than assumed. A 1 kHz tone is captured in real time through the real elements while band 4 is taken to +12 dB, once through the ramp and once written straight to the element, and the high-frequency content of each 5 ms block is measured against the tone it rides on — a click being energy where a smooth gain change puts none. Ramped, the worst 5 ms sits **103.2 dB below the tone**; the capture's own floor is −117.2 dB. Sixty decibels down is already inaudible in a quiet room, so this is not close.
+
+**The measurement also overturned the reason the ramp was written.** The unramped change is inaudible as well, at −98.2 dB — a difference of 5 dB, not the difference between a click and none. A gain change in `equalizer-nbands` moves biquad coefficients while the filter state carries across, and the element re-reads its gains once per buffer regardless (see BUG-006), so what would be a click in a naive gain stage is already a smooth transition. The ramp stays: it measurably improves on the element's own behaviour, it is what gives the panel an applied-gain readout to show, and it would be the thing standing between this equaliser and a click if the element were ever replaced. But it is insurance, and the status should not have implied it was the mechanism.
+
+Getting there took three metrics, two of which were wrong in instructive ways — see `splatterOf` in `equaliser_test`, which records both.
 
 ### F-021 Preamp
 **Priority:** Must

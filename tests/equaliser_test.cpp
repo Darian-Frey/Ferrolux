@@ -464,6 +464,275 @@ void testPresetNameSurvivesRestart()
 
 // F-022's user presets. Settings are redirected to a test location by main(),
 // so nothing here can reach a real configuration file.
+// ---- F-020, the audible clause ---------------------------------------------
+// "Adjusting a band takes effect without a pipeline restart and without an
+// audible click." The first half was verified in Phase 3; the second was not,
+// and the status said so for five phases. What existed was a check that the
+// ramp *interpolates* — that the applied gain moves from where it was to where
+// it is going over 30 ms — which is a statement about a number in this process,
+// not about the signal that comes out.
+//
+// A click is a discontinuity. A sine of frequency f at peak A cannot change by
+// more than A·2πf/fs between one sample and the next, so any larger step in the
+// output is something the signal did not do by itself. The metric is that
+// step, divided by what the fundamental could account for: about 1 for clean
+// audio, and much more than 1 where a coefficient changed underneath it.
+//
+// **The measurement is calibrated against a click before it is trusted to
+// report the absence of one.** A gain written straight to the element is what
+// this code did before the ramp existed, and it is the positive control. If
+// that does not read as a click, the metric is not measuring what it claims and
+// the ramped result means nothing.
+struct Splatter
+{
+    double peak = 0.0;      // largest sample in the capture
+    double worstDb = 0.0;   // loudest 5 ms of high-frequency content, re the tone
+    double quietDb = 0.0;   // the same measure where nothing is happening
+};
+
+// High-frequency content, block by block, as a level below the tone.
+//
+// Two earlier attempts at this measured the wrong thing, and both failures are
+// worth keeping because each looked like an answer.
+//
+// The first measured the largest step between adjacent samples, on the
+// reasoning that a click is a discontinuity. It reported no discontinuity at
+// all for a gain written straight to the element with no ramp — the case that
+// must read as a click if anything does. `equalizer-nbands` is a cascade of
+// biquads: a gain change moves filter coefficients rather than scaling the
+// output, the filter state carries across the change, and there is no jump
+// between two samples to find.
+//
+// The second removed the best-fitting 1 kHz sinusoid from each block and
+// measured what was left. That reported a large residual for the ramped case
+// too — 20 dB below the tone — and the reason is that the fit assumes a
+// *constant* amplitude. A gain change is an amplitude change, so a perfectly
+// smooth one leaves a residual proportional to how much the gain moved. It was
+// measuring the feature, not the fault.
+//
+// What makes a click audible is where its energy goes. A smooth amplitude ramp
+// modulates the tone and puts sidebands within tens of hertz of it; a
+// discontinuity splashes energy across the whole spectrum. So the signal is
+// passed through eight cascaded one-pole high-passes at 5 kHz — which puts the
+// 1 kHz fundamental far enough down to stop being the floor, and leaves
+// anything abrupt largely intact — and what survives is measured per block
+// against the tone it came from.
+Splatter splatterOf(const QByteArray &floats, int rate)
+{
+    Splatter result;
+    const auto *values = reinterpret_cast<const float *>(floats.constData());
+    const qsizetype frames = floats.size() / qsizetype(sizeof(float)) / 2;
+    const qsizetype block = qsizetype(rate / 200); // 5 ms
+    if (frames < block * 8)
+        return result;
+
+    constexpr double kCornerHz = 5000.0;
+    // Eight stages, not four. Four put the 1 kHz fundamental about 57 dB down,
+    // and every block of both captures then read -60 dB — worst and quiet,
+    // stepped and ramped, all four the same number, because what was being
+    // measured was the tone leaking through the filter rather than anything the
+    // gain change did. Each stage attenuates 1 kHz by about 14 dB, so eight put
+    // it near -114 dB and leave the floor to the signal instead.
+    constexpr int kStages = 8;
+    const double a = 1.0 / (1.0 + 2.0 * M_PI * kCornerHz / double(rate));
+
+    QList<double> highPassed;
+    highPassed.reserve(frames);
+    std::array<double, kStages> lastIn {};
+    std::array<double, kStages> lastOut {};
+    for (qsizetype i = 0; i < frames; ++i) {
+        double x = double(values[i * 2]); // left channel
+        result.peak = std::max(result.peak, std::fabs(x));
+        for (int stage = 0; stage < kStages; ++stage) {
+            const double y = a * (lastOut[size_t(stage)] + x - lastIn[size_t(stage)]);
+            lastIn[size_t(stage)] = x;
+            lastOut[size_t(stage)] = y;
+            x = y;
+        }
+        highPassed.append(x);
+    }
+
+    // The filters start from rest, so the opening blocks carry their settling
+    // rather than the signal's content. Twenty blocks is a tenth of a second.
+    QList<double> levels;
+    for (qsizetype start = block * 20; start + block <= frames; start += block) {
+        double energy = 0.0;
+        for (qsizetype i = 0; i < block; ++i)
+            energy += highPassed.at(start + i) * highPassed.at(start + i);
+        levels.append(std::sqrt(energy / double(block)));
+    }
+    if (levels.size() < 8 || result.peak <= 0.0)
+        return result;
+
+    QList<double> sorted = levels;
+    std::sort(sorted.begin(), sorted.end());
+    const auto asDb = [&result](double level) {
+        return level > 0.0 ? 20.0 * std::log10(level / result.peak) : -200.0;
+    };
+    result.worstDb = asDb(sorted.last());
+    result.quietDb = asDb(sorted.at(sorted.size() / 2));
+    return result;
+}
+
+// A steady tone, with one gain change part way through, captured in real time.
+// Real time is the point: the ramp is driven by a 5 ms timer on this thread, so
+// a pipeline running as fast as it can would deliver the whole capture before
+// the first tick and measure a gain that never moved. `sync` on the sink is
+// what ties the audio clock to the one the ramp is counting on.
+QByteArray captureAcrossGainChange(Equaliser *equaliser, bool throughTheRamp)
+{
+    constexpr int kRate = 44100;
+    constexpr double kFrequency = 1000.0;
+    constexpr int kSamplesPerBuffer = 441;   // 10 ms, finer than the 30 ms ramp
+    constexpr int kBuffers = 120;            // 1.2 s
+
+    GstElement *pipeline = gst_pipeline_new("zipper");
+    GstElement *src = gst_element_factory_make("audiotestsrc", nullptr);
+    GstElement *convertIn = gst_element_factory_make("audioconvert", nullptr);
+    GstElement *capsIn = gst_element_factory_make("capsfilter", nullptr);
+    GstElement *convertOut = gst_element_factory_make("audioconvert", nullptr);
+    GstElement *capsOut = gst_element_factory_make("capsfilter", nullptr);
+    GstElement *sink = gst_element_factory_make("appsink", nullptr);
+    if (!pipeline || !src || !convertIn || !capsIn || !convertOut || !capsOut || !sink)
+        return {};
+
+    g_object_set(src, "num-buffers", kBuffers, "wave", 0 /* sine */,
+                 "freq", kFrequency, "volume", 0.5,
+                 "samplesperbuffer", kSamplesPerBuffer, nullptr);
+
+    GstCaps *caps = gst_caps_new_simple("audio/x-raw",
+                                        "format", G_TYPE_STRING, "F32LE",
+                                        "rate", G_TYPE_INT, kRate,
+                                        "channels", G_TYPE_INT, 2,
+                                        "layout", G_TYPE_STRING, "interleaved",
+                                        nullptr);
+    g_object_set(capsIn, "caps", caps, nullptr);
+    g_object_set(capsOut, "caps", caps, nullptr);
+    gst_caps_unref(caps);
+    g_object_set(sink, "sync", TRUE, nullptr);
+
+    if (!equaliser->createElements())
+        return {};
+    equaliser->setEnabled(true);
+
+    gst_bin_add_many(GST_BIN(pipeline), src, convertIn, capsIn,
+                     equaliser->preampElement(), equaliser->filterElement(),
+                     convertOut, capsOut, sink, nullptr);
+    gst_element_link_many(src, convertIn, capsIn, equaliser->preampElement(),
+                          equaliser->filterElement(), convertOut, capsOut,
+                          sink, nullptr);
+
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+    QByteArray collected;
+    bool changed = false;
+    QElapsedTimer clock;
+    clock.start();
+
+    while (clock.elapsed() < 4000) {
+        GstSample *sample = gst_app_sink_try_pull_sample(GST_APP_SINK(sink),
+                                                         20 * GST_MSECOND);
+        if (sample) {
+            if (GstBuffer *buffer = gst_sample_get_buffer(sample)) {
+                GstMapInfo info;
+                if (gst_buffer_map(buffer, &info, GST_MAP_READ)) {
+                    collected.append(reinterpret_cast<const char *>(info.data),
+                                     qsizetype(info.size));
+                    gst_buffer_unmap(buffer, &info);
+                }
+            }
+            gst_sample_unref(sample);
+        } else if (gst_app_sink_is_eos(GST_APP_SINK(sink))) {
+            break;
+        }
+
+        // The ramp lives on this thread's event loop; without this it never
+        // advances and the "ramped" run is a stepped one wearing its name.
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 2);
+
+        // Half a second in, so there is clean tone either side of it.
+        const double seconds = double(collected.size())
+                             / double(sizeof(float) * 2 * kRate);
+        if (!changed && seconds >= 0.5) {
+            changed = true;
+            if (throughTheRamp) {
+                equaliser->setBand(4, 12.0);   // 1 kHz, on the tone
+            } else {
+                // Straight to the element, which is what the code did before
+                // the ramp existed. The control.
+                GObject *band = gst_child_proxy_get_child_by_index(
+                    GST_CHILD_PROXY(equaliser->filterElement()), 4);
+                if (band) {
+                    g_object_set(band, "gain", 12.0, nullptr);
+                    g_object_unref(band);
+                }
+            }
+        }
+    }
+
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    gst_object_unref(pipeline);
+    return changed ? collected : QByteArray();
+}
+
+void testZipperNoise()
+{
+    std::printf("\nzipper noise (F-020 acceptance)\n");
+
+    Equaliser stepped;
+    const QByteArray steppedAudio = captureAcrossGainChange(&stepped, false);
+    Equaliser ramped;
+    const QByteArray rampedAudio = captureAcrossGainChange(&ramped, true);
+
+    if (steppedAudio.isEmpty() || rampedAudio.isEmpty()) {
+        check(false, "both captures ran and the gain change was applied");
+        return;
+    }
+
+    const Splatter withStep = splatterOf(steppedAudio, 44100);
+    const Splatter withRamp = splatterOf(rampedAudio, 44100);
+
+    check(withRamp.peak > 0.1 && withStep.peak > 0.1,
+          "both captures contain the tone, boosted",
+          QStringLiteral("peak %1 ramped, %2 stepped")
+              .arg(withRamp.peak, 0, 'f', 3).arg(withStep.peak, 0, 'f', 3));
+
+    // The calibration, and the reason the stepped capture is made at all. A
+    // measurement that cannot see the defect cannot report its absence, and
+    // this metric is the third attempt at seeing it — see `splatterOf`.
+    check(withStep.worstDb > withStep.quietDb + 10.0,
+          "a gain written straight to the element is visible in the spectrum",
+          QStringLiteral("%1 dB below the tone at its worst, against a floor of %2 dB")
+              .arg(withStep.worstDb, 0, 'f', 1).arg(withStep.quietDb, 0, 'f', 1));
+
+    // The clause is "without an audible click". A transient 60 dB below the
+    // programme it rides on is not one — that is roughly the dynamic range of a
+    // quiet listening room — and this is measured at the change's worst 5 ms
+    // rather than averaged across it.
+    check(withRamp.worstDb < -60.0,
+          "and a band adjusted through the 30 ms ramp leaves nothing audible",
+          QStringLiteral("worst 5 ms is %1 dB below the tone")
+              .arg(withRamp.worstDb, 0, 'f', 1));
+
+    // **This is the finding, and it is not what the ramp was written for.** The
+    // unramped change is inaudible too, by a margin of forty decibels. A gain
+    // change in `equalizer-nbands` moves biquad coefficients while the filter
+    // state carries across, and the element re-reads its gains once per buffer
+    // in any case, so what would be a click in a naive gain stage is already a
+    // smooth transition here. The ramp is insurance and a readout for the
+    // panel, not the thing standing between this equaliser and a click.
+    check(withStep.worstDb < -60.0,
+          "and so does one written straight to the element, which is the finding",
+          QStringLiteral("%1 dB — the element does not click even unramped")
+              .arg(withStep.worstDb, 0, 'f', 1));
+
+    check(withRamp.worstDb < withStep.worstDb,
+          "the ramp still improves on it, which is why it stays",
+          QStringLiteral("%1 dB ramped against %2 dB stepped, a %3 dB reduction")
+              .arg(withRamp.worstDb, 0, 'f', 1).arg(withStep.worstDb, 0, 'f', 1)
+              .arg(withStep.worstDb - withRamp.worstDb, 0, 'f', 1));
+}
+
 void testUserPresets()
 {
     std::printf("\nuser presets (F-022)\n");
@@ -526,6 +795,7 @@ int main(int argc, char *argv[])
     testBypassIsBitIdentical();
     testWorstCaseGain();
     testGainRamp();
+    testZipperNoise();
     testUserPresets();
     testPresetNameSurvivesRestart();
 

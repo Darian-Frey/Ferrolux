@@ -12,7 +12,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
-its own panel — nothing in the window comes from a desktop theme. **392 checks
+its own panel — nothing in the window comes from a desktop theme. **397 checks
 across eight suites** pass in both Debug and Release.
 
 - `CMakeLists.txt` — Qt 6.4 (Core, Gui, Qml, Quick, OpenGL, ShaderTools),
@@ -111,9 +111,10 @@ capability but the Must-priority acceptance clauses earlier phases left Partial 
 the ones that needed instrumentation or fixtures that did not exist yet.
 F-001 (every format in SPEC.md, and a broken file stepped over), F-002 (next and
 previous, and the 100 ms transport bound), F-031 (60 fps at 4K, and caps whose
-decay is genuinely configurable) and F-004 (volume and balance persisting, which
-needed a harness that quits through `aboutToQuit`) have gone Complete this way.
-Three remain: F-020, F-032 and F-033 — see ROADMAP.md §Phase 7, which says what
+decay is genuinely configurable), F-004 (volume and balance persisting, which
+needed a harness that quits through `aboutToQuit`) and F-020 (the audible
+absence of a click, measured) have gone Complete this way.
+Two remain: F-032 and F-033 — see ROADMAP.md §Phase 7, which says what
 each is waiting on. All four Critical attack vectors now have detection. Packaging, `BENCHMARKS.md`, the AV detection gates and the `v1.0.0` tag come
 after them.
 
@@ -182,6 +183,15 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **Measure the fault, not the feature.** F-020's zipper-noise check took three
+  metrics. The largest step between adjacent samples found nothing even for an
+  unramped gain change, because `equalizer-nbands` moves biquad coefficients
+  rather than scaling the output and the filter state carries across. Removing
+  the best-fitting sinusoid and measuring the residual found a large one for the
+  *ramped* case too — because the fit assumes constant amplitude, and a gain
+  change is an amplitude change, so it was measuring the feature working. Only
+  high-frequency content distinguishes them, because that is what makes a click
+  audible in the first place. Each wrong metric produced a plausible number.
 - **A check that cannot fail is not a check, and both of the ways it fails to
   fail are easy to write.** AV-007's tool passes a backend only after
   establishing that the render thread and the GUI thread were actually distinct
