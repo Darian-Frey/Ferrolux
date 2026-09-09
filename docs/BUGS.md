@@ -304,8 +304,14 @@ And testing eleven marks per fragment across the whole sweep cost **2.5 ms of a
 and failing AV-002's 30% floor outright. `measure-frames.sh` caught it on the
 first run after the change. The band is a thin annulus, so computing it before
 the loop and skipping the loop where it is zero lets almost every fragment in
-the face leave without testing anything: the mode now runs at **8.961 ms and
-46.2% headroom**, better than the 9.897 ms it managed before any of this.
+the face leave without testing anything: the mode recovered.
+
+That recovery was recorded as 8.961 ms and 46.2%, and as *better* than the
+9.897 ms the mode managed before the marks existed. Three runs on 2026-09-09 put
+it at 9.84 – 10.27 ms and 38.4 – 41.0%: both of the earlier figures were single
+runs in different thermal states, so the comparison between them measured the
+machine rather than the change. The mode holds AV-002's floor comfortably either
+way, and BENCHMARKS.md carries the ranges.
 
 ### BUG-029 `verify-desktop.sh`'s session check races a track boundary and fails about half the time
 **Status:** fixed

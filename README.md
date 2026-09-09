@@ -185,6 +185,9 @@ Two of the six need real audio and are registered only when those paths are
 given — without them `ctest` runs four suites and reports a pass, which is not
 the same thing. `tools/make-test-fixtures.sh` generates the files.
 
+Every measured claim is collected in [BENCHMARKS.md](docs/BENCHMARKS.md), taken
+from one tree in one session so the numbers can be compared with each other.
+
 The two acceptance criteria the project exists for are measured rather than
 asserted, by tools rather than tests, because each needs a display and a GPU:
 

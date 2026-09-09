@@ -113,9 +113,16 @@ is 30%.
 Measured again 2026-09-08, after BUG-030 put eleven marks on the VU face. The
 first run of that change reported the VU at 12.454 ms and **25.3%** — a fail,
 because eleven marks were being tested for every fragment of the sweep rather
-than for the thin band they are drawn into. With the loop confined, every mode
-holds between **46.2% and 60.1%**, the VU at 8.961 ms: better than before the
-marks existed. The flame reads 8.190 ms, within variance of the Phase 4 figure, which
+than for the thin band they are drawn into. With the loop confined it recovered.
+
+**That day's figures were single runs and two of them were flattering.** The VU
+was recorded at 8.961 ms and 46.2%, and described as better than the 40.6% it
+managed before the marks existed — a comparison between two single runs in
+different thermal states rather than a measurement of the change. Three runs on
+2026-09-09 put it at **9.84 – 10.27 ms and 38.4 – 41.0%**, and the claim that
+the marks made it faster is withdrawn. Every mode still holds, between 38.4% and
+58.1% of the budget spare against a requirement of 30%. BENCHMARKS.md carries
+the current figures as ranges and is the authority for them. The flame reads 8.190 ms, within variance of the Phase 4 figure, which
 is what establishes that the Phase 4 run was measuring the right thing.
 
 **The detection found the defect it was written for.** On its first run that

@@ -22,6 +22,40 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
+### IMP-013 `measure-frames.sh` fails a run on one spike its own note says to disregard
+**Status:** suggested
+**Effort:** small
+**Found:** 2026-09-09, gathering BENCHMARKS.md
+**Related:** AV-002, F-031, F-032, F-033
+
+The offscreen pass marks a mode MISSED if any frame exceeds the budget. Its
+closing note says the opposite: *"A 'holds\*' there means the mean and the late
+count both pass but one frame ran over budget — this loop shares the GPU with the
+desktop, so a lone spike is not attributable to the shader."* The note is right
+and the rule does not follow it.
+
+Observed while taking the baseline: three sweeps of the same build, a minute
+apart. Two passed. The third failed on flame, one frame at 26.592 ms out of six
+hundred, against a mean of 9.271 ms and 44.4% headroom — comfortably inside
+AV-002's requirement on every figure except the one that decides the verdict.
+
+This is the same reasoning F-033 already had to work out for itself: a rate is
+not a cause, and on a machine sharing a GPU with a compositor the background
+drops one or two frames in twenty seconds regardless. `verify-mode-switch.sh`
+answers it by attributing drops to the event under test and reporting the run's
+total as a note; `measure-frames.sh` has no event to attribute to, so it would
+need a different rule — a small number of late frames tolerated, or a percentile
+rather than a maximum.
+
+**Trade-offs:** A tool that fails intermittently on correct code is a tool people
+stop running, which is what BUG-029 cost the desktop harness. Against that,
+loosening a pass rule is exactly how a real regression gets absorbed, and the
+maximum is the figure that would catch a shader with a pathological worst case —
+BUG-016's flame at 26.9 ms mean was found by this tool being strict. The
+replacement needs to keep that. Doing nothing is defensible: the run can simply
+be repeated, and a reader who knows to repeat it loses nothing. The cost is that
+nobody who has not read this entry knows to.
+
 ### IMP-012 The gapless handover costs milliseconds on a streaming thread, and nothing bounds it
 **Status:** suggested
 **Effort:** large

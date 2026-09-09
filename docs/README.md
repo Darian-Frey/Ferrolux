@@ -32,7 +32,7 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug and one suggested improvement. Thirty-two found, thirty
+> One open bug and two suggested improvements. Thirty-two found, thirty
 > fixed and one won't-fix upstream. BUG-027 remains at low severity, narrowed to
 > a next playlist entry whose type is recognised and whose contents will not
 > decode, which costs the track before it 1.46 s of its tail. Phase 6 is complete; Phase 7 is under way, and its first work is
@@ -108,6 +108,7 @@ ferrolux/
 | [DECISIONS.md](DECISIONS.md) | Design decisions with rationale and reversal conditions |
 | [SPEC.md](SPEC.md) | Equaliser constants, meter data contract, pipeline definition, file formats |
 | [ATTACK_VECTORS.md](ATTACK_VECTORS.md) | Failure modes and detection methods |
+| [BENCHMARKS.md](BENCHMARKS.md) | Every measured claim, from one tree in one session |
 | [BUGS.md](BUGS.md) | Realised defects |
 | [IMPROVEMENTS.md](IMPROVEMENTS.md) | Candidate refactors and code-quality work |
 | [BUILD.md](BUILD.md) | Toolchain, dependencies, build and test commands |

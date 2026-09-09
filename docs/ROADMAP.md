@@ -269,7 +269,7 @@ towards its left end as SPEC.md §Meters says it does and as a real one does.
 - [x] Licence settled and `LICENSE` committed (D-010) — GPL-3.0-or-later, decided 2026-09-02; held to the tree by `spec_test` from 2026-09-08
 - [x] All Must-priority features Complete or explicitly Withdrawn — the last, F-032, on 2026-09-08
 - [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
-- [ ] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement
+- [x] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement — written 2026-09-09 from one tree in one session, and it corrected two figures that had drifted
 - [ ] Packaging: Flatpak, and a `.deb` for Debian and Ubuntu derivatives
 - [ ] `CHANGELOG.md` release section, tagged `v1.0.0`, badged RS-1
 

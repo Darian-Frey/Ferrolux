@@ -194,7 +194,9 @@ The second criterion is met by construction rather than by care: both elements p
 - Holds 60 fps at 4K on the reference hardware in BUILD.md
 **Status:** Complete (Phase 7, 2026-09-07) — bars and the mirrored variant drawn per fragment from the meter texture, with antialiased edges resolved by smoothstep over one fragment rather than by a hard comparison, and peak-hold caps that go dark at rest. Bass spreads across many bands rather than collapsing; the four lowest of 24 are interpolated and SPEC.md §Meters records the consequence.
 
-Measured on BUILD.md's reference hardware (ThinkPad P15 Gen 2i, i7-11850H, NVIDIA T1200) at 3840×2160 by `tools/measure-frames.sh`, offscreen with a fence after each frame: **spectrum 6.721 ms mean, 59.7% headroom against the 16.67 ms budget; the mirrored variant 6.452 ms, 61.3%.** Zero late frames in both, and every other mode passes the same sweep.
+Measured on BUILD.md's reference hardware (ThinkPad P15 Gen 2i, i7-11850H, NVIDIA T1200) at 3840×2160 by `tools/measure-frames.sh`, offscreen with a fence after each frame. Over three runs on 2026-09-09: **spectrum 6.99 – 7.28 ms, 56.3 – 58.1% headroom against the 16.67 ms budget; the mirrored variant 7.36 – 7.56 ms, 54.6 – 55.8%.** Every other mode passes the same sweep. BENCHMARKS.md is the authority for these and carries the whole set.
+
+A single run on 2026-09-07 read 6.721 ms and 59.7%, and that is what this status said until the figures were gathered together. It was not wrong so much as too narrow: one run on a shared GPU measures the shader and whatever else wanted the GPU that second, which is why the numbers above are ranges.
 
 Those are the second set of figures. The first read 4.807 ms and 71.2%, and they were wrong — the benchmark was drawing the bars with undefined parameters, which is BUG-028. They are recorded here because a status that quotes a measurement should say which measurement, and because the flattering number is the one that would have been believed.
 

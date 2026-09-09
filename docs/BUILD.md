@@ -262,6 +262,11 @@ about the code. Both are AV detections and both are run by hand.
 ./tools/verify-mode-switch.sh    # F-033: switching drops no frame, interrupts no audio
 ```
 
+What all six of them last reported is in [BENCHMARKS.md](BENCHMARKS.md), with
+the frame figures as ranges over three runs rather than as single numbers — a
+single run on a shared GPU measures the shader and whatever else wanted the GPU
+that second.
+
 `verify-render-thread.sh` forces `QSG_RENDER_LOOP=threaded` and runs under both
 RHI backends, because the basic loop makes the render thread and the GUI thread
 the same thread and hides the failure completely. It fails a backend whose run

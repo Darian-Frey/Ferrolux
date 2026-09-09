@@ -873,6 +873,32 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   is a licensing defect that no build, test or review step would otherwise
   report, and this is a release gate. 413 checks.
 
+- `BENCHMARKS.md` exists, which is Phase 7's fourth deliverable. Every measured
+  claim the project makes, taken from one tree in one session on the reference
+  machine, on a live desktop rather than an idle one because nobody uses an idle
+  one.
+
+  **The frame figures are ranges.** The sweep was run three times a minute
+  apart: a single run on a shared GPU measures the shader and whatever else
+  wanted the GPU that second. Means are stable to about ±3%.
+
+  **Gathering them found two figures that had drifted, both flattering.** The VU
+  mode's headroom was recorded on 2026-09-08 as 46.2%, and described as better
+  than the 40.6% the mode managed before BUG-030 put marks on its face — a
+  comparison between two single runs in different thermal states rather than a
+  measurement of the change. Three runs put it at 38.4 – 41.0%, and the claim
+  that the marks made it faster is withdrawn. F-031's spectrum figures had the
+  same shape of error: 6.721 ms and 59.7% quoted from one run, against
+  6.99 – 7.28 ms and 56.3 – 58.1% measured. Neither changes a verdict; every
+  mode holds AV-002's 30% floor. Both are why the file quotes ranges, and both
+  entries have been corrected rather than left to be believed.
+
+  One of the three sweeps also failed, on a single flame frame at 26.592 ms out
+  of six hundred against a 44.4% headroom mean. `measure-frames.sh` marks that
+  MISSED while its own closing note says a lone spike is not attributable to the
+  shader. Logged as IMP-013 rather than adjusted, because a benchmarks file is
+  not where a tool's pass rule should quietly get loosened.
+
 ### Fixed
 - **BUG-032: the build and the binary reported different version numbers.**
   `CMakeLists.txt` declared `project(ferrolux VERSION 0.1.0)` while `main.cpp`
