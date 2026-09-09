@@ -119,7 +119,7 @@ needed a harness that quits through `aboutToQuit`) and F-020 (the audible
 absence of a click, measured) have gone Complete this way.
 **Every Must-priority feature is now Complete.** What is left of Phase 4's own
 acceptance is the reference-deck comparison — see ROADMAP.md §Phase 7, which says what
-each is waiting on. All four Critical attack vectors now have detection. Packaging and the `v1.0.0` tag come
+each is waiting on. All four Critical attack vectors now have detection. The Flatpak and the `v1.0.0` tag come
 after them.
 
 Phase 6, desktop integration, is **feature-complete as of 2026-09-07** and all
@@ -348,7 +348,7 @@ Registering them with CTest requires `-DFERROLUX_TEST_FLAC=` and
 `-DFERROLUX_TEST_MP3=` at configure time; without those two, `ctest` silently
 runs four suites instead of six, which is easy to read as a pass.
 
-Six measurements are tools rather than tests, because each needs something a
+Seven measurements are tools rather than tests, because each needs something a
 build machine may not have — a display, a window manager, a GPU, a session bus,
 an audio device — and a machine without it would report a failure that says
 nothing about the code:
@@ -360,6 +360,7 @@ nothing about the code:
 ./tools/stress-audio.sh          # AV-001 — the streaming thread under load
 ./tools/verify-render-thread.sh  # AV-007 — uploads, threaded, opengl and vulkan
 ./tools/verify-mode-switch.sh    # F-033 — a mode change costs no frame
+./tools/verify-package.sh        # the .deb plays from outside its build tree
 ```
 
 Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the

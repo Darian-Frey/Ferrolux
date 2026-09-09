@@ -382,3 +382,48 @@ install(FILES resources/ferrolux.desktop
 install(FILES resources/icons/ferrolux.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
+
+# ---- packaging --------------------------------------------------------------
+# A `.deb` for Debian and Ubuntu derivatives, which is Phase 7's fifth
+# deliverable and the thing standing between this project and somebody who has
+# not installed a compiler.
+#
+# The version comes from `project(... VERSION ...)` like everything else, which
+# is the point of BUG-032's fix: a package that said one number while the binary
+# inside it said another is precisely what that bug would have produced the first
+# time this file existed.
+set(CPACK_PACKAGE_NAME "ferrolux")
+set(CPACK_PACKAGE_VENDOR "Shane Hartley")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "Shane Hartley <shane.hartley06@googlemail.com>")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Darian-Frey/Ferrolux")
+set(CPACK_STRIP_FILES ON)
+
+set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+# `dpkg-shlibdeps` reads the binary and finds everything it links: Qt, GLib,
+# GStreamer core, TagLib. That is most of the dependency list and none of it has
+# to be maintained by hand.
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+
+# **What it cannot find is the part that matters most.** GStreamer plugins are
+# opened at run time by the registry, not linked, so nothing in the binary
+# mentions `flacparse` or `wavpackdec` and `shlibdeps` has no way to know they
+# are needed. A package built without these installs cleanly, launches, shows a
+# panel, and then plays nothing — the failure F-001 spent a phase on, delivered
+# by the packaging rather than by the code.
+#
+# The sets are named rather than the individual plugins because Debian ships
+# them that way. `-good` carries FLAC, Vorbis and WAV; `-bad` carries Musepack
+# and WavPack; `-ugly` carries MP3; `-base` carries the analysis elements the
+# meters are built on (`level`, `spectrum`) and `playbin3` itself.
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+    "gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, gstreamer1.0-pulseaudio | gstreamer1.0-alsa"
+)
+
+include(CPack)

@@ -899,6 +899,56 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
   shader. Logged as IMP-013 rather than adjusted, because a benchmarks file is
   not where a tool's pass rule should quietly get loosened.
 
+- A `.deb` exists, and half of Phase 7's packaging deliverable is met.
+
+  CPack builds it from the configured tree, taking the version from
+  `project(... VERSION ...)` — which is what BUG-032's fix was for: a package
+  saying one number while the binary inside it said another is exactly what that
+  bug would have produced the first time a package existed.
+
+  **The dependency list is half automatic and half hand-written, and the
+  hand-written half is the important one.** `dpkg-shlibdeps` reads the binary and
+  finds Qt, GLib, GStreamer core, TagLib and X11. It cannot find `flacparse` or
+  `wavpackdec`, because GStreamer opens plugins through its registry at run time
+  and nothing in the binary names them — so the four plugin sets are declared by
+  hand. A package without them installs cleanly, launches, draws a panel and
+  plays nothing, which is F-001's failure delivered by the packaging rather than
+  by the code.
+
+  `tools/verify-package.sh` checks it in seventeen checks: that the package
+  version is the project version, that it declares the plugin sets, that it
+  ships the binary, entry and icon, and that the extracted package **starts,
+  plays and quits from outside its build tree**. That last one is the check
+  BUG-023 did not have — the application ran perfectly from its build directory
+  and showed no window anywhere else, for five phases, because every test ran
+  the binary where it was built. Nothing is installed, so the tool can be run on
+  the development machine; the cost is that a missing plugin set would not be
+  caught here, only by a real install on a machine without it, and the tool says
+  so.
+
+- **The Flatpak is a manifest and has never been built.**
+  `packaging/org.ferrolux.Ferrolux.yml` is written from the project's known
+  requirements — the display, audio and DRI sockets, read-only music, both bus
+  names the application claims, and the settings-daemon name F-051 needs. But
+  `flatpak-builder` is not installed on this machine and neither is the Qt
+  runtime, so nothing in it has been compiled or run.
+
+  Two things in it are known to be unsettled and are marked in the file. The
+  TagLib checksum is a deliberate placeholder, left obviously wrong so a build
+  fails loudly rather than fetching an unverified tarball. And Flatpak requires
+  the desktop entry to be named for the app id while `setDesktopFileName` says
+  `ferrolux`, so the window may not find its own icon inside the sandbox; the
+  fix is probably to prefer `$FLATPAK_ID`, and it is not done because it cannot
+  be tested here and a change made blind to a working code path is worse than a
+  known gap.
+
+  It also targets `org.kde.Platform` 6.10, six minor versions ahead of the Qt
+  6.4.2 that BUILD.md pins and every figure in BENCHMARKS.md was taken on.
+  Several of this project's workarounds are specific to what 6.4 does — BUG-023's
+  import path most of all.
+
+  The packaging deliverable therefore stays open, and `v1.0.0` is not tagged.
+
 ### Fixed
 - **BUG-032: the build and the binary reported different version numbers.**
   `CMakeLists.txt` declared `project(ferrolux VERSION 0.1.0)` while `main.cpp`

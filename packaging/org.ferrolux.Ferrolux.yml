@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Shane Hartley
+#
+# Flatpak manifest for Ferrolux RS-1.
+#
+# **This has not been built.** `flatpak-builder` is not installed on the
+# development machine and neither is the Qt runtime it needs, so nothing here
+# has been compiled, run or verified — it is a manifest written from the
+# project's known requirements, not a package that is known to work. The `.deb`
+# beside it is built and checked by `tools/verify-package.sh`; this is not, and
+# ROADMAP.md Phase 7 records the packaging deliverable as half met for that
+# reason. To finish it:
+#
+#     sudo apt install flatpak-builder
+#     flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+#     flatpak-builder --user --install --force-clean build-flatpak \
+#         packaging/org.ferrolux.Ferrolux.yml
+#
+# **The runtime is not the Qt this project is tested against.** BUILD.md pins
+# Qt 6.4.2, because that is what Ubuntu 24.04 ships and what every measurement
+# in BENCHMARKS.md was taken on. The KDE runtime offers 6.10 and 6.11. Several
+# of this project's workarounds are specific to what 6.4 does — BUG-023's
+# `qrc:/qt/qml` import path most of all — and a newer Qt may not need them or
+# may behave differently. That is the first thing to check once this builds.
+app-id: org.ferrolux.Ferrolux
+runtime: org.kde.Platform
+runtime-version: '6.10'
+sdk: org.kde.Sdk
+command: ferrolux
+
+finish-args:
+  # Display. Wayland first, X11 as the fallback — `platform/X11MediaKeys` is
+  # compiled in but only used where there is no settings daemon (F-051).
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # The shaders are the product. Without this the meters fall back to software
+  # rendering, where AV-002's frame budget is not a question worth asking.
+  - --device=dri
+  - --socket=pulseaudio
+
+  # Music lives outside the sandbox. Read-only: the player reads files and
+  # writes only its own settings and session, which stay in the app's data
+  # directory.
+  - --filesystem=xdg-music:ro
+  - --filesystem=xdg-download:ro
+
+  # The two names the application claims for itself. Without the first there is
+  # no MPRIS at all (F-050); without the second every launch starts a new player
+  # instead of handing its arguments to the running one (F-052).
+  - --own-name=org.mpris.MediaPlayer2.ferrolux
+  - --own-name=org.ferrolux.Ferrolux
+
+  # Media keys, F-051. GNOME, Cinnamon and MATE hand the keys to whoever
+  # registered last through this service; none of them routes them over MPRIS.
+  - --talk-name=org.gnome.SettingsDaemon.MediaKeys
+
+modules:
+  - name: taglib
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://taglib.org/releases/taglib-1.13.1.tar.gz
+        sha256: c8da2b4f2589a56bb2eb5b1e4beeb886c78f7f1f2f4f1cc1e5e5e6b4b0e0f0a1
+        # NOTE: this checksum is a placeholder and must be replaced with the
+        # real one before the manifest is used. It is left obviously wrong
+        # rather than omitted so that a build fails loudly instead of pulling
+        # an unverified tarball.
+
+  - name: ferrolux
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: dir
+        path: ..
+    post-install:
+      # Flatpak requires the desktop entry and icon to be named for the app id,
+      # and this project names them `ferrolux` — see `setDesktopFileName` in
+      # `src/main.cpp` and the check in `tests/spec_test`. Renaming them here
+      # keeps the repository's naming intact.
+      #
+      # **This is the part most likely to be wrong.** `setDesktopFileName`
+      # still says `ferrolux` at run time, and on Wayland the compositor finds
+      # a window's icon through that name — so inside the sandbox it may look
+      # for `ferrolux.desktop` and find `org.ferrolux.Ferrolux.desktop`. The
+      # fix, if it is one, is for `main.cpp` to prefer `$FLATPAK_ID` when that
+      # is set. It is not done here because it cannot be tested here, and a
+      # change made blind to a working code path is worse than a known gap.
+      - install -Dm644 /app/share/applications/ferrolux.desktop
+          /app/share/applications/org.ferrolux.Ferrolux.desktop
+      - rm -f /app/share/applications/ferrolux.desktop
+      - install -Dm644 /app/share/icons/hicolor/scalable/apps/ferrolux.svg
+          /app/share/icons/hicolor/scalable/apps/org.ferrolux.Ferrolux.svg
+      - rm -f /app/share/icons/hicolor/scalable/apps/ferrolux.svg

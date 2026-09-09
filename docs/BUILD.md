@@ -260,6 +260,7 @@ about the code. Both are AV detections and both are run by hand.
 ./tools/stress-audio.sh          # AV-001: the streaming thread, under load
 ./tools/verify-render-thread.sh  # AV-007: texture uploads, threaded, both backends
 ./tools/verify-mode-switch.sh    # F-033: switching drops no frame, interrupts no audio
+./tools/verify-package.sh        # the .deb builds, declares, and plays outside its tree
 ```
 
 What all six of them last reported is in [BENCHMARKS.md](BENCHMARKS.md), with
@@ -384,3 +385,40 @@ decoder is present at all.
 **Crash only under the threaded render loop.** This is AV-007 and is a real
 defect, not an environment problem. Do not work around it by switching render
 loops.
+
+
+## Packaging
+
+A `.deb` is built by CPack from the configured tree:
+
+```bash
+cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+cd build-release && cpack -G DEB
+```
+
+`tools/verify-package.sh` does that and then checks the result: that the package
+version is the project version, that it declares the four GStreamer plugin sets,
+that it ships the binary, the desktop entry and the icon, and — the check that
+matters — that the extracted package **starts, plays and quits from outside its
+build tree**. It installs nothing, so it can be run on the development machine.
+
+**The plugin dependencies are written by hand and must stay that way.**
+`dpkg-shlibdeps` reads the binary and finds Qt, GLib, GStreamer core and TagLib,
+which is most of the list. It cannot find `flacparse` or `wavpackdec`, because
+GStreamer opens plugins through its registry at run time and nothing in the
+binary names them. A package built without `gstreamer1.0-plugins-good` and its
+siblings installs cleanly, launches, draws a panel and plays nothing.
+
+**The Flatpak is not done.** `packaging/org.ferrolux.Ferrolux.yml` exists and is
+written from the project's requirements, but `flatpak-builder` is not installed
+here and it has never been built. It also targets `org.kde.Platform` 6.10, which
+is six minor versions ahead of the Qt 6.4.2 every measurement in BENCHMARKS.md
+was taken on. Building it needs:
+
+```bash
+sudo apt install flatpak-builder
+flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
+flatpak-builder --user --install --force-clean build-flatpak \
+    packaging/org.ferrolux.Ferrolux.yml
+```

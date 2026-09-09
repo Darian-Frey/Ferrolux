@@ -270,7 +270,17 @@ towards its left end as SPEC.md §Meters says it does and as a real one does.
 - [x] All Must-priority features Complete or explicitly Withdrawn — the last, F-032, on 2026-09-08
 - [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
 - [x] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement — written 2026-09-09 from one tree in one session, and it corrected two figures that had drifted
-- [ ] Packaging: Flatpak, and a `.deb` for Debian and Ubuntu derivatives
+- [~] Packaging: **the `.deb` is done**, built by CPack from the same
+  `project(... VERSION ...)` the binary reports and checked by
+  `tools/verify-package.sh` — seventeen checks, including that the extracted
+  package plays music from outside its build tree, which is the check BUG-023
+  did not have. **The Flatpak is a manifest and nothing more**:
+  `packaging/org.ferrolux.Ferrolux.yml` is written from the project's known
+  requirements, and `flatpak-builder` is not installed on the development
+  machine, so it has never been built or run. Two things in it are known to be
+  unsettled — the TagLib checksum is a deliberate placeholder, and
+  `setDesktopFileName` says `ferrolux` where the sandbox will have
+  `org.ferrolux.Ferrolux.desktop`. This box stays open until it builds.
 - [ ] `CHANGELOG.md` release section, tagged `v1.0.0`, badged RS-1
 
 **Acceptance:** A clean install on a machine with no development toolchain plays music, and a second person can follow `BUILD.md` from a bare checkout to a running binary without asking a question.
