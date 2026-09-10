@@ -288,6 +288,20 @@ private:
     // BUG-027. Set when the source armed for a gapless handover failed, so the
     // current track was left to finish a stream that `playbin3` will never end.
     // `poll()` watches for it running out and ends it.
+    // BUG-027, the fix. The next source is rehearsed on a throwaway pipeline
+    // before it is armed: a second `playbin3` with fake sinks, brought to
+    // PAUSED asynchronously on the main thread. If it prerolls, the real
+    // handover will too and the URI is committed to `m_nextUri`; if it errors,
+    // nothing is armed and the stream ends normally with EOS. The race that
+    // cost the current track its tail cannot be lost, because it never starts.
+    GstElement *m_rehearsal = nullptr;
+    unsigned int m_rehearsalWatch = 0;
+    QByteArray m_rehearsing;
+    void rehearse(const QByteArray &uri);
+    void cancelRehearsal();
+    void handleRehearsalMessage(GstMessage *message);
+    friend int rehearsalDispatch(GstBus *, GstMessage *, void *);
+
     bool m_handoverFailed = false;
     qint64 m_lastPolledPosition = -1;
     int m_stalledPolls = 0;

@@ -626,26 +626,16 @@ void runCorruptNextEntry(const QString &good, bool recognisable)
         return engine.source() != started || playlist.currentRow() != 0;
     }, 15000);
 
-    if (!recognisable) {
-        // Refused before the handover was armed, so nothing ever went wrong
-        // inside the pipeline and the track is untouched.
-        check(duration > 0 && furthest >= duration - kSecond / 4,
-              "it plays to the end rather than being cut short by the broken entry",
-              QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
-    } else {
-        // The handover *was* armed, and `playbin3` shares one `uridecodebin3`
-        // between the current stream and the next — so tearing it down for the
-        // failed one takes the current stream's buffered tail with it. What is
-        // asserted here is what the fix actually delivers: the track is not
-        // ended at the moment of the error, it keeps playing into the last few
-        // seconds, and the playlist moves on by itself afterwards.
-        check(duration > 0 && furthest > duration - 3 * kSecond,
-              "it keeps playing past the failure rather than ending on it",
-              QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
-        std::printf("       [note] and still loses %s of the tail — BUG-027's"
-                    " remaining case, measured\n",
-                    qPrintable(ms(duration - furthest)));
-    }
+    // Both halves are refused before the handover is armed — the first by
+    // `identifiable()`, the second by the rehearsal — so nothing ever went wrong
+    // inside the pipeline and the track is untouched. The second used to assert
+    // only that playback survived, and print the tail it lost as a note: 1.45 s,
+    // deterministically, until the rehearsal existed.
+    check(duration > 0 && furthest >= duration - kSecond / 4,
+          recognisable
+              ? "it plays to the end, the rehearsal having refused the handover"
+              : "it plays to the end rather than being cut short by the broken entry",
+          QStringLiteral("%1 of %2").arg(ms(furthest), ms(duration)));
 
     // And the other half: with the handover refused there is no EOS from
     // `playbin3` at all, so a track that survived would simply sit there. The

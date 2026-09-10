@@ -22,6 +22,32 @@ See DECISIONS.md D-011 for why this catalogue lives in the repository.
 
 ## Suggested
 
+### IMP-014 `acceptance_transport`'s preroll timeout is too short for a heavily loaded machine
+**Status:** suggested
+**Effort:** trivial
+**Found:** 2026-09-10, running the harness under load to verify BUG-027's fix
+**Related:** F-001, F-002, AV-001, BUG-029
+
+Under one spinning thread per core, the harness's first section failed once in
+six runs: `prerolls to Paused` did not complete inside its 10 s spin, and the
+seven checks after it in that section failed as consequences — no state, no
+duration, no seek. The section opens the real audio device through PulseAudio,
+and under that load the open took longer than the wait.
+
+Not the product. The section never calls `setNextSource`, so the rehearsal
+added for BUG-027 is not involved, and `stress-audio.sh` — which is designed
+for load — passed in the same session with zero underruns. It is a harness
+written for a quiet machine being run on a busy one, and it is logged because a
+check that fails under load looks exactly like a regression to whoever runs it
+next while a build is going on in another window.
+
+**Trade-offs:** Raising the timeout to 30 s makes the failure rarer without
+changing what is checked; the cost is a slower failure when preroll genuinely
+breaks. Leaving it means anyone who sees this has to know it is load. Neither is
+a real problem and this is logged rather than fixed because BUG-029 was the same
+shape — a harness condition mistaken for a defect — and the entry is the cheaper
+half of a fix.
+
 ### IMP-013 `measure-frames.sh` fails a run on one spike its own note says to disregard
 **Status:** suggested
 **Effort:** small

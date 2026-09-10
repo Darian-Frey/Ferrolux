@@ -8,7 +8,30 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 
 ## [Unreleased]
 
-*Nothing yet.*
+### Fixed
+- **BUG-027 is closed.** The v1.0.0 changelog said the last of it — a next
+  entry whose type is recognised and whose contents will not decode costing
+  the track before it 1.45 s — could only be fixed by not using `playbin3`'s
+  handover. That was wrong.
+
+  The failure that truncates is a *preroll* failure: `playbin3` trying to
+  bring the next source to PAUSED after `about-to-finish` has armed it, and
+  taking the current stream's buffered tail down with the shared
+  `uridecodebin3` when it cannot. A preroll can be rehearsed. `Engine` now
+  gives a second `playbin3`, with fake sinks and no audio device, the same URI
+  and asks it for PAUSED — asynchronously, on the main thread, decoding the
+  first buffer and nothing more. ASYNC_DONE means the real handover will
+  preroll too, and only then is the URI armed. ERROR means it would not have,
+  nothing is armed, and the stream finishes normally onto EOS. A handover that
+  was never armed cannot truncate anything.
+
+  Measured in `acceptance_transport`, which now asserts full length for both
+  halves: **32.507 s of 32.507 s** for a `fLaC` header followed by rubbish,
+  against 31.043 s before, six runs including three in the full-suite order
+  that exposed an earlier flake and two under sixteen spinning threads. The
+  gapless join for good files still hands over, the rehearsal logging that it
+  armed it first each time. Nothing on the audio path changed; AV-001 is
+  untouched. **No open bugs.**
 
 ## [1.0.0] — 2026-09-10 — RS-1
 

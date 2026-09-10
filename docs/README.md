@@ -32,10 +32,12 @@
 > which asks whether a viewer reads the panel as photographed hardware, and is
 > a judgement for the author rather than a measurement.
 >
-> One open bug and two suggested improvements. Thirty-three found, thirty-one
-> fixed and one won't-fix upstream. BUG-027 remains at low severity, narrowed to
-> a next playlist entry whose type is recognised and whose contents will not
-> decode, which costs the track before it 1.45 s of its tail.
+> **No open bugs** and three suggested improvements. Thirty-three found,
+> thirty-two fixed and one won't-fix upstream — BUG-006, a GStreamer defect
+> D-006 commits the project to working around. BUG-027 closed after the
+> release: the next source is now rehearsed on a throwaway pipeline before the
+> handover is armed, so a file that will not decode can no longer cost the
+> track before it anything.
 >
 > **Every Phase 7 deliverable is met and v1.0.0 is tagged**: the licence, every
 > Must-priority feature, detection for all four Critical vectors, BENCHMARKS.md,

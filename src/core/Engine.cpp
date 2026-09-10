@@ -163,6 +163,12 @@ int busDispatch(GstBus *, GstMessage *message, void *data)
     return TRUE; // stay installed
 }
 
+int rehearsalDispatch(GstBus *, GstMessage *message, void *data)
+{
+    static_cast<Engine *>(data)->handleRehearsalMessage(message);
+    return TRUE;
+}
+
 // Gapless handover. THIS RUNS ON A STREAMING THREAD (AV-001), and is the only
 // code in Ferrolux that does. It is deliberately three operations: take a leaf
 // mutex, copy a pre-encoded URI, set one property. No allocation of application
@@ -384,6 +390,7 @@ GstElement *Engine::buildAudioFilter()
 
 void Engine::teardownPipeline()
 {
+    cancelRehearsal();
     if (!m_pipeline)
         return;
 
@@ -482,9 +489,130 @@ void Engine::setNextSource(const QUrl &url)
     const bool usable = !url.isEmpty()
         && (!url.isLocalFile() || (readable(url) && identifiable(url)));
 
-    const QByteArray encoded = usable ? url.toString().toUtf8() : QByteArray();
-    QMutexLocker locker(&m_nextMutex);
-    m_nextUri = encoded;
+    // Nothing is armed until the rehearsal says it can be. Whatever was armed
+    // for the previous next source is withdrawn now, because it is no longer
+    // the next source.
+    {
+        QMutexLocker locker(&m_nextMutex);
+        m_nextUri.clear();
+    }
+    cancelRehearsal();
+
+    if (!usable)
+        return;
+
+    const QByteArray encoded = url.toString().toUtf8();
+
+    // A remote source cannot be rehearsed cheaply — the rehearsal would be a
+    // second connection and a second download of its opening — and remote
+    // sources are outside RS-1's scope in any case. Armed as before.
+    if (!url.isLocalFile()) {
+        QMutexLocker locker(&m_nextMutex);
+        m_nextUri = encoded;
+        return;
+    }
+
+    rehearse(encoded);
+}
+
+// The third and last piece of BUG-027.
+//
+// `identifiable()` above catches a file nothing recognises. What it cannot
+// catch is a file whose *type* is recognised and whose contents will not decode
+// — a `fLaC` header followed by anything else — because that fails only when
+// something tries to decode it. In `playbin3`, that something is the preroll
+// of the next source after `about-to-finish` has armed it, and `playbin3`
+// shares one `uridecodebin3` between the current stream and the next: tearing
+// it down for the failed one takes the current stream's buffered tail with it.
+// Measured at 1.45 s, deterministically, and not something this project can
+// see or prevent once the handover is armed.
+//
+// So the preroll is rehearsed first. A second `playbin3` with fake sinks is
+// given the same URI and asked for PAUSED, which decodes the first buffer and
+// nothing more. It answers on its own bus, on the main loop: ASYNC_DONE means
+// the real handover will preroll too and the URI is armed; ERROR means it
+// would not have, and nothing is armed — the stream ends normally, posts EOS,
+// and the playlist advances onto the file in the ordinary way, where it fails
+// as the *current* source and is stepped over.
+//
+// It costs one short-lived pipeline per track change, on the main thread, with
+// no audio device involved. It is asynchronous: if it has not answered by the
+// time `about-to-finish` fires — which takes a track shorter than the rehearsal,
+// tens of milliseconds — there is simply no handover for that one transition,
+// and a gap of a frame is the price. That is the safe direction: a handover
+// that was never armed cannot truncate anything.
+void Engine::rehearse(const QByteArray &uri)
+{
+    m_rehearsal = gst_element_factory_make("playbin3", "ferrolux-rehearsal");
+    if (!m_rehearsal)
+        return;
+
+    // Audio only, and to nowhere. `flags` 2 is GST_PLAY_FLAG_AUDIO; the fake
+    // sinks mean the rehearsal never opens a device or contends with the sink
+    // that is actually playing.
+    GstElement *audio = gst_element_factory_make("fakesink", nullptr);
+    GstElement *video = gst_element_factory_make("fakesink", nullptr);
+    if (audio)
+        g_object_set(audio, "sync", FALSE, nullptr);
+    g_object_set(m_rehearsal,
+                 "uri", uri.constData(),
+                 "flags", 2,
+                 "audio-sink", audio,
+                 "video-sink", video,
+                 nullptr);
+
+    GstBus *bus = gst_element_get_bus(m_rehearsal);
+    m_rehearsalWatch = gst_bus_add_watch(bus, rehearsalDispatch, this);
+    gst_object_unref(bus);
+
+    m_rehearsing = uri;
+    gst_element_set_state(m_rehearsal, GST_STATE_PAUSED);
+}
+
+void Engine::cancelRehearsal()
+{
+    if (!m_rehearsal)
+        return;
+    if (m_rehearsalWatch) {
+        g_source_remove(m_rehearsalWatch);
+        m_rehearsalWatch = 0;
+    }
+    gst_element_set_state(m_rehearsal, GST_STATE_NULL);
+    gst_object_unref(m_rehearsal);
+    m_rehearsal = nullptr;
+    m_rehearsing.clear();
+}
+
+void Engine::handleRehearsalMessage(GstMessage *message)
+{
+    switch (GST_MESSAGE_TYPE(message)) {
+    case GST_MESSAGE_ASYNC_DONE:
+        // Only the pipeline's own; an element's ASYNC_DONE is not a preroll.
+        if (GST_MESSAGE_SRC(message) != GST_OBJECT(m_rehearsal))
+            return;
+        {
+            QMutexLocker locker(&m_nextMutex);
+            m_nextUri = m_rehearsing;
+        }
+        qCInfo(lcCore) << "rehearsed the next source; handover armed";
+        cancelRehearsal();
+        return;
+
+    case GST_MESSAGE_ERROR: {
+        GError *error = nullptr;
+        gst_message_parse_error(message, &error, nullptr);
+        qCWarning(lcCore) << "the next source would not preroll; no handover:"
+                          << (error ? error->message : "unknown");
+        g_clear_error(&error);
+        // `m_nextUri` is already empty. The stream ends on its own, posts EOS,
+        // and the playlist reaches this file as a current source.
+        cancelRehearsal();
+        return;
+    }
+
+    default:
+        return;
+    }
 }
 
 void Engine::play()

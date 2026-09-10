@@ -84,11 +84,9 @@ across eight suites** pass in both Debug and Release.
   `Qt6::DBus` is linked by the application target alone, and none of the six is
   covered by a test suite — IMP-010
 
-**One open bug and two suggested improvements.** Thirty-two bugs found so far,
-thirty fixed and one won't-fix upstream (BUG-006, a GStreamer defect D-006
-commits the project to working around). BUG-027 is narrowed to a next entry
-whose type is recognised and whose contents will not decode, costing the track
-before it 1.46 s of its tail. IMP-012 is the suggestion: the gapless
+**No open bugs and three suggested improvements.** Thirty-three bugs found so
+far, thirty-two fixed and one won't-fix upstream (BUG-006, a GStreamer defect
+D-006 commits the project to working around). IMP-012 is the suggestion: the gapless
 handover costs milliseconds on a streaming thread and nothing this project
 controls bounds it. Read BUGS.md before
 changing the equaliser, the meters or the palette — several entries record
@@ -114,9 +112,7 @@ deliverable met: the licence held to the tree, every Must-priority feature
 Complete, detection for all four Critical vectors, BENCHMARKS.md, a `.deb` and a
 Flatpak both verified to play from outside the build tree, and the tag.
 
-What would come next is not scheduled. The open items are BUG-027 (a
-recognised-but-undecodable next entry costs 1.45 s of tail; the only fix is
-not using `playbin3`'s handover), IMP-012 (the handover's cost is unbounded by
+What would come next is not scheduled. The open items are IMP-014 (the transport harness's preroll timeout under load), IMP-012 (the handover's cost is unbounded by
 anything here), IMP-013 (`measure-frames.sh` fails a run on a single spike its
 own note says to disregard), Musepack inside the Flatpak sandbox, and Phase 4's
 reference-deck judgement, which is the author's. ROADMAP.md §Deliberately
@@ -188,6 +184,13 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **"The only fix is X" is a claim to test, not a conclusion to record.**
+  BUG-027's entry said for two days that closing it meant abandoning
+  `playbin3`'s handover. The failure was a preroll failure, and a preroll can be
+  rehearsed on a throwaway pipeline before anything is armed — one short-lived
+  `playbin3` with fake sinks, asked for PAUSED. Sixty lines, nothing on the
+  audio path, and the last second and a half of every track before a broken one
+  comes back. The premise had been accepted because it was written down.
 - **Packaging finds what running from the build tree cannot.** BUG-023 was
   found by copying the binary somewhere else; BUG-033 — an icon no GTK launcher
   had ever been able to read — by Flatpak's export validating it with

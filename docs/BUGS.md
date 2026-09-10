@@ -19,11 +19,16 @@ are mirrored here with a link back to the issue.
 
 ## Open
 
-### BUG-027 A *next* entry that is recognised but will not decode truncates the track before it
-**Status:** open
+*None.*
+
+## Fixed
+
+### BUG-027 A corrupt *next* entry truncated the track that was playing
+**Status:** fixed
 **Severity:** low
 **Found:** 2026-09-07, fixing BUG-025
 **Narrowed:** 2026-09-08
+**Fixed:** 2026-09-10
 **Related:** F-005, F-001, BUG-025
 
 Playing a good file whose *next* playlist entry does not exist stops playback
@@ -144,32 +149,47 @@ is readable rubbish now plays **32.507 s of 32.507 s**, every run, against
 30.493 s through the same harness before these changes and the 5.035 s of
 6.966 s this entry first recorded.
 
-**What remains** is a next entry whose *type* is recognised and whose contents
+**What remained** was a next entry whose *type* is recognised and whose contents
 will not decode — a file beginning `fLaC` and continuing with anything else.
-Typefind accepts it, so it cannot be refused in advance; the handover is armed;
-and the teardown that follows costs the current track **1.464 s of its tail,
-deterministically**. The track no longer *stops* — it plays into its last
-second and a half, the playlist moves on by itself, the broken entry fails as
-the current source, and BUG-025's machinery steps over it onto the one after —
-but a second and a half is audible, and this entry stays open for it.
+Typefind accepts it, so `identifiable()` cannot refuse it; the handover was
+armed; and the teardown that followed cost the current track **1.464 s of its
+tail, deterministically**. This entry said on 2026-09-08 that closing it would
+mean not using `playbin3`'s handover at all.
 
-Both cases are in `acceptance_transport`, which asserts full length for the
-first and only what is true of the second, printing the measured shortfall as a
-note rather than a check.
+**That was wrong, and the fix is the third piece.** The failure that truncates
+is a *preroll* failure — `playbin3` trying to bring the next source to PAUSED
+after `about-to-finish` has armed it — and a preroll can be rehearsed. `Engine`
+now gives a second `playbin3`, with fake sinks and no audio device, the same
+URI and asks it for PAUSED, asynchronously on the main thread. That decodes the
+first buffer and nothing more. If it answers ASYNC_DONE the real handover will
+preroll too, and only then is `m_nextUri` written. If it answers ERROR, nothing
+is armed: the stream finishes normally, posts EOS, and the playlist reaches the
+file as a *current* source, where it fails and is stepped over. The race that
+cost the tail cannot be lost, because a handover that was never armed cannot
+truncate anything.
 
-Closing it would need the current stream's tail to survive a teardown this
-project does not perform and cannot see. That means either not using
-`playbin3`'s handover — reversing D-002's consequences for gapless — or
-buffering the current stream far enough ahead that the tail is already past the
-element being destroyed. Neither is proportionate to a second and a half on a
-file that is already broken, which is why the severity stays low.
+It costs one short-lived pipeline per track change, on the main thread, with
+nothing on the audio path — AV-001 is untouched. It is asynchronous, so a track
+shorter than the rehearsal (tens of milliseconds) gets no handover for that one
+transition and a gap of a frame instead; that is the safe direction. And it
+subsumes the `identifiable()` check rather than replacing it: typefind is still
+asked first, because refusing obvious rubbish without spinning up a pipeline is
+cheaper.
+
+**Measured in `acceptance_transport`**, which now asserts full length for both
+halves: a track whose next entry is `fLaC` followed by rubbish plays **32.507 s
+of 32.507 s** — the rehearsal logs *"would not preroll; no handover: No valid
+frames found before end of stream"* — against 31.043 s before this piece,
+30.493 s before the second, and the 5.035 s of 6.966 s this entry first
+recorded. Six runs, three in the full-suite order that exposed the earlier
+flake and two under sixteen spinning threads, all full length. The gapless join
+for good files still hands over — the rehearsal logs *"rehearsed the next
+source; handover armed"* before every one.
 
 The broken file is deliberately not announced when it fails as a *next* source.
 It is reported when the playlist reaches it and it fails as the current one,
 which is where a user can act on it.
 
-
-## Fixed
 
 ### BUG-033 The application icon was not recognised as an image by any GTK launcher
 **Status:** fixed
