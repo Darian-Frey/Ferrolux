@@ -8,7 +8,7 @@ Ferrolux RS-1 is a Winamp-scope audio player for Linux with a cassette futurism 
 
 ## Current state
 
-**Phases 1 to 6 built, Phase 7 open since 2026-09-07.** Phase 5 is feature-complete
+**All seven phases complete; v1.0.0 tagged 2026-09-10.** Phase 5 is feature-complete
 as of 2026-09-04 with one acceptance clause outstanding that only the author can
 settle. The application
 plays audio, manages a 20,000-entry playlist, equalises it, meters it, and draws
@@ -109,18 +109,19 @@ Four acceptance clauses across Phases 2 and 3 remain unverified, and they do
 
 ## Active task
 
-**Phase 7, the RS-1 release**, opened 2026-09-07. Its first work is not new
-capability but the Must-priority acceptance clauses earlier phases left Partial —
-the ones that needed instrumentation or fixtures that did not exist yet.
-F-001 (every format in SPEC.md, and a broken file stepped over), F-002 (next and
-previous, and the 100 ms transport bound), F-031 (60 fps at 4K, and caps whose
-decay is genuinely configurable), F-004 (volume and balance persisting, which
-needed a harness that quits through `aboutToQuit`) and F-020 (the audible
-absence of a click, measured) have gone Complete this way.
-**Every Must-priority feature is now Complete.** What is left of Phase 4's own
-acceptance is the reference-deck comparison — see ROADMAP.md §Phase 7, which says what
-each is waiting on. All four Critical attack vectors now have detection. The Flatpak and the `v1.0.0` tag come
-after them.
+**None — v1.0.0 is released.** Phase 7 closed on 2026-09-10 with every
+deliverable met: the licence held to the tree, every Must-priority feature
+Complete, detection for all four Critical vectors, BENCHMARKS.md, a `.deb` and a
+Flatpak both verified to play from outside the build tree, and the tag.
+
+What would come next is not scheduled. The open items are BUG-027 (a
+recognised-but-undecodable next entry costs 1.45 s of tail; the only fix is
+not using `playbin3`'s handover), IMP-012 (the handover's cost is unbounded by
+anything here), IMP-013 (`measure-frames.sh` fails a run on a single spike its
+own note says to disregard), Musepack inside the Flatpak sandbox, and Phase 4's
+reference-deck judgement, which is the author's. ROADMAP.md §Deliberately
+unscheduled has the rest. Any of them starts by reading BUGS.md and
+IMPROVEMENTS.md first, per Maintenance Rule 8.
 
 Phase 6, desktop integration, is **feature-complete as of 2026-09-07** and all
 of it is in: `platform/Settings`, `platform/MprisService` (F-050),
@@ -187,6 +188,12 @@ Things established the hard way, which will cost time if forgotten:
   and completely unplayable at the same time. WavPack was: `wavpackdec` handled
   every file and GStreamer's type finder recognised none of them. `core/TypeFinders`
   supplies ours. BUG-024.
+- **Packaging finds what running from the build tree cannot.** BUG-023 was
+  found by copying the binary somewhere else; BUG-033 — an icon no GTK launcher
+  had ever been able to read — by Flatpak's export validating it with
+  gdk-pixbuf. Five phases of tests ran the binary where it was built and the
+  icon where it was drawn, and neither could have noticed. The two packaging
+  tools are the only checks in the project that see the product from outside.
 - **A source that cannot be prepared does not report once.** BUG-027's fix
   classified the first error as the next source's and cleared its own flag, and
   typefind then posted a second — "Internal data stream error" from the same
@@ -348,7 +355,7 @@ Registering them with CTest requires `-DFERROLUX_TEST_FLAC=` and
 `-DFERROLUX_TEST_MP3=` at configure time; without those two, `ctest` silently
 runs four suites instead of six, which is easy to read as a pass.
 
-Seven measurements are tools rather than tests, because each needs something a
+Eight measurements are tools rather than tests, because each needs something a
 build machine may not have — a display, a window manager, a GPU, a session bus,
 an audio device — and a machine without it would report a failure that says
 nothing about the code:
@@ -361,6 +368,7 @@ nothing about the code:
 ./tools/verify-render-thread.sh  # AV-007 — uploads, threaded, opengl and vulkan
 ./tools/verify-mode-switch.sh    # F-033 — a mode change costs no frame
 ./tools/verify-package.sh        # the .deb plays from outside its build tree
+./tools/verify-flatpak.sh        # the Flatpak plays inside its sandbox
 ```
 
 Use `QSG_RENDER_LOOP=threaded` during development — the basic loop hides the

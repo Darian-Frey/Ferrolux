@@ -111,7 +111,16 @@ int main(int argc, char *argv[])
     // not enough there, because a Wayland window carries no icon of its own.
     // On X11 the equivalent is `StartupWMClass` in the entry, which matches the
     // `ferrolux` class Qt takes from the executable name.
-    QGuiApplication::setDesktopFileName(QStringLiteral("ferrolux"));
+    //
+    // Inside a Flatpak the entry is not called `ferrolux`: the sandbox requires
+    // it to be named for the app id, and the manifest renames it to
+    // `org.ferrolux.Ferrolux.desktop` on export. `FLATPAK_ID` is set to exactly
+    // that id inside every sandbox and to nothing outside one, so it is the
+    // right name whenever it exists and the default is unchanged everywhere
+    // else. Without this, a Wayland compositor inside the sandbox would look for
+    // `ferrolux.desktop`, find nothing, and draw the window without an icon.
+    QGuiApplication::setDesktopFileName(
+        qEnvironmentVariable("FLATPAK_ID", QStringLiteral("ferrolux")));
 
     // F-052. Parsed and handed over before a pipeline exists: a second launch
     // must reach the running player and exit without ever opening the audio

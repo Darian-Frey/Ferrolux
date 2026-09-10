@@ -206,6 +206,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 - Packaging conventions are satisfied.
 - The badge stays stable across patch releases, as a model code should.
 - Requires a stated rule for when the model code increments; that rule is "a redesign of the panel or a change in the interaction model", recorded here.
+- **Where the badge actually is, as of v1.0.0:** the window title, the desktop entry's name, the MPRIS identity and the command-line help all say `Ferrolux RS-1`. There is no About box and never was one planned — no feature entry proposes it — so this decision's mention of one describes a surface the project does not have. The panel itself carries no separate nameplate; the title is the badge, as `Main.qml` says in its own comment.
 - **The semantic version lives in exactly one place**, `project(... VERSION ...)` in `CMakeLists.txt`, and reaches the code as `FERROLUX_VERSION`. This decision settles which scheme to use and says nothing about where the number lives, and two copies of a number that must agree did not: the build said 0.1.0 and the binary said 0.2.0 for five phases — BUG-032. `tests/spec_test` holds the arrangement, because a second copy reintroduced later would be silent in exactly the same way.
 
 **Reversal conditions.** None expected.

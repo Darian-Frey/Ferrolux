@@ -261,11 +261,15 @@ int main(int argc, char *argv[])
     // The three places that name the desktop file must agree, or a shell finds
     // the icon through one of them and nothing through the others.
     const QString main = readAll(root + QStringLiteral("/src/main.cpp"));
-    check(main.contains(QStringLiteral("setDesktopFileName(QStringLiteral(\"ferrolux\"))")),
-          "main.cpp names the desktop file `ferrolux`");
+    // `ferrolux` by default, and the sandbox's app id inside a Flatpak — where
+    // the manifest renames the entry to `org.ferrolux.Ferrolux.desktop` and a
+    // Wayland compositor would otherwise find no icon for the window.
+    check(main.contains(QStringLiteral(
+              "setDesktopFileName(\n        qEnvironmentVariable(\"FLATPAK_ID\", QStringLiteral(\"ferrolux\")))")),
+          "main.cpp names the desktop file `ferrolux`, or the Flatpak app id inside a sandbox");
     check(mpris.contains(QStringLiteral("QString MprisRoot::desktopEntry"))
-              && mpris.contains(QStringLiteral("return QStringLiteral(\"ferrolux\")")),
-          "and MPRIS reports the same name");
+              && mpris.contains(QStringLiteral("return QGuiApplication::desktopFileName()")),
+          "and MPRIS reports whatever main.cpp decided, rather than a second copy of it");
 
     // ---- AV-001 ------------------------------------------------------------
     // ARCHITECTURE.md §Key invariants item 1: the streaming thread does no

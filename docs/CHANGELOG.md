@@ -8,6 +8,34 @@ Entries reference F-, D-, AV-, BUG- and IMP- IDs for traceability.
 
 ## [Unreleased]
 
+*Nothing yet.*
+
+## [1.0.0] — 2026-09-10 — RS-1
+
+The first release, and the first version number this project has published:
+everything below was `[Unreleased]` until today. RS-1 is the model code on the
+panel, not the version — see D-008 — and it stays RS-1 across patch releases
+the way a model code should.
+
+What ships is what Phase 7 required. Every Must-priority feature is Complete,
+with the last five closed in Phase 7 by measuring what earlier phases had
+asserted. All four Critical attack vectors have implemented detection, each of
+which was made to fail before it was trusted. Every measured claim is in
+BENCHMARKS.md, taken from one tree in one session, with the frame figures as
+ranges. The licence is GPL-3.0-or-later and `spec_test` holds every source file
+to it. And there are two packages — a `.deb` and a Flatpak — both verified to
+play music from somewhere other than the build tree, which is the phase's
+acceptance clause and the one check five phases of tests never had.
+
+One bug is open at low severity: a next playlist entry whose type is recognised
+but whose contents will not decode costs the track before it 1.45 s of its tail
+(BUG-027). Two improvements are suggested (IMP-012, IMP-013). Musepack, one of
+F-001's ten formats, does not play inside the Flatpak sandbox because the
+runtime does not carry its decoder.
+
+Thirty-three bugs found in six phases, thirty-one fixed, one won't-fix upstream.
+425 checks across eight suites, and eight measurement tools.
+
 ### Added
 - Initial documentation scaffold: README, FEATURES, ROADMAP, ARCHITECTURE,
   DECISIONS, SPEC, ATTACK_VECTORS, BUGS, IMPROVEMENTS, BUILD, CLAUDE.

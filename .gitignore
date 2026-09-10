@@ -1,26 +1,25 @@
-# Build trees
-build/
-build-*/
-cmake-build-*/
 
-# CMake and tooling artefacts
-CMakeCache.txt
-CMakeFiles/
-compile_commands.json
+*~
+build-*/
+build/
+build-flatpak/
+# Build trees
 .cache/
 .ccls-cache/
-
-# Qt
-*.qmlc
-*.jsc
-*.qmlproject.user
+# CMake and tooling artefacts
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
 CMakeLists.txt.user*
-
+compile_commands.json
 # Editors
-.vscode/
-.idea/
-*.swp
-*~
-
-# Generated test audio (tools/make-test-fixtures.sh)
 fixtures/
+.flatpak-builder/
+# Generated test audio (tools/make-test-fixtures.sh)
+.idea/
+*.jsc
+*.qmlc
+*.qmlproject.user
+# Qt
+*.swp
+.vscode/

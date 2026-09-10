@@ -171,6 +171,35 @@ which is where a user can act on it.
 
 ## Fixed
 
+### BUG-033 The application icon was not recognised as an image by any GTK launcher
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-09-10, when the Flatpak export refused it
+**Fixed:** 2026-09-10
+**Related:** F-041, D-003, the desktop entry
+
+`resources/icons/ferrolux.svg` opened with the XML declaration and then eleven
+hundred bytes of comment — the SPDX header and an explanation of why the icon
+is scalable — before the `<svg` element. gdk-pixbuf identifies an SVG by finding
+`<svg` near the start of the file, and did not. It reported *"Couldn't recognize
+the image file format"*, on the host as well as in the sandbox.
+
+That is the loader every GTK launcher uses, which means the icon had never
+loaded on this desktop. The window title, the desktop entry and the MPRIS
+identity all said Ferrolux; the launcher showed a placeholder. Nothing reported
+it, because a missing icon is not an error to anything — the desktop entry is
+valid, the file exists, and `file` says it is an SVG.
+
+Found by Flatpak's export step, which validates icons with gdk-pixbuf before
+accepting them and refused this one outright. That is the second thing
+packaging has caught that five phases of running the binary from its build tree
+did not — BUG-023 was the first.
+
+Fixed by moving the prose comment inside the `<svg>` element, leaving the two
+SPDX lines at the top where they are short enough not to matter. `<svg` is now
+at byte 127. `tools/verify-flatpak.sh` loads the exported icon through
+gdk-pixbuf so this cannot come back quietly.
+
 ### BUG-032 The build and the binary reported different version numbers
 **Status:** fixed
 **Severity:** low

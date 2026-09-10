@@ -261,6 +261,7 @@ about the code. Both are AV detections and both are run by hand.
 ./tools/verify-render-thread.sh  # AV-007: texture uploads, threaded, both backends
 ./tools/verify-mode-switch.sh    # F-033: switching drops no frame, interrupts no audio
 ./tools/verify-package.sh        # the .deb builds, declares, and plays outside its tree
+./tools/verify-flatpak.sh        # the Flatpak builds, exports, and plays in its sandbox
 ```
 
 What all six of them last reported is in [BENCHMARKS.md](BENCHMARKS.md), with
@@ -410,15 +411,22 @@ GStreamer opens plugins through its registry at run time and nothing in the
 binary names them. A package built without `gstreamer1.0-plugins-good` and its
 siblings installs cleanly, launches, draws a panel and plays nothing.
 
-**The Flatpak is not done.** `packaging/org.ferrolux.Ferrolux.yml` exists and is
-written from the project's requirements, but `flatpak-builder` is not installed
-here and it has never been built. It also targets `org.kde.Platform` 6.10, which
-is six minor versions ahead of the Qt 6.4.2 every measurement in BENCHMARKS.md
-was taken on. Building it needs:
+The Flatpak is `packaging/org.ferrolux.Ferrolux.yml`, built against
+`org.kde.Platform` 6.10 — six minor versions ahead of the Qt 6.4.2 every
+measurement in BENCHMARKS.md was taken on, which it survives with eight
+deprecation warnings and no errors. `tools/verify-flatpak.sh` builds it,
+installs it into the user repository, and checks the export and the sandbox:
+that the entry and icon are named for the app id, that gdk-pixbuf can read the
+icon (BUG-033), that the sandboxed player answers on the bus, plays from the
+music directory, reports the app id as its desktop entry, and reaches the
+settings daemon for its media keys rather than falling back to an X11 grab.
 
 ```bash
 sudo apt install flatpak-builder
 flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
-flatpak-builder --user --install --force-clean build-flatpak \
-    packaging/org.ferrolux.Ferrolux.yml
+./tools/verify-flatpak.sh
 ```
+
+The runtime carries every GStreamer plugin the pipeline uses except Musepack,
+so that one F-001 format does not play inside the sandbox until a
+`gst-plugins-bad` build with it enabled is added to the manifest.

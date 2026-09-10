@@ -14,7 +14,7 @@ cmake_minimum_required(VERSION 3.21)
 # from this tree would have carried a different number from the binary inside it.
 # See BUG-032. `FERROLUX_VERSION` below is how the code gets it.
 project(ferrolux
-    VERSION 0.2.0
+    VERSION 1.0.0
     DESCRIPTION "A cassette futurism audio player for Linux"
     LANGUAGES CXX
 )

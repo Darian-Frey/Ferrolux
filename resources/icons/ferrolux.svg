@@ -2,7 +2,9 @@
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later
   Copyright (C) 2026 Shane Hartley
-
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!--
   The application icon: the panel, at the size of a launcher.
 
   Scalable rather than a set of bitmaps, which is the project's founding
@@ -20,8 +22,13 @@
   ship — and renderers disagree about gradients in a way they do not disagree
   about a filled rectangle. At these sizes the bevel is a half-pixel of shading
   nobody sees, so it costs nothing to be certain instead.
+
+  Why this comment sits inside the element rather than above it: a launcher
+  identifies an SVG by finding "<svg" near the start of the file, and the
+  original layout put twelve hundred bytes of explanation before it. gdk-pixbuf
+  then reported "format not recognized", so the icon never loaded on any GTK
+  desktop and Flatpak refused to export it. Found by the Flatpak build; BUG-033.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <!-- The chassis, with the hairline edge the panel draws around every
        surface. Rounded to the same proportion as a panel section. -->
   <rect x="3" y="9" width="58" height="46" rx="6"

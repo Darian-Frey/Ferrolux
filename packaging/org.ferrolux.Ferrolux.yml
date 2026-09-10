@@ -3,30 +3,41 @@
 #
 # Flatpak manifest for Ferrolux RS-1.
 #
-# **This has not been built.** `flatpak-builder` is not installed on the
-# development machine and neither is the Qt runtime it needs, so nothing here
-# has been compiled, run or verified — it is a manifest written from the
-# project's known requirements, not a package that is known to work. The `.deb`
-# beside it is built and checked by `tools/verify-package.sh`; this is not, and
-# ROADMAP.md Phase 7 records the packaging deliverable as half met for that
-# reason. To finish it:
+# Built, installed and checked by `tools/verify-flatpak.sh`, which is the tool
+# to run after any change here. It builds against `org.kde.Platform` 6.10, six
+# minor versions ahead of the Qt 6.4.2 that BUILD.md pins and every figure in
+# BENCHMARKS.md was taken on; the first build produced eight deprecation
+# warnings and no errors, and the application ran. BUG-023's `qrc:/qt/qml`
+# import path is still needed there, or at least still harmless.
 #
 #     sudo apt install flatpak-builder
 #     flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
-#     flatpak-builder --user --install --force-clean build-flatpak \
-#         packaging/org.ferrolux.Ferrolux.yml
+#     tools/verify-flatpak.sh
 #
-# **The runtime is not the Qt this project is tested against.** BUILD.md pins
-# Qt 6.4.2, because that is what Ubuntu 24.04 ships and what every measurement
-# in BENCHMARKS.md was taken on. The KDE runtime offers 6.10 and 6.11. Several
-# of this project's workarounds are specific to what 6.4 does — BUG-023's
-# `qrc:/qt/qml` import path most of all — and a newer Qt may not need them or
-# may behave differently. That is the first thing to check once this builds.
+# The first draft of this file said it had never been built, and it had not.
+# The first build then found three defects, each caught by the export rather
+# than by anything of ours: an icon gdk-pixbuf could not recognise (BUG-033,
+# and it had never loaded on any GTK desktop either), a desktop entry whose
+# `Icon=` line pointed at a file the rename had removed, and a settings-daemon
+# bus name the sandbox was not allowed to talk to, so media keys silently fell
+# back to the X11 grab. Each is explained where it is fixed below.
 app-id: org.ferrolux.Ferrolux
 runtime: org.kde.Platform
 runtime-version: '6.10'
 sdk: org.kde.Sdk
 command: ferrolux
+
+# Flatpak requires the desktop entry and icon to be named for the app id, and
+# this project names them `ferrolux` — see `setDesktopFileName` in `src/main.cpp`
+# and the check in `tests/spec_test`. These two keys rename both and rewrite the
+# `Icon=` line inside the entry to match. They are manifest-level keys, not
+# module-level ones: the first draft put them under the module, where they were
+# silently ignored, and the export then refused a desktop file whose name was
+# not the app id. Before that, an earlier draft did the renames by hand with
+# `install` and `rm` and left `Icon=ferrolux` pointing at a file that no longer
+# existed — which the export also refused, correctly both times.
+rename-desktop-file: ferrolux.desktop
+rename-icon: ferrolux
 
 finish-args:
   # Display. Wayland first, X11 as the fallback — `platform/X11MediaKeys` is
@@ -52,25 +63,31 @@ finish-args:
   - --own-name=org.ferrolux.Ferrolux
 
   # Media keys, F-051. GNOME, Cinnamon and MATE hand the keys to whoever
-  # registered last through this service; none of them routes them over MPRIS.
+  # registered last through a settings daemon; none of them routes them over
+  # MPRIS. `platform/MediaKeys` tries three bus names in turn, and all three
+  # have to be allowed — the first build of this listed only the first, and
+  # inside the sandbox on Cinnamon (which answers on the second) the player
+  # found no daemon and fell back to grabbing the keys on the X root window.
+  # That works, but it is the wrong path for a desktop that has a daemon: a
+  # grab holds the keys for the whole run, where a registration hands them back
+  # to whichever player is active (IMP-009).
   - --talk-name=org.gnome.SettingsDaemon.MediaKeys
+  - --talk-name=org.gnome.SettingsDaemon
+  - --talk-name=org.mate.SettingsDaemon
 
 modules:
-  - name: taglib
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DCMAKE_BUILD_TYPE=Release
-      - -DBUILD_SHARED_LIBS=ON
-      - -DBUILD_TESTING=OFF
-    sources:
-      - type: archive
-        url: https://taglib.org/releases/taglib-1.13.1.tar.gz
-        sha256: c8da2b4f2589a56bb2eb5b1e4beeb886c78f7f1f2f4f1cc1e5e5e6b4b0e0f0a1
-        # NOTE: this checksum is a placeholder and must be replaced with the
-        # real one before the manifest is used. It is left obviously wrong
-        # rather than omitted so that a build fails loudly instead of pulling
-        # an unverified tarball.
-
+  # No TagLib module. The KDE runtime ships TagLib 2.1.1 already, against the
+  # 1.12 minimum `CMakeLists.txt` asks for — and building a second copy would be
+  # a second copy to keep in step. The first draft of this manifest carried one,
+  # with a checksum left deliberately wrong so the build would fail rather than
+  # fetch an unverified tarball; it was never needed.
+  #
+  # The runtime also carries every GStreamer plugin the pipeline uses — playback,
+  # typefind, the audio parsers, FLAC, Vorbis, WavPack, MP3, Opus, WAV, AIFF, the
+  # tag demuxers, `level`, `spectrum`, `equalizer`, `audiomixmatrix` and the
+  # PulseAudio and PipeWire sinks — with one exception: Musepack. That is one of
+  # F-001's ten formats, and inside the sandbox it will not play until a
+  # `gst-plugins-bad` build with `musepack` enabled is added here.
   - name: ferrolux
     buildsystem: cmake-ninja
     config-opts:
@@ -78,22 +95,13 @@ modules:
     sources:
       - type: dir
         path: ..
-    post-install:
-      # Flatpak requires the desktop entry and icon to be named for the app id,
-      # and this project names them `ferrolux` — see `setDesktopFileName` in
-      # `src/main.cpp` and the check in `tests/spec_test`. Renaming them here
-      # keeps the repository's naming intact.
-      #
-      # **This is the part most likely to be wrong.** `setDesktopFileName`
-      # still says `ferrolux` at run time, and on Wayland the compositor finds
-      # a window's icon through that name — so inside the sandbox it may look
-      # for `ferrolux.desktop` and find `org.ferrolux.Ferrolux.desktop`. The
-      # fix, if it is one, is for `main.cpp` to prefer `$FLATPAK_ID` when that
-      # is set. It is not done here because it cannot be tested here, and a
-      # change made blind to a working code path is worse than a known gap.
-      - install -Dm644 /app/share/applications/ferrolux.desktop
-          /app/share/applications/org.ferrolux.Ferrolux.desktop
-      - rm -f /app/share/applications/ferrolux.desktop
-      - install -Dm644 /app/share/icons/hicolor/scalable/apps/ferrolux.svg
-          /app/share/icons/hicolor/scalable/apps/org.ferrolux.Ferrolux.svg
-      - rm -f /app/share/icons/hicolor/scalable/apps/ferrolux.svg
+        # Everything a build does not need, and everything that is not source.
+        # The build trees alone are hundreds of megabytes, and the fixtures are
+        # audio that never belongs in a package.
+        skip:
+          - build-release
+          - build-debug
+          - build-flatpak
+          - .flatpak-builder
+          - fixtures
+          - .git

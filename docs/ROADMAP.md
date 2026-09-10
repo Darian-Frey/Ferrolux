@@ -250,7 +250,7 @@ has an unlit ghost and the title does not.
 
 ## Phase 7 — RS-1 release
 **Goal:** Something other people can install.
-**Status:** In progress (started 2026-09-07)
+**Status:** Complete (2026-09-07 to 2026-09-10)
 **Features delivered:** — (release engineering, no new capabilities). The phase
 does close out Must-priority acceptance clauses left Partial by earlier phases,
 which is the second deliverable below rather than new capability: F-001, F-002,
@@ -270,18 +270,16 @@ towards its left end as SPEC.md §Meters says it does and as a real one does.
 - [x] All Must-priority features Complete or explicitly Withdrawn — the last, F-032, on 2026-09-08
 - [x] Every `ATTACK_VECTORS.md` entry at Critical severity has implemented detection — AV-001, AV-003, AV-005 and AV-007, the last on 2026-09-08
 - [x] `BENCHMARKS.md` created with baseline numbers from Phase 4 and Phase 5 measurement — written 2026-09-09 from one tree in one session, and it corrected two figures that had drifted
-- [~] Packaging: **the `.deb` is done**, built by CPack from the same
-  `project(... VERSION ...)` the binary reports and checked by
-  `tools/verify-package.sh` — seventeen checks, including that the extracted
-  package plays music from outside its build tree, which is the check BUG-023
-  did not have. **The Flatpak is a manifest and nothing more**:
-  `packaging/org.ferrolux.Ferrolux.yml` is written from the project's known
-  requirements, and `flatpak-builder` is not installed on the development
-  machine, so it has never been built or run. Two things in it are known to be
-  unsettled — the TagLib checksum is a deliberate placeholder, and
-  `setDesktopFileName` says `ferrolux` where the sandbox will have
-  `org.ferrolux.Ferrolux.desktop`. This box stays open until it builds.
-- [ ] `CHANGELOG.md` release section, tagged `v1.0.0`, badged RS-1
+- [x] Packaging: Flatpak, and a `.deb` for Debian and Ubuntu derivatives —
+  both built and verified 2026-09-10. The `.deb` by `tools/verify-package.sh`
+  (seventeen checks, including that the extracted package plays from outside
+  its build tree — the check BUG-023 never had); the Flatpak by
+  `tools/verify-flatpak.sh` (twelve, including that gdk-pixbuf can read the
+  icon, which it could not — BUG-033 — and that media keys reach the settings
+  daemon through the sandbox). The Flatpak builds against Qt 6.10, six minor
+  versions ahead of the tested 6.4.2, and runs; Musepack is the one F-001
+  format the runtime does not decode.
+- [x] `CHANGELOG.md` release section, tagged `v1.0.0`, badged RS-1 — 2026-09-10. The badge is the window title, the desktop entry, the MPRIS identity and the CLI help; D-008's About box was never a feature and is recorded there as such.
 
 **Acceptance:** A clean install on a machine with no development toolchain plays music, and a second person can follow `BUILD.md` from a bare checkout to a running binary without asking a question.
 

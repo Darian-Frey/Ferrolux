@@ -5,6 +5,7 @@
 
 #include <QCoreApplication>
 #include <QDBusConnection>
+#include <QGuiApplication>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QMetaObject>
@@ -77,10 +78,12 @@ QStringList MprisRoot::supportedMimeTypes() const
 
 QString MprisRoot::desktopEntry() const
 {
-    // Matches `resources/ferrolux.desktop` and the name handed to
-    // `QGuiApplication::setDesktopFileName`. Three places say this, and the
-    // desktop believes whichever it reads first.
-    return QStringLiteral("ferrolux");
+    // Whatever `main()` told the application it is called, which is
+    // `ferrolux` everywhere except inside a Flatpak, where it is the app id the
+    // sandbox renamed the desktop entry to. Read from the application rather
+    // than repeated here, so that there is one place the name is decided and an
+    // MPRIS client looking the entry up finds the same file the compositor does.
+    return QGuiApplication::desktopFileName();
 }
 
 void MprisRoot::Raise()

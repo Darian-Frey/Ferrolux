@@ -6,15 +6,17 @@ Transport, playlist, a ten-band equaliser and switchable VU and spectrum
 displays — the scope Winamp had — rendered as resolution-independent vector
 chrome rather than bitmap skins, so the panel is correct at any display scale.
 
-> **Status: Phases 1 to 6 built. Phase 7, release engineering, is under way.**
+> **Status: v1.0.0, RS-1. All seven phases complete.**
 > Transport, a 20,000-entry playlist, shuffle, repeat, playlist file I/O,
 > gapless playback, a ten-band equaliser, five shader-rendered displays, the
 > cassette futurism panel itself, and desktop integration — MPRIS2, media keys,
 > a single instance with a command line, and the session restored as it was left
 > — all work. Nothing in the window is drawn from a desktop theme. Every display
-> holds 60 fps at 3840×2160 with at least 40% of the frame budget spare, and the
+> holds 60 fps at 3840×2160 with at least 38% of the frame budget spare, and the
 > panel is correct at 1×, 1.5×, 2× and 3× device pixel ratio — both measured
-> rather than asserted. See [Status](#status) below.
+> rather than asserted, in [BENCHMARKS.md](docs/BENCHMARKS.md). It ships as a
+> `.deb` and a Flatpak, both verified to play music from outside the build tree.
+> See [Status](#status) below.
 
 ---
 
